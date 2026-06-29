@@ -1,0 +1,27 @@
+{
+  "name": "fluidmusic",
+  "version": "0.1.0",
+  "description": "FluidMusic — 流体动态音乐播放器",
+  "main": "desktop/main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ npx electron-builder --mac dmg zip"
+  },
+  "build": {
+    "appId": "com.fluidmusic.desktop",
+    "productName": "FluidMusic",
+    "mac": {
+      "category": "public.app-category.music",
+      "target": ["dmg", "zip"],
+      "icon": "build/icon.icns"
+    }
+  },
+  "dependencies": {
+    "express": "^4.21.0",
+    "three": "^0.149.0"
+  },
+  "devDependencies": {
+    "electron": "^33.4.0",
+    "electron-builder": "^25.1.0"
+  }
+}

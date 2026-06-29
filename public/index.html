@@ -1,0 +1,1695 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' http://127.0.0.1:*; img-src 'self' data: http://127.0.0.1:* http: https:; media-src 'self' http://127.0.0.1:* http: https: blob:; connect-src 'self' http://127.0.0.1:* https:;">
+<title>FluidMusic</title>
+<style>
+/* ── Fluid Glow Pulse Animation ── */
+@keyframes glow-pulse {
+  0%, 100% {
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,0.04),
+      0 0 20px rgba(130,180,255,0.08),
+      0 8px 32px rgba(0,0,0,0.15);
+  }
+  50% {
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,0.06),
+      0 0 40px rgba(130,180,255,0.18),
+      0 8px 40px rgba(0,0,0,0.22);
+  }
+}
+
+@keyframes border-shimmer {
+  0%, 100% { border-color: rgba(130,180,255,0.06); }
+  50% { border-color: rgba(130,180,255,0.18); }
+}
+
+@keyframes float-subtle {
+  0%, 100% { transform: translate(-50%, -48%); }
+  50% { transform: translate(-50%, -53%); }
+}
+
+@keyframes chromatic-drift {
+  0%, 100% { filter: url(#glass-refract) hue-rotate(0deg); }
+  33% { filter: url(#glass-refract) hue-rotate(1deg); }
+  66% { filter: url(#glass-refract) hue-rotate(-0.5deg); }
+}
+
+/* ── CSS Reset & Variables ── */
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --bg-deep: #0d0d1a;
+  --glass-bg: rgba(10, 10, 20, 0.05);
+  --chamber-bg: rgba(10, 10, 20, 0.06);
+  --chamber-bg-deep: rgba(10, 10, 24, 0.18);
+  --glass-border: rgba(255, 255, 255, 0.06);
+  --glass-hover: rgba(255, 255, 255, 0.10);
+  --glass-active: rgba(130, 180, 255, 0.12);
+  --text-primary: rgba(255, 255, 255, 0.92);
+  --text-secondary: rgba(255, 255, 255, 0.55);
+  --text-dim: rgba(255, 255, 255, 0.30);
+  --text-dark: rgba(18, 18, 28, 0.92);
+  --text-dark-secondary: rgba(18, 18, 28, 0.60);
+  --accent: #6699ff;
+  --accent-warm: #ee6644;
+  --accent-glow: rgba(130, 180, 255, 0.08);
+  --platform-netease: #ec4141;
+  --platform-qq: #31c27c;
+  --font-main: 'Inter', 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-weight-body: 400;
+  --font-weight-heading: 700;
+  --letter-spacing-body: 0.02em;
+  --letter-spacing-heading: 0.04em;
+  --spring-expand: cubic-bezier(0.1, 1.1, 0.1, 1.1);
+  --spring-overshoot: cubic-bezier(0.1, 1.5, 0.2, 1.0);
+  --spring-collapse: cubic-bezier(0.3, -0.3, 0, 1);
+  --ease-fluid: cubic-bezier(0.1, 0.9, 0.2, 1.0);
+}
+
+html, body {
+  width: 100%; height: 100%;
+  overflow: visible;
+  background: transparent;
+  font-family: var(--font-main);
+  font-weight: var(--font-weight-body);
+  letter-spacing: var(--letter-spacing-body);
+  color: var(--text-primary);
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-app-region: no-drag;
+}
+
+body.no-transition *, body.no-transition *::before, body.no-transition *::after {
+  transition: none !important;
+}
+
+/* ── Adaptive text (controlled by JS) ── */
+.text-adapt-light { color: var(--text-primary) !important; }
+.text-adapt-dark { color: var(--text-dark) !important; }
+.text-adapt-light .text-secondary { color: var(--text-secondary) !important; }
+.text-adapt-dark .text-secondary { color: var(--text-dark-secondary) !important; }
+
+/* ── Layer structure ── */
+#layer-bg {
+  position: fixed; inset: 0; z-index: 0;
+  pointer-events: none;
+}
+#layer-bg canvas {
+  width: 100%; height: 100%;
+  opacity: 0.4;
+  will-change: opacity;
+}
+/* ── Wallpaper Layer ── */
+#wallpaper-layer {
+  --wp-opacity: 0.5;
+  --wp-ripple-speed: 1s;
+  position: fixed; inset: 0; z-index: -1;
+  pointer-events: none;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  opacity: 0;
+  
+  transition: opacity 0.8s var(--ease-fluid);
+}
+#wallpaper-layer.loaded { opacity: var(--wp-opacity, 0.5); }
+
+
+#layer-passthrough {
+  position: fixed; inset: 0; z-index: 1;
+  pointer-events: none;
+}
+
+/* ── Center Core Layout ── */
+#center-core {
+  position: fixed;
+  width: 420px; height: 540px;
+  left: 50%; top: 50%;
+  transform: translate(-50%, -48%);
+  z-index: 5;
+  pointer-events: auto;
+  -webkit-app-region: no-drag;
+  animation: float-subtle 8s var(--ease-fluid) infinite;
+}
+
+#center-core-inner {
+  position: relative;
+  width: 100%; height: 100%;
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 20px;
+  background: rgba(10,10,20,0.05);
+  backdrop-filter: blur(20px) saturate(1.5) brightness(1.1);
+  -webkit-backdrop-filter: blur(20px) saturate(1.5) brightness(1.1);
+  filter: url(#glass-refract);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.04),
+    0 0 30px rgba(130,180,255,0.08),
+    0 8px 32px rgba(0,0,0,0.15);
+  animation:
+    glow-pulse 4s var(--ease-fluid) infinite,
+    chromatic-drift 12s var(--ease-fluid) infinite;
+  transition:
+    border-color 0.6s var(--ease-fluid),
+    box-shadow 0.6s var(--ease-fluid),
+    transform 0.4s var(--ease-fluid);
+}
+#center-core-inner:hover {
+  border-color: rgba(130,180,255,0.18);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.06),
+    0 0 50px rgba(130,180,255,0.15),
+    0 8px 40px rgba(0,0,0,0.2);
+}
+
+/* ── Particle Cover Container ── */
+#particle-cover-container {
+  width: 280px; height: 280px;
+  flex-shrink: 0;
+  border-radius: 14px;
+  overflow: visible;
+  cursor: grab;
+  position: relative;
+  border: 1px solid rgba(255,255,255,0.08);
+  box-shadow:
+    0 0 20px rgba(130,180,255,0.08),
+    inset 0 0 0 1px rgba(255,255,255,0.03);
+  transition: box-shadow 0.5s var(--ease-fluid), border-color 0.5s var(--ease-fluid);
+}
+#particle-cover-container:hover {
+  border-color: rgba(255,255,255,0.16);
+  box-shadow:
+    0 0 32px rgba(130,180,255,0.16),
+    inset 0 0 0 1px rgba(255,255,255,0.06);
+}
+#particle-cover-container:active { cursor: grabbing; }
+#particle-cover-container canvas {
+  width: 100%; height: 100%;
+}
+
+/* ── Song Info ── */
+#song-info {
+  text-align: center;
+  width: 100%;
+}
+#song-title {
+  font-size: 22px; font-weight: var(--font-weight-heading); letter-spacing: var(--letter-spacing-heading);
+  color: var(--text-primary);
+  text-shadow:
+    0 1px 2px rgba(0,0,0,0.5),
+    0 0 20px rgba(102,153,255,0.35),
+    0 0 40px rgba(102,153,255,0.18),
+    0 0 60px rgba(102,153,255,0.08);
+  line-height: 1.2;
+  margin-bottom: 4px;
+  transition: text-shadow 0.8s var(--ease-fluid);
+}
+#song-artist {
+  font-size: 14px; font-weight: 400;
+  color: var(--text-secondary);
+  text-shadow: 0 1px 1px rgba(0,0,0,0.4);
+}
+
+/* ── Foam Visualizer Layer ── */
+#foam-visualizer-layer {
+  position: fixed; inset: 0; z-index: 2;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.6s var(--ease-fluid);
+}
+#foam-visualizer-layer.active {
+  opacity: 0.7;
+}
+#foam-visualizer-layer canvas { width: 100%; height: 100%; }
+
+/* ── 3D Spectrum ── */
+#spectrum-container {
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.04);
+  background: rgba(10,10,20,0.02);
+}
+
+/* ── Settings button ── */
+/* btn-settings/btn-user moved to top chamber header */
+
+/* ── Inline SVG icon base ── */
+.controller-btn svg, #btn-settings svg {
+  display: block;
+  pointer-events: none;
+}
+.controller-btn svg { width: 18px; height: 18px; }
+.controller-btn.primary svg { width: 22px; height: 22px; }
+
+/* ── Edge Trigger Zones (inside #center-core, absolute-positioned) ── */
+.edge-trigger {
+  position: absolute; z-index: 3;
+  pointer-events: auto;
+  cursor: pointer;
+  background: transparent;
+}
+#edge-left {
+  left: -120px; top: 0; width: 120px; height: 100%;
+}
+#edge-right {
+  right: -120px; top: 0; width: 120px; height: 100%;
+}
+#edge-top {
+  top: -140px; left: 0; width: 100%; height: 140px;
+}
+#edge-bottom {
+  bottom: -100px; left: 0; width: 100%; height: 100px;
+}
+
+/* ── Bubble Chambers ── */
+.bubble-chamber {
+  position: fixed;
+  z-index: 4;
+  pointer-events: auto;
+  border: 1px solid rgba(255,255,255,0.05);
+  border-radius: 18px;
+  background: rgba(10,10,24,0.12);
+  backdrop-filter: blur(24px) saturate(1.4);
+  -webkit-backdrop-filter: blur(24px) saturate(1.4);
+  filter: url(#water-ripple);
+  box-shadow:
+    0 4px 24px rgba(0,0,0,0.12),
+    inset 0 1px 0 rgba(255,255,255,0.03);
+  opacity: 0;
+  
+  transform: scale(0.88);
+  transition: opacity 0.5s var(--spring-overshoot), transform 0.5s var(--spring-overshoot);
+}
+.bubble-chamber.visible {
+  opacity: 1;
+  transform: scale(1);
+}
+.bubble-chamber.pinned {
+  border-color: rgba(255,255,255,0.18);
+  box-shadow:
+    0 4px 28px rgba(0,0,0,0.16),
+    inset 0 1px 0 rgba(255,255,255,0.05),
+    0 0 20px rgba(130,180,255,0.08);
+  animation: border-shimmer 6s var(--ease-fluid) infinite;
+}
+.bubble-chamber.hiding {
+  opacity: 0;
+  
+  transform: scale(0.9);
+  transition: opacity 0.3s var(--spring-collapse), transform 0.3s var(--spring-collapse);
+}
+
+/* ── Chamber micro-interaction: chromatic aberration on hover ── */
+.bubble-chamber:hover {
+  border-color: rgba(255,255,255,0.10);
+}
+
+/* ── Left Chamber: Playlist ── */
+#chamber-left {
+  left: 12px; top: 60%;
+  transform: translate(-30px, -50%) scale(0.88);
+  width: 440px; max-height: 560px;
+  padding: 16px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+#chamber-left.visible {
+  transform: translate(0, -50%) scale(1);
+}
+.chamber-title {
+  font-size: 12px; font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 10px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  display: flex; align-items: center; gap: 6px;
+}
+.chamber-refresh-btn {
+  margin-left: auto;
+  background: none; border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: all 0.2s var(--ease-fluid);
+}
+.chamber-refresh-btn:hover { color: var(--accent); background: var(--glass-hover); }
+.chamber-back-btn {
+  position: sticky; top: 0; float: right; z-index: 7; margin-bottom: -30px;
+  background: rgba(10,10,24,0.35); border: 1px solid var(--glass-border);
+  color: var(--text-secondary);
+  width: 30px; height: 30px; border-radius: 8px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  transition: all 0.2s var(--spring-expand);
+  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+}
+.chamber-back-btn:hover {
+  color: var(--text-primary); background: var(--glass-hover);
+  border-color: rgba(255,255,255,0.2); transform: scale(1.1);
+}
+
+#playlist-items {
+  display: flex; flex-direction: column; gap: 4px;
+}
+.playlist-item {
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s var(--ease-fluid);
+  white-space: nowrap; overflow: visible; text-overflow: ellipsis;
+}
+.playlist-item:hover { background: var(--glass-hover); color: var(--text-primary); }
+.playlist-item.active { color: var(--accent); font-weight: 600; }
+.playlist-item-row {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 8px; padding: 8px 10px;
+}
+.pli-name {
+  flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: 12px; max-width: 260px;
+}
+.pli-actions {
+  display: flex; gap: 4px; flex-shrink: 0;
+}
+.pli-btn {
+  width: 24px; height: 24px;
+  border-radius: 50%;
+  border: 1px solid var(--glass-border);
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 10px;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.2s var(--ease-fluid);
+  padding: 0;
+}
+.pli-btn:hover {
+  color: var(--text-primary);
+  background: var(--glass-hover);
+  border-color: rgba(255,255,255,0.16);
+}
+.pli-fav.active { color: var(--accent-warm); border-color: rgba(238,102,68,0.3); }
+.pli-play:hover { color: var(--accent); }
+.pli-add:hover { color: var(--platform-qq); }
+.pli-remove:hover { color: var(--accent-warm); border-color: rgba(238,102,68,0.3); }
+.playlist-playall {
+  text-align: center; font-weight: 600; color: var(--accent);
+  padding: 10px; border-bottom: 1px solid var(--glass-border);
+  cursor: pointer; transition: all 0.2s;
+}
+.playlist-playall:hover { color: var(--text-primary); background: var(--glass-hover); }
+.playlist-item-rich {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 10px;
+}
+.playlist-item-cover {
+  width: 48px; height: 48px;
+  border-radius: 8px;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: var(--glass-border);
+}
+.playlist-item-info {
+  display: flex; flex-direction: column;
+  gap: 3px; overflow: visible; flex: 1;
+}
+.playlist-item-name {
+  font-size: 13px; color: var(--text-primary);
+  white-space: nowrap; overflow: visible; text-overflow: ellipsis;
+  font-weight: 500;
+}
+.playlist-item-count {
+  font-size: 11px; color: var(--text-dim);
+  display: flex; align-items: center; gap: 4px;
+}
+.platform-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+.platform-dot.net { background: var(--platform-netease); }
+.platform-dot.qq { background: var(--platform-qq); }
+.playlist-back {
+  color: var(--text-dim); font-size: 12px;
+  text-align: center; padding: 10px 0;
+  margin-bottom: 6px;
+  border-bottom: 1px solid var(--glass-border);
+}
+.playlist-back:hover { color: var(--accent); }
+
+.playlist-loading {
+  display: flex; align-items: center; justify-content: center;
+  gap: 8px; padding: 16px; color: var(--text-dim);
+}
+.playlist-loading-spinner {
+  width: 14px; height: 14px;
+  border: 2px solid var(--glass-border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Right Chamber: Lyrics ── */
+#chamber-right {
+  right: 12px; top: 60%;
+  transform: translate(30px, -50%) scale(0.88);
+  width: 440px; max-height: 560px;
+  padding: 16px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+#chamber-right.visible {
+  transform: translate(0, -50%) scale(1);
+}
+#lyrics-container {
+  position: relative;
+  max-height: 368px;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    black 15%,
+    black 85%,
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    black 15%,
+    black 85%,
+    transparent 100%
+  );
+}
+.lyric-line {
+  padding: 4px 8px;
+  font-size: 13px;
+  color: var(--text-dim);
+  transition: all 0.3s var(--ease-fluid);
+  text-align: center;
+}
+.lyric-line.active {
+  color: var(--text-primary);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+/* ── Top Chamber: Account + 3D Queue ── */
+#chamber-top {
+  top: 48px; left: 50%; z-index: 6;
+  transform: translate(-50%, -14px) scale(0.88);
+  width: 550px; min-height: 42px;
+  padding: 5px 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+.chamber-top-btn {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  border: 1px solid var(--glass-border);
+  background: var(--glass-bg);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.25s var(--spring-expand);
+  padding: 0; flex-shrink: 0;
+}
+.chamber-top-btn:hover {
+  background: var(--glass-hover);
+  color: var(--text-primary);
+  transform: scale(1.15);
+  border-color: rgba(255,255,255,0.16);
+}
+#chamber-top .chamber-title {
+  font-size: 11px; font-weight: 600;
+  color: var(--text-dim);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  margin-bottom: 0;
+}
+#queue-label.queue-title {
+  font-size: 12px; font-weight: 600;
+  color: var(--text-dim);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  text-align: center; width: 100%;
+  margin-bottom: 6px;
+}
+.queue-action-btn {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  border: 1px solid var(--glass-border);
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.3s var(--spring-expand);
+  padding: 0; flex-shrink: 0;
+}
+.queue-action-btn:hover {
+  color: var(--text-primary);
+  background: var(--glass-hover);
+  border-color: rgba(255,255,255,0.16);
+  transform: scale(1.1);
+}
+.queue-action-danger:hover {
+  color: var(--accent-warm);
+  border-color: rgba(238,102,68,0.3);
+}
+#queue-area {
+  overflow: visible;
+  flex: 1; display: flex; align-items: center; justify-content: center; gap: 4px;
+  perspective: 600px;
+  transform-style: preserve-3d;
+}
+.queue-item {
+  transition: transform 0.3s var(--spring-expand), filter 0.3s var(--spring-expand), opacity 0.3s var(--spring-expand), box-shadow 0.3s var(--spring-expand);
+  cursor: pointer;
+}
+.queue-item:hover {
+  transform: scale(1.45) translateY(-6px);
+  filter: brightness(1.8) saturate(1.5);
+  box-shadow: 0 0 30px rgba(255,255,255,0.25), 0 10px 24px rgba(0,0,0,0.4);
+  z-index: 2;
+  border: 1px solid rgba(255,255,255,0.25);
+}
+.queue-item.center:hover {
+  transform: scale(1.55) translateY(-7px);
+}
+#chamber-top {
+  flex-direction: column; align-items: center; gap: 4px;
+}
+#chamber-top.visible {
+  transform: translate(-50%, 0) scale(1);
+}
+/* unused */ #account-area {
+  display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+}
+/* unused */ .account-card {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 12px;
+  border-radius: 14px;
+  border: 1px solid var(--glass-border);
+  background: var(--chamber-bg-deep);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.25s var(--spring-expand);
+  position: relative;
+}
+/* unused */ .account-card:hover {
+  background: var(--chamber-bg-deep);
+  border-color: rgba(255,255,255,0.18);
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+}
+/* unused */ .account-card.logged-in { border-color: var(--accent); }
+/* unused */ .account-card.netease.logged-in { border-color: var(--platform-netease); }
+/* unused */ .account-card.qq.logged-in { border-color: var(--platform-qq); }
+#btn-user-management {
+  background: rgba(255,255,255,0.04);
+  border: 1px dashed rgba(255,255,255,0.15);
+  padding: 6px 10px;
+  transition: all 0.25s var(--spring-expand);
+}
+#btn-user-management:hover {
+  background: rgba(255,255,255,0.1);
+  border-color: rgba(255,255,255,0.25);
+  transform: scale(1.05);
+}
+
+/* unused */ .account-avatar-lg {
+  width: 40px; height: 40px; border-radius: 50%;
+  background: var(--glass-border);
+  object-fit: cover;
+  flex-shrink: 0;
+  border: 2px solid rgba(255,255,255,0.1);
+}
+/* unused */ .account-card.netease.logged-in /* unused */ .account-avatar-lg { border-color: var(--platform-netease); }
+/* unused */ .account-card.qq.logged-in /* unused */ .account-avatar-lg { border-color: var(--platform-qq); }
+
+/* unused */ .account-details {
+  display: flex; flex-direction: column; gap: 2px;
+  min-width: 0;
+}
+/* unused */ .account-nickname {
+  font-size: 13px; font-weight: 600;
+  color: var(--text-primary);
+  max-width: 100px;
+  overflow: visible; text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.3;
+}
+/* unused */ .account-vip-badge {
+  font-size: 9px; font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #d4a84b, #f0c060);
+  color: #3a2000;
+  flex-shrink: 0;
+  line-height: 1.5;
+  display: inline-block;
+}
+/* unused */ .account-vip-badge.kg {
+  background: linear-gradient(135deg, #ff6b2b, #ff8c55);
+  color: #fff;
+}
+/* unused */ .account-stats {
+  font-size: 10px; color: var(--text-dim);
+  display: flex; gap: 8px;
+  margin-top: 1px;
+}
+/* unused */ .account-stats span { white-space: nowrap; }
+
+/* unused */ .account-platform-indicator {
+  position: absolute; top: -3px; right: -3px;
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  border: 2px solid rgba(0,0,0,0.4);
+  flex-shrink: 0;
+}
+/* unused */ .account-platform-indicator.net { background: var(--platform-netease); }
+/* unused */ .account-platform-indicator.qq { background: var(--platform-qq); }
+
+/* Login button (not logged in) */
+/* unused */ .account-btn {
+  padding: 6px 16px;
+  border-radius: 14px;
+  border: 1px solid var(--glass-border);
+  background: var(--chamber-bg-deep);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.25s var(--spring-expand);
+  display: flex; align-items: center; gap: 6px;
+  font-family: var(--font-main);
+}
+/* unused */ .account-btn:hover {
+  background: var(--glass-hover);
+  color: var(--text-primary);
+  border-color: rgba(255,255,255,0.14);
+  filter: brightness(1.15);
+  transform: translateY(-1px);
+}
+
+/* queue-area now in chamber-top block above */
+.queue-item {
+  transition: transform 0.3s var(--spring-expand), filter 0.3s var(--spring-expand), opacity 0.3s var(--spring-expand), box-shadow 0.3s var(--spring-expand);
+  width: 54px; height: 54px;
+  border-radius: 7px;
+  background: rgba(255,255,255,0.06);
+  flex-shrink: 0;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+.queue-item.center {
+  width: 62px; height: 62px;
+  border: 1px solid var(--accent);
+  box-shadow: 0 0 16px rgba(130,180,255,0.15);
+}
+.queue-item.far { opacity: 0.3; transform: scale(0.7); }
+
+/* ── Bottom Controller (deepened) ── */
+#chamber-bottom {
+  bottom: 12px; left: 50%;
+  transform: translate(-50%, 20px) scale(0.88);
+  width: 960px; height: 64px;
+  padding: 8px 14px;
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  z-index: 6;
+  backdrop-filter: blur(18px) saturate(1.3);
+  -webkit-backdrop-filter: blur(18px) saturate(1.3);
+  background: var(--chamber-bg-deep);
+  border: 1px solid rgba(255,255,255,0.06);
+  box-shadow:
+    0 4px 20px rgba(0,0,0,0.15),
+    inset 0 1px 0 rgba(255,255,255,0.04);
+  overflow: visible;
+}
+#chamber-bottom.visible {
+  transform: translate(-50%, 0) scale(1);
+}
+
+/* ── Water Droplet Controller Buttons (deepened) ── */
+.controller-btn {
+  width: 40px; height: 40px;
+  border-radius: 50%;
+  border: 1px solid rgba(255,255,255,0.14);
+  background: radial-gradient(circle at 50% 35%, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0.05) 50%, rgba(10,10,24,0.06) 100%);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px;
+  transition: all 0.25s var(--spring-expand);
+  flex-shrink: 0;
+  position: relative;
+  overflow: visible;
+  padding: 0;
+  box-shadow:
+    0 4px 12px rgba(0,0,0,0.35),
+    0 1px 3px rgba(0,0,0,0.25),
+    inset 0 1px 0 rgba(255,255,255,0.12),
+    inset 0 -2px 4px rgba(0,0,0,0.15);
+}
+/* Highlight reflection */
+.controller-btn::after {
+  content: '';
+  position: absolute;
+  top: 12%; left: 22%;
+  width: 35%; height: 30%;
+  background: radial-gradient(ellipse, rgba(255,255,255,0.3) 0%, transparent 70%);
+  border-radius: 50%;
+  pointer-events: none;
+  transition: all 0.25s var(--spring-expand);
+}
+.controller-btn:hover {
+  color: var(--text-primary);
+  border-color: rgba(255,255,255,0.22);
+  filter: brightness(1.15);
+  transform: scale(1.08);
+  box-shadow:
+    0 6px 20px rgba(0,0,0,0.4),
+    0 2px 6px rgba(0,0,0,0.3),
+    inset 0 1px 0 rgba(255,255,255,0.18),
+    inset 0 -2px 4px rgba(0,0,0,0.1);
+}
+.controller-btn:hover::after {
+  background: radial-gradient(ellipse, rgba(255,255,255,0.45) 0%, transparent 70%);
+}
+.controller-btn:active {
+  transform: scale(0.95);
+  transition: all 0.1s var(--ease-fluid);
+  box-shadow:
+    0 2px 6px rgba(0,0,0,0.3),
+    0 0px 1px rgba(0,0,0,0.2),
+    inset 0 1px 0 rgba(255,255,255,0.08),
+    inset 0 -1px 2px rgba(0,0,0,0.08);
+}
+/* Primary play button - larger droplet with blue accent */
+.controller-btn.primary {
+  width: 52px; height: 52px;
+  font-size: 18px;
+  background: radial-gradient(circle at 50% 35%, rgba(255,255,255,0.24) 0%, rgba(130,180,255,0.12) 40%, rgba(10,10,24,0.08) 100%);
+  border-color: rgba(255,255,255,0.18);
+  box-shadow:
+    0 6px 18px rgba(0,0,0,0.4),
+    0 2px 6px rgba(0,0,0,0.3),
+    inset 0 1px 0 rgba(255,255,255,0.16),
+    inset 0 -3px 6px rgba(0,0,0,0.12),
+    0 0 24px rgba(130,180,255,0.12);
+}
+/* ... rest of primary/liked/toggled styles same but with deepened backgrounds */
+.controller-btn.primary::after {
+  top: 10%; left: 20%;
+  width: 38%; height: 32%;
+  background: radial-gradient(ellipse, rgba(255,255,255,0.4) 0%, transparent 70%);
+}
+.controller-btn.primary:hover {
+  box-shadow:
+    0 8px 24px rgba(0,0,0,0.45),
+    0 3px 8px rgba(0,0,0,0.32),
+    inset 0 1px 0 rgba(255,255,255,0.22),
+    inset 0 -3px 6px rgba(0,0,0,0.08),
+    0 0 32px rgba(130,180,255,0.2);
+  border-color: rgba(255,255,255,0.28);
+}
+.controller-btn.primary:hover::after {
+  background: radial-gradient(ellipse, rgba(255,255,255,0.55) 0%, transparent 70%);
+}
+.controller-btn.liked {
+  color: var(--accent-warm);
+  border-color: rgba(238,102,68,0.35);
+  box-shadow:
+    0 4px 12px rgba(0,0,0,0.35),
+    0 1px 3px rgba(0,0,0,0.25),
+    inset 0 1px 0 rgba(255,255,255,0.12),
+    inset 0 -2px 4px rgba(0,0,0,0.15),
+    0 0 16px rgba(238,102,68,0.25);
+  background: radial-gradient(circle at 50% 35%, rgba(255,255,255,0.2) 0%, rgba(238,102,68,0.08) 50%, rgba(10,10,24,0.06) 100%);
+}
+.controller-btn.toggled {
+  color: var(--accent);
+  border-color: rgba(102,153,255,0.35);
+  box-shadow:
+    0 4px 12px rgba(0,0,0,0.35),
+    0 1px 3px rgba(0,0,0,0.25),
+    inset 0 1px 0 rgba(255,255,255,0.12),
+    inset 0 -2px 4px rgba(0,0,0,0.15),
+    0 0 16px rgba(130,180,255,0.22);
+  background: radial-gradient(circle at 50% 35%, rgba(255,255,255,0.2) 0%, rgba(102,153,255,0.08) 50%, rgba(10,10,24,0.06) 100%);
+}
+
+
+/* ── Time display ── */
+#time-current, #time-duration {
+  font-family: var(--font-main);
+  letter-spacing: 0;
+}
+/* ── Progress bar (center core inline) ── */
+#progress-bar-container {
+  flex: 1; height: 3px;
+  background: rgba(255,255,255,0.12);
+  border-radius: 2px;
+  cursor: pointer;
+  position: relative;
+  overflow: visible;
+  margin: 0 4px;
+}
+#progress-bar-container:hover {
+  height: 5px;
+  border-radius: 3px;
+  transition: height 0.15s var(--ease-fluid);
+}
+#progress-bar-fill {
+  height: 100%; width: 0%;
+  background: linear-gradient(90deg,
+    rgba(130,180,255,0.5) 0%,
+    rgba(130,180,255,0.7) 40%,
+    rgba(130,180,255,0.4) 100%);
+  border-radius: 2px;
+  transition: width 0.1s linear;
+  position: relative;
+}
+#progress-bar-thumb {
+  position: absolute;
+  left: 0%; top: 50%;
+  transform: translate(-50%, -50%);
+  width: 16px; height: 12px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 30%, rgba(255,255,255,0.9) 0%, rgba(220,235,255,0.7) 50%, rgba(180,210,255,0.4) 100%);
+  border: 1px solid rgba(255,255,255,0.2);
+  box-shadow:
+    0 2px 6px rgba(0,0,0,0.3),
+    0 0 10px rgba(130,180,255,0.4),
+    0 0 20px rgba(130,180,255,0.2),
+    inset 0 1px 0 rgba(255,255,255,0.3);
+  cursor: grab;
+  opacity: 0;
+  
+  transition: opacity 0.15s var(--ease-fluid), left 0.05s linear;
+  pointer-events: none;
+  z-index: 2;
+}
+#progress-bar-thumb::after {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  border: 1px solid rgba(130,180,255,0.25);
+  opacity: 0;
+  
+  transform: scale(0.8);
+  transition: all 0.4s var(--spring-expand);
+  pointer-events: none;
+}
+#progress-bar-container:hover #progress-bar-thumb,
+#progress-bar-container.dragging #progress-bar-thumb {
+  opacity: 1;
+}
+#progress-bar-container.dragging #progress-bar-thumb {
+  cursor: grabbing;
+  width: 20px; height: 15px;
+  box-shadow:
+    0 2px 8px rgba(0,0,0,0.35),
+    0 0 16px rgba(130,180,255,0.5),
+    0 0 32px rgba(130,180,255,0.3),
+    0 0 48px rgba(130,180,255,0.15),
+    inset 0 1px 0 rgba(255,255,255,0.35);
+}
+#progress-bar-container.dragging #progress-bar-thumb::after {
+  opacity: 1;
+  transform: scale(1.6);
+  border-color: rgba(130,180,255,0.4);
+}
+#progress-bar-particles {
+  position: absolute;
+  inset: -20px; pointer-events: none; z-index: 1;
+}
+.progress-particle {
+  position: absolute;
+  width: 4px; height: 4px;
+  border-radius: 50%;
+  background: var(--accent);
+  pointer-events: none;
+  animation: progress-particle-fade 0.6s ease-out forwards;
+}
+@keyframes progress-particle-fade {
+  0% { opacity: 1; transform: translate(0, 0) scale(1); }
+  100% { opacity: 0;
+   transform: translate(var(--px), var(--py)) scale(0); }
+}
+/* Volume tooltip (floats above button) */
+
+#volume-tooltip {
+  position: absolute;
+  bottom: 48px;
+  left: 50%;
+  transform: translateX(-50%);
+  opacity: 0;
+   pointer-events: none;
+  transition: opacity 0.2s var(--spring-expand);
+  z-index: 10;
+  padding: 6px 12px;
+  background: rgba(10,10,24,0.8);
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+#volume-tooltip.visible {
+  opacity: 1; pointer-events: auto;
+}
+.controller-center {
+  display: flex; align-items: center; gap: 6px; flex: 1; justify-content: center;
+}
+.controller-right {
+  display: flex; align-items: center; gap: 6px; flex-shrink: 0;
+}
+#volume-slider {
+  width: 100px; height: 4px;
+  -webkit-appearance: none; appearance: none;
+  background: rgba(255,255,255,0.15);
+  border-radius: 3px; outline: none;
+}
+#volume-slider::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none;
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: var(--accent);
+  cursor: pointer;
+  box-shadow: 0 0 8px rgba(130,180,255,0.3);
+}
+
+/* ── Foam Equalizer Container (replaces old spectrum) ── */
+#foam-equalizer-container {
+  position: fixed;
+  bottom: 0; left: 50%;
+  transform: translate(-50%, 0);
+  width: 600px; height: 100px;
+  z-index: 3;
+  pointer-events: auto;
+  cursor: default;
+  border-radius: 20px 20px 0 0;
+  border: 1px solid rgba(255,255,255,0.04);
+  border-bottom: none;
+  background: rgba(10,10,24,0.06);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 -4px 20px rgba(0,0,0,0.08);
+  transition: box-shadow 0.5s var(--ease-fluid), border-color 0.5s var(--ease-fluid);
+  overflow: visible;
+}
+#foam-equalizer-container:hover {
+  border-color: rgba(255,255,255,0.10);
+  box-shadow: 0 -4px 28px rgba(130,180,255,0.08);
+}
+#foam-equalizer-container canvas {
+  width: 100%; height: 100%;
+}
+
+/* ── DIY Settings Overlay ── */
+#diy-overlay {
+  position: fixed; inset: 0;
+  z-index: 10;
+  background: rgba(0,0,0,0.20);
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0;
+   pointer-events: none;
+  transition: opacity 0.3s var(--ease-fluid);
+}
+#diy-overlay.open { opacity: 1; pointer-events: auto; }
+
+#diy-panel {
+  width: 680px; max-height: 560px;
+  background: rgba(18,18,34,0.28);
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 20px;
+  backdrop-filter: blur(40px) saturate(1.5) brightness(1.35);
+  -webkit-backdrop-filter: blur(40px) saturate(1.5) brightness(1.35);
+  filter: url(#glass-refract);
+  box-shadow:
+    0 16px 48px rgba(0,0,0,0.25),
+    inset 0 1px 0 rgba(255,255,255,0.06);
+  overflow: visible;
+  display: flex; flex-direction: column;
+}
+#diy-tabs {
+  display: flex; gap: 0;
+  border-bottom: 1px solid var(--glass-border);
+  overflow-x: auto;
+}
+.diy-tab {
+  padding: 10px 16px;
+  font-size: 13px; color: var(--text-dim);
+  cursor: pointer; border: none; background: none;
+  transition: all 0.2s var(--ease-fluid);
+  white-space: nowrap;
+  font-family: var(--font-main);
+}
+.diy-tab:hover { color: var(--text-secondary); }
+.diy-tab.active { color: var(--accent); border-bottom: 2px solid var(--accent); }
+#diy-content {
+  padding: 24px; overflow-y: auto; flex: 1;
+}
+.diy-setting-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+.diy-label { font-size: 13px; color: var(--text-secondary); }
+.diy-input {
+  width: 140px; padding: 6px 10px;
+  border-radius: 8px; border: 1px solid var(--glass-border);
+  background: rgba(255,255,255,0.05);
+  color: var(--text-primary); font-size: 13px;
+  outline: none; font-family: var(--font-main);
+}
+.diy-input:focus { border-color: var(--accent); }
+.diy-slider {
+  width: 140px; -webkit-appearance: none;
+  height: 4px;
+  background: rgba(255,255,255,0.08);
+  border-radius: 2px; outline: none;
+}
+.diy-slider::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 14px; height: 14px;
+  border-radius: 50%; background: var(--accent); cursor: pointer;
+}
+.diy-select {
+  width: 140px; padding: 6px 10px;
+  border-radius: 8px; border: 1px solid var(--glass-border);
+  background: rgba(255,255,255,0.05);
+  color: var(--text-primary); font-size: 13px;
+  outline: none; font-family: var(--font-main);
+  cursor: pointer;
+}
+.diy-select:focus { border-color: var(--accent); }
+.diy-select option { background: #1a1a2e; color: var(--text-primary); }
+.diy-reset-btn {
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  border: 1px solid var(--glass-border);
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 11px;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.2s var(--ease-fluid);
+  padding: 0; flex-shrink: 0;
+}
+.diy-reset-btn:hover {
+  color: var(--accent);
+  background: var(--glass-hover);
+  border-color: rgba(255,255,255,0.16);
+  transform: rotate(-90deg);
+}
+#diy-close {
+  position: absolute; top: 12px; right: 16px;
+  background: none; border: none; color: var(--text-dim);
+  font-size: 20px; cursor: pointer;
+}
+#diy-close:hover { color: var(--text-primary); }
+
+
+/* ── Platform divider ── */
+.playlist-platform-divider {
+  padding: 8px 10px 4px;
+  font-size: 10px; font-weight: 600;
+  color: var(--text-dim);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  border-top: 1px solid var(--glass-border);
+  margin-top: 4px;
+  display: flex; align-items: center; gap: 6px;
+}
+.playlist-platform-divider:first-child { border-top: none; margin-top: 0; }
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.08);
+  border-radius: 2px;
+}
+
+/* ── macOS Traffic Lights ── */
+#traffic-lights {
+  display: flex; align-items: center; gap: 8px;
+  margin-right: 6px;
+  flex-shrink: 0;
+}
+.traffic-lights-hidden {
+  display: none !important;
+}
+.traffic-light {
+  width: 12px; height: 12px;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s var(--ease-fluid);
+  position: relative;
+  padding: 0;
+  flex-shrink: 0;
+}
+.traffic-close { background: #ff5f57; }
+.traffic-minimize { background: #febc2e; }
+.traffic-maximize { background: #28c840; }
+.traffic-light:hover {
+  transform: scale(1.3);
+}
+.traffic-light::after {
+  content: '';
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 7px;
+  font-weight: 700;
+  color: rgba(0,0,0,0.55);
+  line-height: 1;
+  opacity: 0;
+  
+  transition: opacity 0.15s var(--ease-fluid);
+}
+.traffic-light:hover::after {
+  opacity: 1;
+}
+.traffic-close::after { content: '✕'; }
+.traffic-minimize::after { content: '−'; }
+.traffic-maximize::after { content: '↗'; }
+
+.titlebar-drag {
+  -webkit-app-region: drag;
+}
+
+/* ── User Management Overlay ── */
+#user-overlay {
+  position: fixed; inset: 0;
+  z-index: 10;
+  background: rgba(0,0,0,0.20);
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0;
+   pointer-events: none;
+  transition: opacity 0.3s var(--ease-fluid);
+}
+#user-overlay.open { opacity: 1; pointer-events: auto; }
+#user-panel {
+  width: 560px; max-height: 520px;
+  background: rgba(18,18,34,0.28);
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 20px;
+  backdrop-filter: blur(32px) saturate(1.5) brightness(1.25);
+  -webkit-backdrop-filter: blur(32px) saturate(1.5) brightness(1.25);
+  filter: url(#glass-refract);
+  box-shadow: 0 16px 48px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.04);
+  overflow: visible;
+  display: flex; flex-direction: column;
+}
+#user-tabs {
+  display: flex; gap: 0;
+  border-bottom: 1px solid var(--glass-border);
+  overflow-x: auto;
+}
+.user-tab {
+  padding: 10px 20px;
+  font-size: 13px; color: var(--text-dim);
+  cursor: pointer; border: none; background: none;
+  transition: all 0.2s var(--ease-fluid);
+  white-space: nowrap; font-family: var(--font-main);
+  display: flex; align-items: center; gap: 6px;
+}
+.user-tab:hover { color: var(--text-secondary); }
+.user-tab.active { color: var(--accent); border-bottom: 2px solid var(--accent); }
+.user-tab.net:hover, .user-tab.active.net { border-color: var(--platform-netease); color: var(--platform-netease); }
+.user-tab.qq:hover, .user-tab.active.qq { border-color: var(--platform-qq); color: var(--platform-qq); }
+#user-content {
+  padding: 24px; overflow-y: auto; flex: 1;
+}
+#user-panel-close {
+  position: absolute; top: 12px; right: 16px;
+  background: none; border: none; color: var(--text-dim);
+  font-size: 20px; cursor: pointer;
+}
+#user-panel-close:hover { color: var(--text-primary); }
+.user-panel-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  border: 1px solid var(--glass-border);
+  background: rgba(255, 255, 255, 0.03);
+  transition: all 0.2s var(--ease-fluid);
+  margin-bottom: 8px;
+}
+.user-panel-row:hover { background: var(--glass-hover); border-color: rgba(255,255,255,0.10); }
+.user-panel-avatar {
+  width: 44px; height: 44px;
+  border-radius: 50%;
+  object-fit: cover; flex-shrink: 0;
+  background: var(--glass-border);
+  border: 2px solid rgba(255,255,255,0.08);
+}
+.user-panel-row.net { border-left: 3px solid var(--platform-netease); }
+.user-panel-row.qq { border-left: 3px solid var(--platform-qq); }
+.user-panel-info {
+  flex: 1; min-width: 0;
+  display: flex; flex-direction: column; gap: 2px;
+}
+.user-panel-nick {
+  font-size: 14px; font-weight: 600;
+  color: var(--text-primary);
+}
+.user-panel-meta {
+  font-size: 11px; color: var(--text-dim);
+  display: flex; align-items: center; gap: 8px;
+}
+.user-panel-platform-tag {
+  font-size: 10px; font-weight: 600;
+  padding: 1px 6px; border-radius: 6px;
+  background: var(--glass-border);
+  color: var(--text-secondary);
+}
+.user-panel-platform-tag.net { background: rgba(236,65,65,0.15); color: var(--platform-netease); }
+.user-panel-platform-tag.qq { background: rgba(49,194,124,0.15); color: var(--platform-qq); }
+.user-panel-vip {
+  font-size: 9px; font-weight: 700;
+  padding: 0px 5px; border-radius: 6px;
+  background: linear-gradient(135deg, #d4a84b, #f0c060);
+  color: #3a2000;
+}
+.user-panel-actions { display: flex; gap: 6px; flex-shrink: 0; }
+.user-panel-btn {
+  padding: 6px 16px; border-radius: 10px;
+  border: 1px solid var(--glass-border);
+  background: rgba(255,255,255,0.05);
+  color: var(--text-secondary);
+  font-size: 11px; font-weight: 600;
+  cursor: pointer; transition: all 0.2s var(--spring-expand);
+  font-family: var(--font-main); white-space: nowrap;
+}
+.user-panel-btn:hover {
+  background: var(--glass-hover); color: var(--text-primary);
+  border-color: rgba(255,255,255,0.16); filter: brightness(1.1);
+}
+.user-panel-btn.logout { color: var(--accent-warm); }
+.user-panel-btn.logout:hover {
+  background: rgba(238,102,68,0.12);
+  border-color: rgba(238,102,68,0.3);
+  color: #ff5533;
+}
+.user-panel-btn.login.net { color: var(--platform-netease); }
+.user-panel-btn.login.net:hover { background: rgba(236,65,65,0.12); border-color: rgba(236,65,65,0.3); }
+.user-panel-btn.login.qq { color: var(--platform-qq); }
+.user-panel-btn.login.qq:hover { background: rgba(49,194,124,0.12); border-color: rgba(49,194,124,0.3); }
+.user-panel-not-logged { font-size: 12px; color: var(--text-dim); font-style: italic; }
+.user-panel-section-title {
+  font-size: 12px; font-weight: 600;
+  color: var(--text-dim);
+  padding: 12px 0 6px;
+  border-bottom: 1px solid var(--glass-border);
+  margin-bottom: 6px;
+}
+.user-playlist-list {
+  display: flex; flex-direction: column; gap: 4px;
+  max-height: 200px; overflow-y: auto;
+}
+.user-playlist-item {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.02);
+  gap: 8px;
+}
+.user-playlist-item:hover { background: var(--glass-hover); }
+.user-pl-name {
+  font-size: 12px; color: var(--text-secondary);
+  flex: 1; overflow: visible; text-overflow: ellipsis; white-space: nowrap;
+}
+.playlist-loading {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px; color: var(--text-dim); font-size: 12px;
+}
+.playlist-loading-spinner {
+  width: 12px; height: 12px;
+  border: 2px solid var(--glass-border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Language-specific adjustments ── */
+:lang(en-US) body {
+  font-weight: 350;
+  letter-spacing: -0.01em;
+}
+:lang(en-US) #song-title {
+  font-weight: 600;
+  letter-spacing: -0.005em;
+}
+
+/* ── Queue swap transition ── */
+#queue-area .queue-item {
+  transition: transform 0.3s var(--spring-expand), filter 0.3s var(--spring-expand), opacity 0.3s var(--spring-expand), box-shadow 0.3s var(--spring-expand);
+  transition: all 0.4s var(--spring-overshoot), background 0.3s var(--ease-fluid);
+}
+#queue-label {
+  transition: all 0.35s var(--spring-expand);
+}
+.queue-fade-enter {
+  animation: queueFadeIn 0.4s var(--spring-overshoot) forwards;
+}
+.queue-fade-exit {
+  animation: queueFadeOut 0.25s var(--spring-collapse) forwards;
+}
+@keyframes queueFadeIn {
+  from { opacity: 0;
+   transform: scale(0.8) translateY(-4px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+@keyframes queueFadeOut {
+  from { opacity: 1; transform: scale(1) translateY(0); }
+  to { opacity: 0;
+   transform: scale(0.8) translateY(4px); }
+}
+
+/* ── Loading Overlay ── */
+#loading-overlay {
+  position: fixed; inset: 0; z-index: 100;
+  background: rgba(8,8,18,0.92);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 20px;
+  opacity: 1; pointer-events: auto;
+  transition: opacity 0.5s var(--spring-expand);
+}
+#loading-overlay.hidden {
+  opacity: 0;
+   pointer-events: none;
+}
+.loading-spinner-ring {
+  width: 48px; height: 48px;
+  border: 3px solid rgba(255,255,255,0.08);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+.loading-text {
+  font-size: 14px; color: var(--text-secondary);
+  font-family: var(--font-main);
+}
+.loading-sub {
+  font-size: 11px; color: var(--text-dim);
+  max-width: 300px; text-align: center;
+  line-height: 1.5;
+}
+
+</style>
+</head>
+<body>
+
+<!-- Loading Overlay -->
+<div id="loading-overlay">
+  <div class="loading-spinner-ring"></div>
+  <div class="loading-text" id="loading-msg">正在加载 FluidMusic...</div>
+  <div class="loading-sub" id="loading-sub"></div>
+</div>
+
+
+<!-- SVG Filter Definitions: Chromatic Aberration, Glass Refraction, Water Ripple -->
+<svg style="position:absolute;width:0;height:0" aria-hidden="true">
+  <defs>
+    <!-- 色差折射滤镜 -->
+    <filter id="chromatic-aberration">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="0.8,0" result="blur-r" />
+      <feOffset in="blur-r" dx="1.5" dy="0" result="shifted-r" />
+      <feColorMatrix in="shifted-r" type="matrix" values="1 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.3 0" result="red" />
+      <feGaussianBlur in="SourceGraphic" stdDeviation="0.8,0" result="blur-b" />
+      <feOffset in="blur-b" dx="-1.5" dy="0" result="shifted-b" />
+      <feColorMatrix in="shifted-b" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 1 0 0 0  0 0 0 0.3 0" result="blue" />
+      <feMerge>
+        <feMergeNode in="red"/>
+        <feMergeNode in="blue"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <!-- 玻璃折射 -->
+    <filter id="glass-refract">
+      <feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="5">
+        <animate attributeName="baseFrequency" values="0.03;0.035;0.03" dur="8s" repeatCount="indefinite"/>
+      </feTurbulence>
+      <feDisplacementMap in="SourceGraphic" scale="3" xChannelSelector="R" yChannelSelector="G"/>
+    </filter>
+    <!-- 水波纹 -->
+    <filter id="water-ripple">
+      <feTurbulence type="fractalNoise" baseFrequency="0.015,0.02" numOctaves="3" seed="3">
+        <animate attributeName="seed" values="3;8;3" dur="12s" repeatCount="indefinite"/>
+      </feTurbulence>
+      <feDisplacementMap in="SourceGraphic" scale="2.5" xChannelSelector="R" yChannelSelector="G"/>
+    </filter>
+  </defs>
+</svg>
+
+
+<!-- Layer -1: Wallpaper Background -->
+<div id="wallpaper-layer"></div>
+<!-- Layer 0: Fluid Background -->
+<div id="layer-bg"><canvas id="bg-canvas"></canvas></div>
+
+<!-- Layer 1: Pass-through -->
+<div id="layer-passthrough"></div>
+
+<!-- Layer 3.5: Foam Visualizer (above wallpaper, below center core, audio-reactive) -->
+<div id="foam-visualizer-layer" style="position:fixed;inset:0;z-index:2;pointer-events:none;opacity:0;transition:opacity 0.6s var(--ease-fluid);">
+  <canvas id="foam-canvas" style="width:100%;height:100%;"></canvas>
+</div>
+
+<!-- Layer 5: Center Core -->
+<div id="center-core">
+  <div id="center-core-inner">
+
+    <div id="particle-cover-container">
+      <canvas id="particle-canvas"></canvas>
+    </div>
+    <div id="song-info">
+      <div id="song-title">FluidMusic</div>
+      <div id="song-artist">流体动态音乐播放器</div>
+      <div id="inline-lyric" style="display:none;font-size:15px;font-weight:600;color:var(--text-primary);text-align:center;margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;line-height:1.4;transition:opacity 0.4s var(--ease-fluid);text-shadow:0 0 12px rgba(130,180,255,0.35),0 0 24px rgba(130,180,255,0.15);">...</div>
+    </div>
+    <div id="spectrum-container" style="width:280px;height:56px;margin-top:2px;position:relative;overflow:visible;">
+      <canvas id="spectrum-canvas" style="width:100%;height:100%;"></canvas>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px;width:280px;margin-top:2px;">
+      <span id="time-current" style="font-size:10px;color:var(--text-dim);font-variant-numeric:tabular-nums;min-width:32px;text-align:right;">0:00</span>
+      <div id="progress-bar-container" style="flex:1;height:3px;">
+        <div id="progress-bar-fill"></div>
+        <div id="progress-bar-thumb"></div>
+        <div id="progress-bar-particles"></div>
+      </div>
+      <span id="time-duration" style="font-size:10px;color:var(--text-dim);font-variant-numeric:tabular-nums;min-width:32px;">0:00</span>
+    </div>
+
+  </div>
+
+  <!-- Edge trigger zones -->
+  <div class="edge-trigger" id="edge-left" title="歌单"></div>
+  <div class="edge-trigger" id="edge-right" title="歌词"></div>
+  <div class="edge-trigger" id="edge-top" title="账号与队列"></div>
+  <div class="edge-trigger" id="edge-bottom" title="控制器"></div>
+</div>
+
+<!-- Layer 3: Left Chamber — Playlist -->
+<div class="bubble-chamber" id="chamber-left">
+  <button class="chamber-back-btn" id="btn-playlist-back" title="返回歌单列表" style="display:none;" onclick="if(typeof DataCache!=='undefined'){var c=DataCache.getCachedPlaylists();if(c){BubbleChamber.setUserPlaylists(c);document.getElementById('btn-playlist-back').style.display='none';return}}if(typeof FluidMusicApp!=='undefined')FluidMusicApp.syncPlaylists();">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+  </button>
+  <div class="chamber-title">🎵 歌单
+    <button class="chamber-refresh-btn" id="btn-refresh-playlists" title="刷新">↻</button>
+  </div>
+  <div id="playlist-items">
+    <div class="playlist-loading">
+      <div class="playlist-loading-spinner"></div>
+      加载中...
+    </div>
+  </div>
+</div>
+
+<!-- Layer 4: Right Chamber — Lyrics -->
+<div class="bubble-chamber" id="chamber-right">
+  <div class="chamber-title">📝 歌词</div>
+  <div id="lyrics-container">
+    <div class="lyric-line active">暂无歌词</div>
+  </div>
+</div>
+
+<!-- User Management Overlay (triggered from core top-left) -->
+<div id="user-overlay">
+  <div id="user-panel">
+    <div style="position:relative; display:flex; align-items:center; padding:0 20px;">
+      <div id="user-tabs">
+        <button class="user-tab active" data-tab="netease">🎧 网易云</button>
+        <button class="user-tab" data-tab="qq">🎵 QQ音乐</button>
+      </div>
+      <button id="user-panel-close">✕</button>
+    </div>
+    <div id="user-content"></div>
+  </div>
+</div>
+
+<!-- Layer 2: Top Chamber — Queue / Favorites -->
+<div class="bubble-chamber visible" id="chamber-top">
+  <div id="chamber-top-header" style="display:flex;align-items:center;justify-content:center;width:100%;">
+    <span id="queue-label" class="queue-title" style="text-align:center;margin:0;">📀 播放队列</span>
+  </div>
+  <div id="queue-row" style="display:flex;align-items:center;gap:8px;width:100%;">
+    <button id="btn-queue-swap" class="queue-action-btn" title="切换收藏/队列">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="17,1 21,5 17,9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7,23 3,19 7,15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/>
+      </svg>
+    </button>
+    <div id="queue-area">
+      <div class="queue-item far"></div>
+      <div class="queue-item"></div>
+      <div class="queue-item"></div>
+      <div class="queue-item center"></div>
+      <div class="queue-item"></div>
+      <div class="queue-item"></div>
+      <div class="queue-item far"></div>
+    </div>
+    <button id="btn-queue-clear" class="queue-action-btn queue-action-danger" title="清空当前列表">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+      </svg>
+    </button>
+  </div>
+</div>
+
+<!-- Layer 4.5: Bottom Controller — three-section layout -->
+<div class="bubble-chamber" id="chamber-bottom">
+  <!-- Section 1: macOS traffic lights -->
+  <span id="traffic-lights" class="traffic-lights-hidden">
+    <button class="traffic-light traffic-close" id="tl-close" title="关闭窗口"></button>
+    <button class="traffic-light traffic-minimize" id="tl-minimize" title="最小化"></button>
+    <button class="traffic-light traffic-maximize" id="tl-maximize" title="最大化/还原"></button>
+  </span>
+
+  <!-- Section 2: Playback controls (centered) -->
+  <div class="controller-center">
+    <button class="controller-btn" id="btn-like" title="收藏到本地列表">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+      </svg>
+    </button>
+    <button class="controller-btn" id="btn-playmode" title="播放模式: 顺序播放">
+      <svg id="icon-playmode-single" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display:none;"><polyline points="17,1 21,5 17,9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7,23 3,19 7,15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/><circle cx="12" cy="12" r="2.5" fill="currentColor" stroke="none"/></svg>
+      <svg id="icon-playmode-shuffle" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display:none;"><polyline points="16,3 21,3 21,8"/><line x1="3" y1="11" x2="21" y2="11"/><polyline points="8,21 3,21 3,16"/><line x1="21" y1="13" x2="3" y2="13"/></svg>
+      <svg id="icon-playmode-seq" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+    </button>
+    <button class="controller-btn" id="btn-prev" title="上一曲">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="11,18 5,12 11,6"/><polyline points="19,18 13,12 19,6"/>
+      </svg>
+    </button>
+    <button class="controller-btn primary" id="btn-play" title="播放/暂停">
+      <svg id="icon-play" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="6,3 20,12 6,21"/></svg>
+      <svg id="icon-pause" viewBox="0 0 24 24" fill="currentColor" stroke="none" style="display:none;"><rect x="6" y="3" width="4" height="18" rx="1"/><rect x="14" y="3" width="4" height="18" rx="1"/></svg>
+    </button>
+    <button class="controller-btn" id="btn-next" title="下一曲">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="13,6 19,12 13,18"/><polyline points="5,6 11,12 5,18"/>
+      </svg>
+    </button>
+    <button class="controller-btn" id="btn-fx" title="均衡器视觉预设">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26"/></svg>
+    </button>
+    <span style="position:relative;display:inline-flex;align-items:center;">
+    <button class="controller-btn" id="btn-volume" title="音量">
+      <svg id="icon-vol-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="11,5 6,9 2,9 2,15 6,15 11,19"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
+      <svg id="icon-vol-mute" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display:none;"><polygon points="11,5 6,9 2,9 2,15 6,15 11,19"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
+    </button>
+    <div id="volume-tooltip"><input type="range" id="volume-slider" min="0" max="100" value="70" orient="horizontal"></div>
+    </span>
+  </div>
+
+
+
+  <!-- Section 3: User & Settings -->
+  <div class="controller-right">
+    <button class="controller-btn" id="btn-user" title="用户管理">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+    </button>
+    <button class="controller-btn" id="btn-settings" title="DIY 设置">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+    </button>
+  </div>
+</div>
+
+
+
+<!-- Layer 6: DIY Settings Overlay -->
+<div id="diy-overlay">
+  <div id="diy-panel">
+    <div style="position:relative; display:flex; align-items:center; padding:0 20px;">
+      <div id="diy-tabs">
+        <button class="diy-tab active" data-tab="visual">🎨 UI特效</button>
+        <button class="diy-tab" data-tab="system">⚙️ 系统</button>
+      </div>
+      <button id="diy-close">✕</button>
+    </div>
+    <div id="diy-content"></div>
+  </div>
+</div>
+
+<!-- Scripts -->
+<script>
+window.onerror = function(msg, url, line) {
+  console.error('RENDERER ERROR:', msg, 'at', url, ':', line);
+  document.title = 'ERR: ' + msg;
+  var dbg = document.createElement('div');
+  dbg.id = 'js-error-dump';
+  dbg.style.cssText = 'position:fixed;bottom:0;left:0;right:0;background:red;color:white;padding:8px;z-index:9999;font-size:11px;';
+  dbg.textContent = 'JS ERROR: ' + msg + ' @ ' + url + ':' + line;
+  document.body.appendChild(dbg);
+};
+</script>
+<script src="vendor/three.min.js"></script>
+<script src="js/audio-engine.js"></script>
+<script src="js/fluid-bg.js"></script>
+<script src="js/particle-cover.js"></script>
+<script src="js/foam-system.js"></script>
+<script src="js/foam-equalizer.js"></script>
+<script src="js/spectrum-3d.js"></script>
+<script src="js/bubble-chamber.js"></script>
+<script src="js/favorites.js"></script>
+<script src="js/user-panel.js"></script>
+<script src="js/api-bridge.js"></script>
+<script src="js/i18n.js"></script>
+<script src="js/data-cache.js"></script>
+<script src="js/diy-settings.js"></script>
+<script src="js/app.js"></script>
+
+
+
+
+
+</body>
+</html>
