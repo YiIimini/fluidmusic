@@ -5,23 +5,58 @@
   "main": "desktop/main.js",
   "scripts": {
     "start": "electron .",
-    "build": "ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ npx electron-builder --mac dmg zip"
+    "dev": "vite",
+    "build:renderer": "vite build",
+    "build": "ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ npx electron-builder --mac dmg zip",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "lint": "ESLINT_USE_FLAT_CONFIG=false eslint src/ public/js/ --ext .js,.ts --max-warnings 50"
   },
   "build": {
     "appId": "com.fluidmusic.desktop",
     "productName": "FluidMusic",
     "mac": {
       "category": "public.app-category.music",
-      "target": ["dmg", "zip"],
-      "icon": "build/icon.icns"
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
+      "icon": "build/icon.icns",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "user",
+      "repo": "fluidmusic"
     }
   },
   "dependencies": {
-    "express": "^4.21.0",
-    "three": "^0.149.0"
+    "express": "^4.21.0"
   },
   "devDependencies": {
+    "@types/node": "^26.1.0",
     "electron": "^33.4.0",
-    "electron-builder": "^25.1.0"
+    "electron-builder": "^25.1.0",
+    "electron-updater": "^6.8.9",
+    "eslint": "^8.57.1",
+    "jsdom": "^29.1.1",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.9"
   }
 }
