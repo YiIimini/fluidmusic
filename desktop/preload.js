@@ -86,6 +86,17 @@ contextBridge.exposeInMainWorld('fluidmusic', {
     ipcRenderer.on('lyric-update', handler);
     return () => ipcRenderer.removeListener('lyric-update', handler);
   },
+
+  // Mini player: send media control actions to main process
+  sendMediaControl: (action) => ipcRenderer.send('fluidmusic-media-control', action),
+
+  // Mini player: receive track info and playback state
+  onMiniPlayerUpdate: (callback) => {
+    if (typeof callback !== 'function') return () => {};
+    const handler = (_event, data) => callback(data);
+    ipcRenderer.on('mini-player-update', handler);
+    return () => ipcRenderer.removeListener('mini-player-update', handler);
+  },
 });
 
 window.addEventListener('DOMContentLoaded', () => {
