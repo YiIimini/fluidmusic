@@ -7,12 +7,16 @@
 // (script tag in index.html). All modules use window.THREE.
 // When we migrate to ES modules, add three back to
 // dependencies and restore the alias + manualChunks.
+//
+// v0.3.0: Added rollupOptions.input for explicit entry point.
+// @ alias resolves src/ TypeScript modules from anywhere.
+// root stays at 'public/' to avoid publicDir duplication.
 // ============================================================
 import { defineConfig } from 'vite';
 import { resolve } from 'path';
 
 export default defineConfig({
-  // Renderer source
+  // Renderer source — public/ is the web root
   root: resolve(__dirname, 'public'),
   base: './',
 
@@ -30,6 +34,9 @@ export default defineConfig({
     },
     // Generate sourcemaps for debugging
     sourcemap: true,
+    rollupOptions: {
+      input: resolve(__dirname, 'public/index.html'),
+    },
   },
 
   resolve: {
