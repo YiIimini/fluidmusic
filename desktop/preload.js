@@ -42,12 +42,50 @@ contextBridge.exposeInMainWorld('fluidmusic', {
   // Debug: renderer-to-terminal logging
   log: (msg) => ipcRenderer.send('fluidmusic-renderer-log', msg),
 
+  // Overlay state (for Escape key conflict resolution)
+  setOverlayOpen: (open) => ipcRenderer.invoke('fluidmusic-overlay-state', open),
+
+  // Theme change events (dark mode)
+  onThemeChanged: (callback) => {
+    if (typeof callback !== 'function') return () => {};
+    const listener = (_event, theme) => callback(theme);
+    ipcRenderer.on('theme-changed', listener);
+    return () => ipcRenderer.removeListener('theme-changed', listener);
+  },
+
+  // Media control events (menu bar, dock, media keys → renderer)
+  onMediaControl: (callback) => {
+    if (typeof callback !== 'function') return () => {};
+    const listener = (_event, action) => callback(action);
+    ipcRenderer.on('media-control', listener);
+    return () => ipcRenderer.removeListener('media-control', listener);
+  },
+
+  // Settings open event (Cmd+,)
+  onOpenSettings: (callback) => {
+    if (typeof callback !== 'function') return () => {};
+    const listener = () => callback();
+    ipcRenderer.on('open-settings', listener);
+    return () => ipcRenderer.removeListener('open-settings', listener);
+  },
+
+  // Local file import
+  importLocalFiles: () => ipcRenderer.invoke('fluidmusic-import-local-files'),
+
   // Wallpaper
   pickWallpaper: () => ipcRenderer.invoke('fluidmusic-pick-wallpaper'),
 
   // Settings persistence
   saveSettings: (settings) => ipcRenderer.invoke('fluidmusic-save-settings', settings),
   loadSettings: () => ipcRenderer.invoke('fluidmusic-load-settings'),
+
+  // Lyric window updates
+  onLyricUpdate: (callback) => {
+    if (typeof callback !== 'function') return () => {};
+    const handler = (_event, data) => callback(data);
+    ipcRenderer.on('lyric-update', handler);
+    return () => ipcRenderer.removeListener('lyric-update', handler);
+  },
 });
 
 window.addEventListener('DOMContentLoaded', () => {
