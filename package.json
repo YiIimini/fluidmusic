@@ -5,7 +5,9 @@
   "main": "desktop/main.js",
   "scripts": {
     "start": "electron .",
-    "dev": "vite",
+    "dev:renderer": "vite",
+    "dev:electron": "electron .",
+    "dev": "concurrently \"npm run dev:renderer\" \"wait-on http://127.0.0.1:5173 && npm run dev:electron\"",
     "build:renderer": "vite build",
     "build": "ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ npx electron-builder --mac dmg zip",
     "test": "vitest run",
@@ -51,12 +53,16 @@
   },
   "devDependencies": {
     "@types/node": "^26.1.0",
+    "concurrently": "^10.0.3",
     "electron": "^33.4.0",
     "electron-builder": "^25.1.0",
     "electron-updater": "^6.8.9",
     "eslint": "^8.57.1",
+    "fake-indexeddb": "^6.2.5",
     "jsdom": "^29.1.1",
+    "terser": "^5.48.0",
     "typescript": "^6.0.3",
-    "vitest": "^4.1.9"
+    "vitest": "^4.1.9",
+    "wait-on": "^9.0.10"
   }
 }
