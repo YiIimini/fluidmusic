@@ -28,6 +28,7 @@ interface FluidBGUniforms {
   uMid: { value: number };
   uTreble: { value: number };
   uEnergy: { value: number };
+  uNoiseScale: { value: number };
 }
 
 // ---- FluidBackground ----
@@ -118,6 +119,7 @@ export class FluidBackground {
         uMid: { value: 0 },
         uTreble: { value: 0 },
         uEnergy: { value: 0 },
+        uNoiseScale: { value: 0.5 },  // Half resolution for noise computation
       };
 
       const geometry = new THREE.PlaneGeometry(2, 2);
@@ -133,7 +135,7 @@ export class FluidBackground {
 
       const fragmentShader = [
         'uniform float uTime; uniform vec2 uResolution; uniform float uIntensity; uniform float uSpeed;',
-        'uniform vec3 uColorBase; uniform vec3 uColorAccent; uniform float uBass; uniform float uMid; uniform float uTreble; uniform float uEnergy;',
+        'uniform vec3 uColorBase; uniform vec3 uColorAccent; uniform float uBass; uniform float uMid; uniform float uTreble; uniform float uEnergy; uniform float uNoiseScale;',
         'varying vec2 vUv;',
         'float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}',
         'float noise(vec2 p){vec2 i=floor(p);vec2 f=fract(p);f=f*f*(3.0-2.0*f);float a=hash(i);float b=hash(i+vec2(1.0,0.0));float c=hash(i+vec2(0.0,1.0));float d=hash(i+vec2(1.0,1.0));return mix(mix(a,b,f.x),mix(c,d,f.x),f.y);}',
@@ -144,7 +146,7 @@ export class FluidBackground {
         'float r2=sin(d*25.0-uTime*uSpeed*1.2)*0.5+0.5;r2*=smoothstep(0.8,0.2,d)*0.25;',
         'float r3=sin(d*40.0-uTime*uSpeed*1.8+noise(uv*3.0)*2.0)*0.5+0.5;r3*=smoothstep(0.5,0.0,d)*0.2;',
         'vec2 fuv=uv+vec2(sin(uv.y*4.0+uTime*0.3)*0.05,cos(uv.x*4.0+uTime*0.25)*0.05);',
-        'float flow=fbm(fuv*3.0+uTime*0.15);',
+        'float flow=fbm(fuv*3.0*uNoiseScale+uTime*0.15);',
         'float bp=uBass*sin(d*8.0+uTime*0.8)*0.5+0.5;bp*=smoothstep(0.9,0.3,d)*0.15;',
         'float mr=uMid*sin(d*20.0+uTime*1.5+noise(uv*5.0))*0.5+0.5;mr*=smoothstep(0.7,0.1,d)*0.12;',
         'float sp=uTreble*hash(uv*uResolution*0.5+uTime*10.0)*smoothstep(0.4,0.0,d)*0.08;',
