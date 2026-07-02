@@ -225,6 +225,8 @@ export class AudioEngine {
     // Build new audio element
     this.createAudioElement(url);
 
+    this.updateMediaSession(metadata);
+
     return this.audio;
   }
 
@@ -737,6 +739,25 @@ export class AudioEngine {
       this._nextSkipCount++;
       await this.next();
     }
+  }
+
+  private updateMediaSession(track: Track): void {
+    if (!('mediaSession' in navigator)) return;
+
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: track.name,
+      artist: track.artist,
+      album: track.album || '',
+      artwork: track.coverUrl
+        ? [{ src: track.coverUrl, sizes: '300x300', type: 'image/jpeg' }]
+        : [],
+    });
+
+    navigator.mediaSession.setActionHandler('play', () => this.play());
+    navigator.mediaSession.setActionHandler('pause', () => this.pause());
+    navigator.mediaSession.setActionHandler('previoustrack', () => this.previous());
+    navigator.mediaSession.setActionHandler('nexttrack', () => this.next());
+    navigator.mediaSession.setActionHandler('stop', () => this.pause());
   }
 
   private toast(message: string, duration?: number): void {
