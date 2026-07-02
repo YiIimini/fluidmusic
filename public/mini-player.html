@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: rgba(20, 20, 30, 0.85);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: center; height: 100vh; overflow: hidden;
+    -webkit-app-region: drag; user-select: none; border-radius: 16px;
+    color: #fff;
+  }
+  #mini-cover {
+    width: 140px; height: 140px; border-radius: 50%;
+    object-fit: cover; margin-bottom: 16px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+    border: 2px solid rgba(255,255,255,0.1);
+  }
+  #mini-title {
+    font-size: 16px; font-weight: 600; margin-bottom: 4px;
+    max-width: 240px; text-align: center;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  #mini-artist {
+    font-size: 13px; color: rgba(255,255,255,0.6); margin-bottom: 16px;
+    max-width: 240px; text-align: center;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .controls {
+    display: flex; gap: 20px; -webkit-app-region: no-drag;
+  }
+  .ctrl-btn {
+    width: 36px; height: 36px; border-radius: 50%;
+    border: 1px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.08);
+    color: #fff; font-size: 16px; cursor: pointer; display: flex;
+    align-items: center; justify-content: center; transition: all 0.2s;
+  }
+  .ctrl-btn:hover { background: rgba(255,255,255,0.2); }
+  .ctrl-btn.play-btn { width: 44px; height: 44px; font-size: 20px; }
+</style>
+</head>
+<body>
+  <canvas id="mini-cover" width="140" height="140"></canvas>
+  <div id="mini-title">FluidMusic</div>
+  <div id="mini-artist">准备播放</div>
+  <div class="controls">
+    <button class="ctrl-btn" id="btn-prev" title="上一曲">⏮</button>
+    <button class="ctrl-btn play-btn" id="btn-play" title="播放/暂停">▶</button>
+    <button class="ctrl-btn" id="btn-next" title="下一曲">⏭</button>
+  </div>
+  <script>
+    const btnPrev = document.getElementById('btn-prev');
+    const btnPlay = document.getElementById('btn-play');
+    const btnNext = document.getElementById('btn-next');
+    const titleEl = document.getElementById('mini-title');
+    const artistEl = document.getElementById('mini-artist');
+    const coverCanvas = document.getElementById('mini-cover');
+    const coverCtx = coverCanvas.getContext('2d');
+
+    btnPrev.addEventListener('click', () => {
+      window.fluidmusic?.sendMediaControl?.('prev');
+    });
+    btnPlay.addEventListener('click', () => {
+      window.fluidmusic?.sendMediaControl?.('toggle');
+    });
+    btnNext.addEventListener('click', () => {
+      window.fluidmusic?.sendMediaControl?.('next');
+    });
+
+    // Listen for track updates from main process
+    if (window.fluidmusic?.onMiniPlayerUpdate) {
+      window.fluidmusic.onMiniPlayerUpdate((data) => {
+        if (data.title) titleEl.textContent = data.title;
+        if (data.artist) artistEl.textContent = data.artist;
+        if (data.isPlaying !== undefined) {
+          btnPlay.textContent = data.isPlaying ? '⏸' : '▶';
+        }
+        if (data.coverUrl) {
+          const img = new Image();
+          img.crossOrigin = 'anonymous';
+          img.onload = () => {
+            const size = Math.min(img.width, img.height);
+            const sx = (img.width - size) / 2;
+            const sy = (img.height - size) / 2;
+            coverCtx.clearRect(0, 0, 140, 140);
+            coverCtx.beginPath();
+            coverCtx.arc(70, 70, 68, 0, Math.PI * 2);
+            coverCtx.clip();
+            coverCtx.drawImage(img, sx, sy, size, size, 0, 0, 140, 140);
+          };
+          img.src = data.coverUrl;
+        }
+      });
+    }
+  </script>
+</body>
+</html>
