@@ -47,6 +47,14 @@ export class RendererManager {
   layers: LayerEntry[] = [];
   initialized = false;
 
+  // Performance monitoring for adaptive frame rate
+  private frameTimestamps: number[] = [];
+  private targetFPS = 60;
+  private currentFPS = 60;
+  private lastFrameTime = 0;
+  private fpsUpdateInterval = 2000; // Re-evaluate every 2s
+  private lastFPSEval = 0;
+
   /**
    * Initialise the shared WebGL renderer on the #bg-canvas element.
    * Safe to call multiple times — subsequent calls are no-ops.
@@ -156,9 +164,12 @@ export class RendererManager {
 
   /**
    * Composite all visible layers to the shared canvas in Z-order.
+   * @param timestamp - optional high-res timestamp (performance.now) for adaptive FPS.
    */
-  render(): void {
+  render(timestamp?: number): void {
     if (!this.initialized || !this.renderer) return;
+    const ts = timestamp ?? performance.now();
+    if (!this.shouldRenderFrame(ts)) return;
     const r = this.renderer;
 
     r.autoClear = true;
@@ -223,6 +234,51 @@ export class RendererManager {
         }
       }
     }
+  }
+
+  /**
+   * Evaluate recent frame timestamps and adapt target FPS.
+   * Drops to 30fps when GPU struggles, ramps back to 60fps when smooth.
+   */
+  private evaluatePerformance(timestamp: number): void {
+    if (timestamp - this.lastFPSEval < this.fpsUpdateInterval) return;
+    this.lastFPSEval = timestamp;
+
+    // Calculate current FPS from recent timestamps
+    if (this.frameTimestamps.length >= 30) {
+      const elapsed = timestamp - this.frameTimestamps[0];
+      this.currentFPS = (this.frameTimestamps.length / elapsed) * 1000;
+
+      // Adaptive target: drop to 30fps if struggling, back to 60 if smooth
+      if (this.currentFPS < 45) {
+        this.targetFPS = 30;
+      } else if (this.currentFPS > 55 && this.targetFPS < 60) {
+        this.targetFPS = Math.min(60, this.targetFPS + 15);
+      }
+    }
+
+    // Keep rolling window of timestamps
+    this.frameTimestamps.push(timestamp);
+    if (this.frameTimestamps.length > 60) this.frameTimestamps.shift();
+  }
+
+  /**
+   * Returns true when enough wall-clock time has elapsed since the last
+   * rendered frame, based on the current adaptive target FPS.
+   */
+  shouldRenderFrame(timestamp: number): boolean {
+    this.evaluatePerformance(timestamp);
+    const interval = 1000 / this.targetFPS;
+    if (timestamp - this.lastFrameTime < interval) return false;
+    this.lastFrameTime = timestamp;
+    return true;
+  }
+
+  /**
+   * Expose current measured FPS for downstream LOD consumers.
+   */
+  getCurrentFPS(): number {
+    return this.currentFPS;
   }
 
   /**
