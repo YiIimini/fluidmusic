@@ -15,11 +15,47 @@
   // ── Cookie store — populated on init and kept in sync via IPC events ──
   const cookieStore = { netease: '', qq: '' };
 
+  // ── DataCache bridge: TS IndexedDB cache → legacy localStorage fallback ──
+  // When the TS bridge is loaded, API responses are cached in IndexedDB via
+  // __FM_TS.dataCache.  Otherwise we fall back to the synchronous localStorage
+  // DataCache (data-cache.js).  The TS cache uses a store+key namespace so we
+  // route everything through the "api" store.
+  const _tsCache = (typeof window !== 'undefined' && window.__FM_TS && window.__FM_TS.dataCache)
+    ? window.__FM_TS.dataCache
+    : null;
+
+  const _cacheGet = async (key) => {
+    if (_tsCache) {
+      try { return await _tsCache.get('api', key); } catch (e) { /* fall through */ }
+    }
+    if (typeof DataCache !== 'undefined') return DataCache.get(key);
+    return null;
+  };
+
+  const _cacheSet = async (key, value, ttlMs) => {
+    if (_tsCache) {
+      try { await _tsCache.set('api', key, value, ttlMs); return; } catch (e) { /* fall through */ }
+    }
+    if (typeof DataCache !== 'undefined') DataCache.set(key, value);
+  };
+
   // ── Unified API fetcher — passes x-cookie & x-platform to the local server proxy ──
   async function fetchApi(endpoint, params = {}, platform, method = "GET") {
     const base = 'http://127.0.0.1:' + (window.location.port || 3000);
     const query = new URLSearchParams(params).toString();
     const url = base + endpoint + (query ? '?' + query : '');
+
+    // ── Cache-aside for GET requests ──
+    const cacheKey = (method === 'GET') ? ('api:' + endpoint + ':' + JSON.stringify(params)) : null;
+    if (cacheKey) {
+      try {
+        const cached = await _cacheGet(cacheKey);
+        if (cached !== null && cached !== undefined) {
+          console.log('[fetchApi] ' + platform + ' ← cache ' + endpoint);
+          return cached;
+        }
+      } catch (e) { /* cache miss, proceed to network */ }
+    }
 
     const headers = {};
     if (platform && cookieStore[platform]) {
@@ -31,6 +67,19 @@
     const res = await fetch(url, { method, headers });
     const json = await res.json();
     console.log('[fetchApi] ' + platform + ' ← ' + endpoint + ' | status:', res.status, '| hasData:', !!json);
+
+    // ── Store successful GET responses in cache ──
+    if (cacheKey && res.ok && json) {
+      try {
+        let ttl = 5 * 60 * 1000; // default 5 min
+        if (endpoint.includes('/account') || endpoint.includes('/user/detail')) ttl = 30 * 60 * 1000;
+        else if (endpoint.includes('/playlist/detail') || endpoint.includes('/song/url')) ttl = 10 * 60 * 1000;
+        else if (endpoint.includes('/search')) ttl = 5 * 60 * 1000;
+        else if (endpoint.includes('/lyric')) ttl = 60 * 60 * 1000;
+        await _cacheSet(cacheKey, json, ttl);
+      } catch (e) { /* ignore cache write errors */ }
+    }
+
     return json;
   }
 
