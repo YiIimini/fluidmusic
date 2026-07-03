@@ -24,9 +24,7 @@ const _apiwarn = (...a) => { if (_API_DEBUG) console.warn(...a); };
   // __FM_TS.dataCache.  Otherwise we fall back to the synchronous localStorage
   // DataCache (data-cache.js).  The TS cache uses a store+key namespace so we
   // route everything through the "api" store.
-  const _tsCache = (typeof window !== 'undefined' && window.__FM_TS && window.__FM_TS.dataCache)
-    ? window.__FM_TS.dataCache
-    : null;
+  const _tsCache = window.__FM_TS ? window.__FM_TS.dataCache : null;
 
   const _cacheGet = async (key) => {
     if (_tsCache) {
