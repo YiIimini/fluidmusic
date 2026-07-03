@@ -20,6 +20,7 @@ const cookieStore = { netease: '', qq: '' };
 
 const APP_NAME = 'FluidMusic';
 const APP_USER_MODEL_ID = 'com.fluidmusic.desktop';
+if (process.platform === 'win32') app.setAppUserModelId(APP_USER_MODEL_ID);
 const APP_ICON = path.join(__dirname, '..', 'build', 'icon.png');
 const ICNS_ICON = path.join(__dirname, '..', 'build', 'icon.icns');
 const NETEASE_LOGIN_PARTITION = 'persist:fluidmusic-netease-login';
@@ -29,12 +30,16 @@ const QQ_LOGIN_URL = 'https://y.qq.com/n/ryqq/profile';  // music-specific domai
 const WINDOW_WIDTH = 1700;
 const WINDOW_HEIGHT = 980;
 
-const CHROMIUM_PERFORMANCE_SWITCHES = [
+// Chromium performance switches — applied at startup
+[
   ['autoplay-policy', 'no-user-gesture-required'],
   ['disable-background-timer-throttling'],
   ['disable-renderer-backgrounding'],
   ['disable-backgrounding-occluded-windows'],
-];
+].forEach(function(sw) {
+  if (sw.length === 2) app.commandLine.appendSwitch(sw[0], sw[1]);
+  else app.commandLine.appendSwitch(sw[0]);
+});
 
 if (process.platform === 'darwin') {
   app.commandLine.appendSwitch('disable-features', 'MacWebContentsOcclusion,RendererCodeIntegrity,AudioServiceOutOfProcess');
@@ -275,7 +280,8 @@ function createLoginWindow(owner, partition, loginUrl, title, readCookieFn, hasL
           // Give it a moment to set cookies after redirect
           await new Promise(r => setTimeout(r, 1500));
           const cookie = await readCookieFn(cookieSession);
-          if (kugouCookieHasLogin(cookie)) {
+          // eslint-disable-next-line no-undef
+          if (typeof kugouCookieHasLogin === 'function' && kugouCookieHasLogin(cookie)) {
             console.log('[LoginPoll] Kugou login detected via redirect + cookies');
             if (kugouPageTimer) clearInterval(kugouPageTimer);
             if (pollTimer) clearInterval(pollTimer);
@@ -317,7 +323,7 @@ function createLoginWindow(owner, partition, loginUrl, title, readCookieFn, hasL
       console.warn('[LoginWindow] Renderer crashed (' + details.reason + '), reloading...'); if (!loginWindow.isDestroyed()) { try { loginWindow.loadURL(loginUrl).catch(() => {}); } catch(e) {} }
     });
 
-    loginWindow.webContents.on('did-navigate', (event, url) => {
+    loginWindow.webContents.on('did-navigate', (_event, _url) => {
       // Check cookies after navigation (post-login redirect)
       setTimeout(checkCookies, 800);
     });
@@ -611,7 +617,6 @@ async function createWindow() {
 
   // Clear renderer cache to prevent stale JS
   try {
-    const { session } = require('electron');
     await mainWindow.webContents.session.clearCache();
     await mainWindow.webContents.session.clearStorageData({ storages: ['caches', 'serviceworkers'] });
     console.log('[createWindow] Renderer cache cleared');
