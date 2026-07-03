@@ -703,6 +703,20 @@ export class FoamEqualizer {
   setSpeed(v: number): void { this.config.speed = Math.max(0.1, Math.min(2.0, v)); }
   setColorIntensity(v: number): void { this.config.colorIntensity = Math.max(0, Math.min(1.0, v)); }
   setSizeScale(v: number): void { this.config.sizeScale = Math.max(0.5, Math.min(2.0, v)); this.resize(); }
+
+  /**
+   * Dispose: remove event listeners and clear canvas references.
+   */
+  dispose(): void {
+    window.removeEventListener('resize', this._resizeHandler);
+    this.canvas = null;
+    this.ctx = null;
+    this.container = null;
+    this.initialized = false;
+  }
+
+  /** Resize handler reference for cleanup. Not part of public API. */
+  _resizeHandler = (): void => this.resize();
 }
 
 // ── Singleton + backward-compat ──
@@ -713,5 +727,5 @@ if (typeof __FM !== 'undefined') {
 }
 
 (window as any).FoamEqualizer = instance;
-window.addEventListener('resize', () => instance.resize());
+window.addEventListener('resize', instance._resizeHandler);
 console.log('FluidMusic Foam Equalizer loaded (TS)');

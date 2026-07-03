@@ -136,4 +136,8 @@ export class AppStore {
   private notify(): void {
     this.listeners.forEach(fn => fn(this.state));
   }
+
+  dispose(): void {
+    this.listeners.clear();
+  }
 }
