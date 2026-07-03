@@ -1,0 +1,17 @@
+{
+  "name": "FluidMusic",
+  "short_name": "FluidMusic",
+  "description": "流体动态音乐播放器",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0a14",
+  "theme_color": "#0a0a14",
+  "orientation": "landscape",
+  "icons": [
+    {
+      "src": "assets/icon.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
