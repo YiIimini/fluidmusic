@@ -184,10 +184,10 @@
           { key: 'chamberBottomPinned', label: '下仓常驻', type: 'toggle', help: '底部控制器默认保持可见' },
           { type: 'section', label: '━━ 左仓（歌单列表）━━' },
           { key: 'chamberLeftPinned', label: '左仓常驻', type: 'toggle', help: '歌单列表仓默认保持可见，而非hover触发' },
-          { key: 'chamberLeftTheme', label: '左仓主题', type: 'select', options: { default: '默认', warm: '暖色', cool: '冷色', dark: '深色', light: '浅色' }, help: '左仓歌单列表的配色主题' },
+          { key: 'chamberLeftTheme', label: '左仓主题', type: 'select', options: { default: '默认列表', compact: '紧凑列表', cover: '封面网格', minimal: '极简横条' }, help: '左仓歌单列表的展示方式' },
           { type: 'section', label: '━━ 右仓（歌词）━━' },
           { key: 'chamberRightPinned', label: '右仓常驻', type: 'toggle', help: '歌词仓默认保持可见' },
-          { key: 'chamberRightTheme', label: '右仓主题', type: 'select', options: { default: '默认', warm: '暖色', cool: '冷色', dark: '深色', light: '浅色' }, help: '右仓歌词的配色主题' },
+          { key: 'chamberRightTheme', label: '右仓主题', type: 'select', options: { default: '经典滚动', single: '单行动态', karaoke: '卡拉OK', mini: '迷你横条' }, help: '右仓歌词的展示方式' },
         ],
       },
       system: {
