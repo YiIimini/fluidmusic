@@ -152,9 +152,6 @@
       system: {
         title: '⚙️ 系统',
         fields: [
-          { type: 'section', label: '━━ 音频 ━━' },
-          { key: 'volume', label: '默认音量', type: 'range', min: 0, max: 1, step: 0.05, help: '应用启动时的默认音量' },
-          { key: 'playMode', label: '播放模式', type: 'select', options: { sequential: '顺序播放', random: '随机播放', single: '单曲循环' }, help: '顺序=按列表依次播放，随机=乱序，单曲=重复当前歌曲' },
           { type: 'section', label: '━━ 界面 ━━' },
           { key: 'language', label: '界面语言', type: 'select', options: { 'zh-CN': '中文', 'en-US': 'English' }, help: '切换后刷新设置面板生效' },
           { key: 'chamberTopPinned', label: '上仓常驻', type: 'toggle', help: '播放列表+收藏列表 默认保持可见' },
@@ -518,7 +515,7 @@
     container.innerHTML = html;
 
     // Background tab: Image/video picker + Restore Defaults + Clear Cache (also in system tab)
-    if (tabId === 'background' || tabId === 'system') {
+    if (tabId === 'background') {
       var wpRow = document.createElement('div');
       wpRow.className = 'diy-setting-row';
       wpRow.style.flexDirection = 'column';
