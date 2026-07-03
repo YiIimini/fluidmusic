@@ -113,7 +113,20 @@
           // Apply video to wallpaper layer, but don't overwrite an already-playing video
           var wpLayer = document.getElementById('wallpaper-layer');
           if (wpLayer && !wpLayer.querySelector('video')) {
-            wpLayer.innerHTML = '<video src="' + videoUrl + '" autoplay muted loop playsinline style="width:100%;height:100%;object-fit:cover;background:#0a0a14;"></video>';
+            var v = document.createElement('video');
+            v.src = videoUrl;
+            v.autoplay = true;
+            v.muted = true;
+            v.loop = true;
+            v.playsInline = true;
+            v.style.cssText = 'width:100%;height:100%;object-fit:cover;background:#0a0a14;';
+            v.addEventListener('error', function() {
+              wpLayer.innerHTML = '';
+              wpLayer.classList.remove('loaded');
+              localStorage.removeItem('fluidmusic-has-bg-video');
+            });
+            wpLayer.innerHTML = '';
+            wpLayer.appendChild(v);
             wpLayer.classList.add('loaded');
           }
         } else if (savedImg) {

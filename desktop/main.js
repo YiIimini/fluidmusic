@@ -6,6 +6,14 @@ const fs = require('fs');
 app.commandLine.appendSwitch('disable-http-cache');
 app.commandLine.appendSwitch('disable-cache');
 
+
+// Suppress noisy Chromium ffmpeg pixel-format ERROR logs (benign, media falls back gracefully)
+const _origStderrWrite = process.stderr.write.bind(process.stderr);
+process.stderr.write = function(chunk, encoding, cb) {
+  const s = (typeof chunk === "string") ? chunk : chunk.toString();
+  if (s.includes("ffmpeg_common.cc") && s.includes("Unsupported pixel format")) return true;
+  return _origStderrWrite(chunk, encoding, cb);
+};
 const { createApplicationMenu } = require('./menu');
 const { saveCookie: secureSaveCookie, loadCookie: secureLoadCookie, deleteCookie: secureDeleteCookie } = require('./cookie-store');
 const { initAutoUpdater, stopAutoUpdater } = require('./updater');
