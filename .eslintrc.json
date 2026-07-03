@@ -72,6 +72,8 @@
     "node_modules/**",
     "dist/**",
     "dist-renderer/**",
+    "src/**",
+    "desktop/*.ts",
     "src/**"
   ]
 }
