@@ -20,6 +20,10 @@
     speed: 1.0,
     colorAccent: new THREE.Color('#1144aa'),
     initialized: false,
+    // GPU downsampling: render bg at 1/2 resolution then upsample
+    _renderTarget: null,
+    _upsampleScene: null,
+    _upsampleQuad: null,
   };
 
   function init(canvas) {
@@ -135,11 +139,33 @@
       FluidBG.mesh.frustumCulled = false;
       FluidBG.scene.add(FluidBG.mesh);
 
+      // ── GPU downsampling: render fluid bg at 1/2 resolution via FBO ──
+      // Reduces pixel shader invocations by 75% with minimal visual difference
+      var hw = Math.max(1, Math.floor(window.innerWidth / 2));
+      var hh = Math.max(1, Math.floor(window.innerHeight / 2));
+      FluidBG._renderTarget = new THREE.WebGLRenderTarget(hw, hh, {
+        minFilter: THREE.LinearFilter,
+        magFilter: THREE.LinearFilter,
+        format: THREE.RGBAFormat,
+      });
+      // Upsample scene: single fullscreen quad that draws the FBO texture to screen
+      FluidBG._upsampleScene = new THREE.Scene();
+      var upsampleGeo = new THREE.PlaneGeometry(2, 2);
+      var upsampleMat = new THREE.ShaderMaterial({
+        uniforms: { uTex: { value: FluidBG._renderTarget.texture } },
+        vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position, 1.0); }',
+        fragmentShader: 'uniform sampler2D uTex; varying vec2 vUv; void main() { gl_FragColor = texture2D(uTex, vUv); }',
+        depthWrite: false,
+      });
+      FluidBG._upsampleQuad = new THREE.Mesh(upsampleGeo, upsampleMat);
+      FluidBG._upsampleQuad.frustumCulled = false;
+      FluidBG._upsampleScene.add(FluidBG._upsampleQuad);
+
       FluidBG.initialized = true;
 
-      // Register with shared renderer manager
+      // Register with shared renderer manager — upsample scene is the visible layer
       if (typeof RendererManager !== 'undefined' && RendererManager.initialized) {
-        RendererManager.registerLayer('bg', FluidBG.scene, FluidBG.camera, {
+        RendererManager.registerLayer('bg', FluidBG._upsampleScene, FluidBG.camera, {
           tick: tick,
           visible: true,
         });
@@ -162,6 +188,14 @@
     const u = FluidBG.material.uniforms;
     u.uTime.value = FluidBG.time;
 
+    // ── GPU downsampling: render fluid scene to 1/2-res FBO ──
+    if (FluidBG._renderTarget && typeof RendererManager !== 'undefined' && RendererManager.initialized) {
+      var r = RendererManager.renderer;
+      r.setRenderTarget(FluidBG._renderTarget);
+      r.render(FluidBG.scene, FluidBG.camera);
+      r.setRenderTarget(null);
+    }
+
     // Heavy smoothing on audio to eliminate visual flicker/strobing
     if (typeof FluidAudio !== 'undefined' && FluidAudio.bands) {
       var s = 0.04; // slow smoothing factor
@@ -179,7 +213,7 @@
   function render() {
     // Rendering is handled by RendererManager; this is a no-op fallback
     if (typeof RendererManager !== 'undefined' && RendererManager.initialized) return;
-    // Fallback: direct render if RendererManager not available
+    // Fallback: direct render if RendererManager not available (no downsampling)
     if (!FluidBG.initialized || !FluidBG.renderer) return;
     FluidBG.renderer.render(FluidBG.scene, FluidBG.camera);
   }
@@ -192,6 +226,13 @@
       FluidBG.renderer.setSize(window.innerWidth, window.innerHeight);
     }
     FluidBG.material.uniforms.uResolution.value.set(window.innerWidth, window.innerHeight);
+    // Rebuild downsample render target at new 1/2 resolution
+    if (FluidBG._renderTarget) {
+      FluidBG._renderTarget.setSize(
+        Math.max(1, Math.floor(window.innerWidth / 2)),
+        Math.max(1, Math.floor(window.innerHeight / 2))
+      );
+    }
   }
 
   function setIntensity(v) { FluidBG.intensity = v; if (FluidBG.material) FluidBG.material.uniforms.uIntensity.value = v; }

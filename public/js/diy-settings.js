@@ -641,7 +641,7 @@
           if (result && result.ok && result.dataUrl) {
             localStorage.removeItem('fluidmusic-has-bg-video');
             localStorage.setItem('fluidmusic-wallpaper', result.dataUrl);
-            applyWallpaper(result.dataUrl);
+            if (typeof applyWallpaper === 'function') applyWallpaper(result.dataUrl);
             if (typeof showToast !== 'undefined') showToast('🖼 背景已更新');
             updateThumb();
           }
@@ -683,7 +683,7 @@
                   console.log('[BgVideo] canplay fired');
                   vid.play().catch(function(e) { console.error('[BgVideo] play failed:', e); });
                 };
-                vid.onerror = function(e) {
+                vid.onerror = function(_e) {
                   var msg = vid.error ? (vid.error.message || '未知错误') : '解码失败';
                   console.error('[BgVideo] video load error:', msg);
                   if (typeof showToast !== 'undefined') showToast('⚠ 视频格式不兼容，请使用H.264编码的MP4文件');
@@ -718,7 +718,7 @@
           fluidmusic.clearBgVideo();
         }
         // Reset wallpaper layer to pristine first-launch state
-        applyWallpaper(null);
+        if (typeof applyWallpaper === 'function') applyWallpaper(null);
         var wpLayer = document.getElementById('wallpaper-layer');
         if (wpLayer) {
           wpLayer.innerHTML = '';
@@ -754,18 +754,7 @@
       restoreBtn.textContent = '↺ 恢复默认';
       restoreBtn.title = '将所有设置恢复为默认值';
       restoreBtn.addEventListener('click', function() {
-        if (typeof showCustomDialog === 'function') {
-          showCustomDialog('恢复默认设置', '确定将所有设置恢复为默认值？此操作不可撤销。', [
-            { text: '取消', style: 'secondary' },
-            { text: '恢复默认', style: 'danger', action: function() {
-              Object.assign(DIYSettings.settings, JSON.parse(JSON.stringify(DEFAULT_SETTINGS)));
-              saveSettings();
-              applySettings();
-              renderTab('system');
-              if (typeof showToast !== 'undefined') showToast('✅ 已恢复默认设置');
-            }}
-          ]);
-        } else if (confirm('确定将所有设置恢复为默认值？')) {
+        if (confirm('确定将所有设置恢复为默认值？')) {
           Object.assign(DIYSettings.settings, JSON.parse(JSON.stringify(DEFAULT_SETTINGS)));
           saveSettings();
           applySettings();
