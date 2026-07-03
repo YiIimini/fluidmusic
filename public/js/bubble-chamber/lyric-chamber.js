@@ -122,6 +122,13 @@
         const inlineLyric = document.getElementById('inline-lyric');
         if (inlineLyric && LyricChamber.lyricTimes && index >= 0 && index < LyricChamber.lyricTimes.length) {
           inlineLyric.textContent = LyricChamber.lyricTimes[index].text;
+          // Forward to desktop lyric window (if open)
+          if (typeof fluidmusic !== 'undefined' && fluidmusic.sendLyrics) {
+            const nextIdx = index + 1;
+            const nextText = (nextIdx < LyricChamber.lyricTimes.length)
+              ? LyricChamber.lyricTimes[nextIdx].text : '';
+            fluidmusic.sendLyrics(LyricChamber.lyricTimes[index].text, nextText);
+          }
         }
         if (changed) {
           lines[index].scrollIntoView({ behavior: 'smooth', block: 'center' });

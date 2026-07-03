@@ -262,6 +262,14 @@
   // ── Keyboard shortcuts ──
   function setupKeyboard() {
     window.addEventListener('keydown', (e) => {
+      // Desktop lyric window toggle: Cmd+Shift+L
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'L') {
+        e.preventDefault();
+        if (typeof fluidmusic !== 'undefined' && fluidmusic.toggleLyrics) {
+          fluidmusic.toggleLyrics();
+        }
+        return;
+      }
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
 
       switch (e.code) {
