@@ -54,6 +54,7 @@
     return m + ':' + String(s).padStart(2, '0');
   }
 
+  // eslint-disable-next-line no-unused-vars
   function setupControllerButtons() {
     const btnPlay = document.getElementById('btn-play');
     const btnPrev = document.getElementById('btn-prev');
@@ -67,7 +68,7 @@
     const volumeSlider = document.getElementById('volume-slider');
 
     let playMode = 0; // 0=sequential, 1=shuffle, 2=single-loop
-    let fxOn = false;
+    // fxOn unused
     let isDraggingProgress = false;
 
     // ── Mini Player ──
@@ -142,13 +143,12 @@
     // Drag mini player
     if (miniPlayer) {
       const header = document.getElementById('mini-player-header');
-      let dragX = 0, dragY = 0, startX = 0, startY = 0;
+      let dragX = 0, dragY = 0;
       if (header) {
         header.addEventListener('mousedown', (e) => {
           dragX = e.clientX - miniPlayer.offsetLeft;
           dragY = e.clientY - miniPlayer.offsetTop;
-          startX = miniPlayer.offsetLeft;
-          startY = miniPlayer.offsetTop;
+          
           const onDrag = (ev) => {
             miniPlayer.style.left = (ev.clientX - dragX) + 'px';
             miniPlayer.style.top = (ev.clientY - dragY) + 'px';

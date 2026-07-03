@@ -62,7 +62,7 @@
         const r = imageData.data[idx];
         const g = imageData.data[idx + 1];
         const b = imageData.data[idx + 2];
-        const a = imageData.data[idx + 3];
+        // alpha channel (unused)
 
         const brightness = (r + g + b) / 3 / 255;
 
@@ -519,9 +519,9 @@
     img.src = url;
   };
 
-  ParticleCover.setScatterStrength = function (v) { /* future: drive uniform */ };
-  ParticleCover.setSensitivity = function (v) { /* future use */ };
-  ParticleCover.setRotationSpeed = function (v) { /* future use */ };
+  ParticleCover.setScatterStrength = function (_v) { /* future: drive uniform */ };
+  ParticleCover.setSensitivity = function (_v) { /* future use */ };
+  ParticleCover.setRotationSpeed = function (_v) { /* future use */ };
 
   // Resize handler
   function onResize() {

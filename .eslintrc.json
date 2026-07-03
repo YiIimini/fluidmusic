@@ -10,11 +10,21 @@
     "sourceType": "script"
   },
   "rules": {
-    "no-unused-vars": ["warn", { "argsIgnorePattern": "^_" }],
+    "no-unused-vars": [
+      "warn",
+      {
+        "argsIgnorePattern": "^_"
+      }
+    ],
     "no-console": "off",
     "no-undef": "warn",
     "no-redeclare": "warn",
-    "no-empty": ["warn", { "allowEmptyCatch": true }],
+    "no-empty": [
+      "warn",
+      {
+        "allowEmptyCatch": true
+      }
+    ],
     "no-constant-condition": "warn",
     "no-prototype-builtins": "off",
     "no-case-declarations": "warn"
@@ -24,7 +34,6 @@
     "FluidAudio": "readonly",
     "FluidBackground": "readonly",
     "ParticleCover": "readonly",
-
     "BubbleChamber": "readonly",
     "Favorites": "readonly",
     "ApiBridge": "readonly",
@@ -40,7 +49,28 @@
     "ModuleRegistry": "readonly",
     "showToast": "readonly",
     "__FM": "readonly",
-    "fluidmusic": "readonly"
+    "fluidmusic": "readonly",
+    "ChamberBase": "readonly",
+    "PlaylistChamber": "readonly",
+    "LyricChamber": "readonly",
+    "QueueChamber": "readonly",
+    "Controllers": "readonly",
+    "RippleSystem": "readonly",
+    "setPlayIcon": "readonly",
+    "setLikeIcon": "readonly",
+    "setPlaymodeIcon": "readonly",
+    "formatTime": "readonly",
+    "setupControllerButtons": "readonly",
+    "_updateMiniPlayer": "readonly",
+    "_updateInlineLyricVisibility": "readonly",
+    "applyWallpaper": "readonly",
+    "queueMode": "readonly"
   },
-  "ignorePatterns": ["public/vendor/**", "node_modules/**", "dist/**", "dist-renderer/**", "src/**"]
+  "ignorePatterns": [
+    "public/vendor/**",
+    "node_modules/**",
+    "dist/**",
+    "dist-renderer/**",
+    "src/**"
+  ]
 }

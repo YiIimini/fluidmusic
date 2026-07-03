@@ -10,7 +10,7 @@
   var _rippleEnabled = false;
   var _lastRippleTime = 0;
   var _hoverRippleInterval = null;
-  var _audioRippleInterval = null;
+  // audioRippleInterval unused
   var _mouseX = 0, _mouseY = 0;
 
   function spawnRipple(x, y, isAudio) {
@@ -82,22 +82,6 @@
     return 'hsla(' + hue + ',' + sat + '%,' + light + '%,' + alpha + ')';
   }
 
-  function spawnRipple(x, y, isAudio) {
-    var ring = document.createElement('div');
-    ring.className = isAudio ? 'audio-ripple' : 'ripple-ring';
-    ring.style.left = x + 'px';
-    ring.style.top = y + 'px';
-    var size = getComputedStyle(document.documentElement).getPropertyValue('--ripple-size').trim() || '120px';
-    var speed = getComputedStyle(document.documentElement).getPropertyValue('--ripple-speed').trim() || '0.8s';
-    ring.style.setProperty('--ripple-size', isAudio ? '200px' : size);
-    ring.style.setProperty('--ripple-duration', speed);
-    // Random color for every ripple
-    var color = randomRippleColor();
-    ring.style.borderColor = color;
-    ring.style.boxShadow = '0 0 12px ' + color + ', inset 0 0 8px ' + color;
-    document.body.appendChild(ring);
-    setTimeout(function() { ring.remove(); }, parseFloat(speed) * 2000 + 200);
-  }
 
   function spawnAudioRipple(x, y, band) {
     var ring = document.createElement('div');
@@ -180,7 +164,8 @@
     _audioRippleRAF = requestAnimationFrame(tickAudioRipples);
   }
 
-  function stopAudioRipple() {
+  // eslint-disable-next-line no-unused-vars
+  function _stopAudioRipple() {
     if (_audioRippleRAF) { cancelAnimationFrame(_audioRippleRAF); _audioRippleRAF = null; }
   }
 

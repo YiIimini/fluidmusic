@@ -78,10 +78,6 @@
   }
   // (toggle function above replaces both show/hide dispatch)
 
-  function hide() {
-    if (!UserPanel.overlay) return;
-    UserPanel.overlay.classList.remove('open');
-  }
 
   function switchTab(platform) {
     UserPanel.activeTab = platform;
@@ -90,6 +86,8 @@
     renderTabContent(platform);
   }
 
+  // eslint-disable-next-line no-unused-vars
+  // eslint-disable-next-line no-unused-vars
   function render() {
     switchTab(UserPanel.activeTab);
   }
