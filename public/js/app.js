@@ -813,6 +813,11 @@
     };
 
     FluidAudio.onTrackChange = function (track) {
+      // Emit through TS EventBus for cross-module communication
+      if (window.__FM_TS && window.__FM_TS.eventBus) {
+        window.__FM_TS.eventBus.emit('track:change', track);
+      }
+
       document.getElementById('song-title').textContent = track.title || '未知歌曲';
       document.getElementById('song-artist').textContent = track.artist || '未知作者';
 
