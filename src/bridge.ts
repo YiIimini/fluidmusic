@@ -14,6 +14,7 @@ import { AppStore } from './core/app-store';
 import { DataCache } from './core/data-cache';
 import { ThemeManager } from './core/theme-manager';
 import { SettingsPresets } from './core/settings-presets';
+import { getPlatformAdapter } from './platform/index';
 
 // --------------- singleton instances ---------------
 
@@ -37,6 +38,7 @@ if (typeof window !== 'undefined') {
     errorHandler: ErrorHandler,
     themeManager: ThemeManager,
     settingsPresets: SettingsPresets,
+    platform: getPlatformAdapter(),
     // Flag: TS bridge is ready
     ready: true,
   };
