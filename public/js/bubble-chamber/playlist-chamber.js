@@ -490,7 +490,7 @@
       if (tracks.length > 0) {
         const playAll = document.createElement('div');
         playAll.className = 'playlist-item playlist-playall';
-        playAll.textContent = '▶ 播放全部 (' + tracks.length + ')';
+        playAll.textContent = 'All(' + tracks.length + ')';
         playAll.addEventListener('click', async () => {
           if (typeof FluidAudio !== 'undefined') {
             // Respect current play mode: shuffle list if in random mode
@@ -525,6 +525,12 @@
           }
         });
         container.appendChild(playAll);
+
+        // Search filter input
+        var searchDiv = document.createElement('div');
+        searchDiv.style.cssText = 'padding:4px 8px;';
+        searchDiv.innerHTML = '<input type="text" id="playlist-search" placeholder="搜索当前列表..." style="width:100%;padding:6px 10px;border-radius:8px;border:1px solid var(--glass-border);background:rgba(255,255,255,0.05);color:var(--text-primary);font-size:12px;outline:none;font-family:var(--font-main);" oninput="window._filterPlaylistTracks(this.value)">';
+        container.appendChild(searchDiv);
       }
 
       tracks.forEach((track, i) => {
@@ -725,5 +731,20 @@
   };
 
   window.PlaylistChamber = PlaylistChamber;
+
+  // Global playlist track search filter
+  window._filterPlaylistTracks = function(query) {
+    var rows = document.querySelectorAll('.playlist-item-row');
+    var q = (query || '').toLowerCase().trim();
+    rows.forEach(function(row) {
+      var name = (row.querySelector('.pli-name')?.textContent || '').toLowerCase();
+      if (!q || name.includes(q)) {
+        row.style.display = '';
+      } else {
+        row.style.display = 'none';
+      }
+    });
+  };
+
   console.log('FluidMusic Playlist Chamber loaded');
 })();
