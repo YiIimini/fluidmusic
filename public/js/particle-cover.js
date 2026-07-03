@@ -39,7 +39,7 @@
 
   // ── Build particle geometry from image ──
   function buildCoverParticleGeometry(image, resolution) {
-    const res = resolution || 118;
+    const res = resolution || 160;
     const canvas = document.createElement('canvas');
     canvas.width = res;
     canvas.height = res;
@@ -115,6 +115,7 @@
     const vertexShader = [
       'uniform float uTime; uniform float uBass; uniform float uMid; uniform float uTreble; uniform float uEnergy;',
       'uniform float uTransition; uniform float uPixel; uniform float uColorBoost;',
+      'uniform vec2 uMouse; uniform float uBreath;',
       'uniform sampler2D uTexture;',
       'attribute float aRandom; attribute float aLayer;',
       'varying vec3 vColor; varying float vBright; varying float vRipple; varying float vAlpha; varying float vSourceLum;',
@@ -123,15 +124,24 @@
       'void main(){',
       'vec2 texUv = uv;',
       'vec3 pos = position;',
-      // Entrance scatter — particles fly in from random positions
+      // ── Enhanced spiral scatter (Mineradio-MacOS style) ──
       'float scatter = 1.0 - uTransition; float scatterStr = scatter * 3.5;',
-      'float angle = aRandom * 6.28318;',
-      'float radius = hash(aRandom + uTime * 0.035) * scatterStr;',
-      'pos.x += cos(angle) * radius * scatter;',
-      'pos.y += sin(angle) * radius * scatter;',
-      'pos.z += (hash(aRandom * 2.0) - 0.5) * scatterStr * 2.5 * scatter;',
+      'float spiralAngle = aRandom * 6.28318 + uTime * 0.6 * scatter;',
+      'float spiralRadius = (0.25 + aRandom * 0.75) * scatterStr;',
+      'float orbitSpeed = mix(0.5, 1.5, aRandom);',
+      'pos.x += cos(spiralAngle * orbitSpeed) * spiralRadius * scatter;',
+      'pos.y += sin(spiralAngle * orbitSpeed) * spiralRadius * scatter;',
+      'pos.z += sin(spiralAngle * 1.7 + aRandom * 3.0) * spiralRadius * 0.6 * scatter;',
+      // ── Mouse interaction: particles subtly repel from cursor ──
+      'vec3 mouseWorld = vec3(uMouse.x * 3.2, uMouse.y * 3.2, 0.0);',
+      'float mouseDist = length(pos.xy - mouseWorld.xy);',
+      'float mouseForce = smoothstep(2.0, 0.0, mouseDist) * uTransition * 0.35;',
+      'vec2 repelDir = normalize(pos.xy - mouseWorld.xy + 0.001);',
+      'pos.xy += repelDir * mouseForce * 0.45;',
+      // ── Audio-reactive breathing: whole cloud expands/contracts ──
+      'float breathScale = 1.0 + uBreath * 0.06;',
+      'pos *= breathScale;',
       // ── ALL particles respond to ALL audio — continuous undulating motion ──
-      // Each particle has unique phase + amplitude, creating living wave effect
       'float n = noise3D(vec3(pos.xy * 0.8, uTime * 0.6 + aRandom * 5.0));',
       'float waveA = sin(uTime * 0.9 + aRandom * 12.0) * 0.5 + 0.5;',
       'float waveB = cos(uTime * 1.3 + aRandom * 7.0 + pos.x * 2.0) * 0.5 + 0.5;',
@@ -142,13 +152,12 @@
       'float trebleSparkle = uTreble * (0.4 + waveC * 0.8) * 0.6;',
       'float noiseShift = (n - 0.5) * 0.5 * uEnergy;',
       'float totalLift = bassPush + midRipple + trebleSparkle + noiseShift;',
-      // Z-depth: brighter pixels push forward, darker recede — real 3D parallax',
-      'float baseZ = (1.0 - aLayer) * 0.8;',  // front layer gets positive Z offset',
+      'float baseZ = (1.0 - aLayer) * 0.8;',
       'pos.z += baseZ + totalLift * (0.5 + aRandom * 0.4);',
-      // Lateral audio-driven drift for organic 3D float',
+      // Lateral audio-driven drift
       'pos.x += sin(uTime * 0.7 + aRandom * 9.0 + pos.z * 2.0) * uMid * 0.15;',
       'pos.y += cos(uTime * 0.8 + aRandom * 11.0 + pos.z * 1.5) * uTreble * 0.12;',
-      // Sample cover texture for color + gamma boost
+      // Sample cover texture for color
       'vec3 texColor = texture2D(uTexture, texUv).rgb;',
       'float lum = dot(texColor, vec3(0.299, 0.587, 0.114));',
       'vColor = pow(max(texColor, vec3(0.0)), vec3(1.0 / max(0.35, uColorBoost)));',
@@ -156,7 +165,7 @@
       'vSourceLum = lum;',
       'vRipple = totalLift;',
       'vAlpha = uTransition * uTransition * (3.0 - 2.0 * uTransition);',
-      // ── Sharper, depth-aware point size ──
+      // ── Depth-aware point size ──
       'vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);',
       'float depthFactor = min(1.0, 3.0 / max(0.3, -mvPosition.z));',
       'float audioBoost = 1.0 + uEnergy * 0.4 + uBass * 0.25 + waveA * 0.12;',
@@ -176,29 +185,35 @@
       'vec4 tex = texture2D(uDotTex, gl_PointCoord);',
       'if (tex.a < 0.02) discard;',
       'vec3 col = vColor * vBright;',
-      // Slight boost from audio ripple
+      // Audio ripple boost
       'col = mix(col, col * 1.2, vRipple * 0.35);',
-      // Discard black/dark particles (negative space — the Mineradio signature)',
+      // ── Depth-based coloring (Mineradio-MacOS holographic style) ──',
+      // Bright pixels (front layer) get warm golden tint, dark pixels (back) get cool blue tint',
+      'float warmth = vSourceLum;',
+      'vec3 warmTint = vec3(1.10, 0.88, 0.70);',
+      'vec3 coolTint = vec3(0.72, 0.78, 1.10);',
+      'vec3 depthColor = mix(coolTint, warmTint, warmth);',
+      'col = col * depthColor;',
+      // Discard black/dark particles (negative space)
       'float keepBlack = 1.0 - smoothstep(0.025, 0.115, vSourceLum);',
       'float nonBlack = 1.0 - keepBlack;',
-      // ── Real 3D rim lighting with specular highlight ──
+      // ── 3D rim lighting with specular highlight ──
       'float dotDist = length(gl_PointCoord - vec2(0.5)) * 2.0;',
       'float rim = smoothstep(0.35, 0.85, dotDist) * (1.0 - smoothstep(0.85, 1.05, dotDist)) * tex.a;',
       'float specular = smoothstep(0.55, 0.7, dotDist) * (1.0 - smoothstep(0.7, 0.8, dotDist)) * tex.a * 0.6;',
       'float outLum = dot(col, vec3(0.299, 0.587, 0.114));',
       'float lightParticle = smoothstep(0.45, 0.85, outLum) * nonBlack;',
       'float darkParticle = (1.0 - smoothstep(0.15, 0.45, outLum)) * nonBlack;',
-      // Rim darkens edges for sphere-like 3D',
+      // Rim darkens edges for sphere-like 3D
       'col = mix(col, vec3(0.02), rim * lightParticle * 0.45);',
       'col = mix(col, vec3(0.95), rim * darkParticle * 0.25);',
-      // Specular hot spot for glossy 3D look',
+      // Specular hot spot for glossy 3D look
       'col += vec3(0.25, 0.22, 0.35) * specular * lightParticle;',
-      // Energy glow — warm/cool shift based on audio',
+      // Energy glow — warm/cool shift based on audio
       'float energyHue = mix(0.08, 0.02, uBass);',
       'col += vec3(0.06 + energyHue, 0.04, 0.2 - energyHue) * uEnergy * tex.a * 0.4;',
       'col = clamp(col, vec3(0.0), vec3(1.8));',
       'float finalAlpha = tex.a * uAlpha * vAlpha;',
-      // Darken very dark particles but keep them visible',
       'finalAlpha *= 0.3 + nonBlack * 0.7;',
       'if (finalAlpha < 0.003) discard;',
       'gl_FragColor = vec4(col, finalAlpha);',
@@ -218,6 +233,8 @@
         uAlpha: { value: 1.0 },
         uPixel: { value: 1.5 },
         uColorBoost: { value: 1.15 },
+        uMouse: { value: new THREE.Vector2(0, 0) },
+        uBreath: { value: 0 },
       },
       vertexShader,
       fragmentShader,
@@ -325,11 +342,16 @@
           const dy = (e.clientY - cy) / (rect.height / 2);
           ParticleCover.targetRotY = dx * 0.5;
           ParticleCover.targetRotX = -dy * 0.4;
+          // Store mouse position for particle repulsion (clip-space: -1 to 1)
+          ParticleCover.mouseX = dx;
+          ParticleCover.mouseY = -dy;
         });
         container.addEventListener('mouseleave', () => {
           // Return to neutral when mouse leaves
           ParticleCover.targetRotY = 0;
           ParticleCover.targetRotX = 0;
+          ParticleCover.mouseX = 0;
+          ParticleCover.mouseY = 0;
         });
         container.addEventListener('wheel', (e) => {
           e.preventDefault();
@@ -367,7 +389,17 @@
       ParticleCover.material.uniforms.uMid.value = FluidAudio.bands.mid;
       ParticleCover.material.uniforms.uTreble.value = FluidAudio.bands.treble;
       ParticleCover.material.uniforms.uEnergy.value = FluidAudio.bands.energy;
+      // Smooth breath: low-pass filter the energy for gentle breathing pulse
+      var targetBreath = FluidAudio.bands.energy * 0.7 + FluidAudio.bands.bass * 0.3;
+      var currentBreath = ParticleCover.material.uniforms.uBreath.value;
+      ParticleCover.material.uniforms.uBreath.value = currentBreath + (targetBreath - currentBreath) * 0.15;
     }
+
+    // Mouse position uniform (clip-space, already stored by mousemove)
+    ParticleCover.material.uniforms.uMouse.value.set(
+      ParticleCover.mouseX || 0,
+      ParticleCover.mouseY || 0
+    );
 
     // Smooth orbit rotation
     ParticleCover.rotX += (ParticleCover.targetRotX - ParticleCover.rotX) * 0.08;
