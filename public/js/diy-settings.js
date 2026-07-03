@@ -539,12 +539,13 @@
         var savedImg = localStorage.getItem('fluidmusic-wallpaper');
         var savedVid = localStorage.getItem('fluidmusic-has-bg-video');
         if (savedVid) {
-          if (vid) { vid.src = savedVid; vid.style.display = 'block'; vid.play().catch(function(){}); }
+          var videoUrl = window.location.origin + '/bg-video?t=' + Date.now();
+          if (vid) { vid.src = videoUrl; vid.style.display = 'block'; vid.play().catch(function(){}); }
           thumb.innerHTML = '<span style="font-size:10px;color:var(--text-dim);">已设置视频背景</span>';
-          // Apply video to wallpaper layer
+          // Apply video to wallpaper layer, but don't overwrite an already-playing video
           var wpLayer = document.getElementById('wallpaper-layer');
-          if (wpLayer) {
-            wpLayer.innerHTML = '<video src="' + savedVid + '" autoplay muted loop playsinline style="width:100%;height:100%;object-fit:cover;"></video>';
+          if (wpLayer && !wpLayer.querySelector('video')) {
+            wpLayer.innerHTML = '<video src="' + videoUrl + '" autoplay muted loop playsinline style="width:100%;height:100%;object-fit:cover;background:#0a0a14;" onerror="this.parentElement.classList.remove(\'loaded\');this.parentElement.innerHTML=\'\';localStorage.removeItem(\'fluidmusic-has-bg-video\');"></video>';
             wpLayer.classList.add('loaded');
           }
         } else if (savedImg) {
