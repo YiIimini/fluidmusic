@@ -62,11 +62,6 @@
 <!-- Layer 1: Pass-through -->
 <div id="layer-passthrough"></div>
 
-<!-- Layer 3.5: Foam Visualizer (above wallpaper, below center core, audio-reactive) -->
-<div id="foam-visualizer-layer" style="display:none;position:fixed;inset:0;z-index:2;pointer-events:none;opacity:0;transition:opacity 0.6s var(--ease-fluid);">
-  <canvas id="foam-canvas" style="width:100%;height:100%;"></canvas>
-</div>
-
 <!-- Layer 5: Center Core -->
 <div id="center-core">
   <div id="center-core-inner">
@@ -78,9 +73,8 @@
       <div id="song-title">FluidMusic</div>
       <div id="song-artist">流体动态音乐播放器</div>
     </div>
-    <div id="spectrum-container" style="width:260px;height:56px;margin-top:2px;position:relative;overflow:visible;">
-      <canvas id="spectrum-canvas" style="width:100%;height:100%;"></canvas>
-    </div>
+
+
     <div style="display:flex;align-items:center;gap:6px;width:260px;margin-top:2px;">
       <span id="time-current" style="font-size:10px;color:var(--text-dim);font-variant-numeric:tabular-nums;min-width:32px;text-align:right;">0:00</span>
       <div id="progress-bar-container" style="flex:1;height:3px;">
@@ -322,9 +316,7 @@ window.onerror = function(msg, url, line) {
 <script src="js/renderer-manager.js"></script>
 <script src="js/fluid-bg.js"></script>
 <script src="js/particle-cover.js"></script>
-<script src="js/foam-system.js"></script>
-<script src="js/foam-equalizer.js"></script>
-<script src="js/spectrum-3d.js"></script>
+
 <script src="js/bubble-chamber.js"></script>
 <script src="js/lastfm.js"></script>
 <script src="js/custom-playlists.js"></script>
