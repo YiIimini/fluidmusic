@@ -267,13 +267,7 @@
     if (typeof FluidAudio === 'undefined') return;
 
     // Fetch URL if needed
-    if ((!track.url || track.platform === 'qq') && track.id) {
-      try {
-        if (typeof window._fetchTrackUrl === 'function') {
-          track.url = await window._fetchTrackUrl(track);
-        }
-      } catch (e) { /* fall through */ }
-    }
+    await window._ensureTrackUrl(track);
 
     if (track.url) {
       // Replace playlist with this single track (user can add more)

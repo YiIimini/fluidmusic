@@ -1,4 +1,8 @@
 // ============================================================
+// Debug flag — set to true for verbose API logging during development
+const _API_DEBUG = false;
+const _apilog = (...a) => { if (_API_DEBUG) console.log(...a); };
+const _apiwarn = (...a) => { if (_API_DEBUG) console.warn(...a); };
 // FluidMusic — Platform API Bridge
 // QQ Music + Netease Cloud Music + Kugou Music OAuth login via Electron IPC
 // ============================================================
@@ -52,7 +56,7 @@
       try {
         const cached = await _cacheGet(cacheKey);
         if (cached !== null && cached !== undefined) {
-          console.log('[fetchApi] ' + platform + ' ← cache ' + endpoint);
+          _apilog('[fetchApi] ' + platform + ' ← cache ' + endpoint);
           return cached;
         }
       } catch (e) { /* cache miss, proceed to network */ }
@@ -65,10 +69,10 @@
       headers['x-platform'] = platform;
     }
 
-    console.log('[fetchApi] ' + platform + ' → ' + endpoint + ' | cookie:', !!cookieStore[platform], '| len:', (cookieStore[platform] || '').length);
+    _apilog('[fetchApi] ' + platform + ' → ' + endpoint + ' | cookie:', !!cookieStore[platform], '| len:', (cookieStore[platform] || '').length);
     const res = await fetch(url, { method, headers });
     const json = await res.json();
-    console.log('[fetchApi] ' + platform + ' ← ' + endpoint + ' | status:', res.status, '| hasData:', !!json);
+    _apilog('[fetchApi] ' + platform + ' ← ' + endpoint + ' | status:', res.status, '| hasData:', !!json);
 
     // ── Store successful GET responses in cache ──
     if (cacheKey && res.ok && json) {
@@ -109,20 +113,20 @@
           }
         }
 
-        console.log('Login status loaded — netease:', ApiBridge.neteaseLoggedIn, 'qq:', ApiBridge.qqLoggedIn, 'qqCookie:', !!cookieStore.qq);
+        _apilog('Login status loaded — netease:', ApiBridge.neteaseLoggedIn, 'qq:', ApiBridge.qqLoggedIn, 'qqCookie:', !!cookieStore.qq);
 
         if (ApiBridge.neteaseLoggedIn) await fetchNeteaseUserDetail();
         if (ApiBridge.qqLoggedIn) fetchQQUserDetail();
               }
     } catch (e) {
-      console.warn('Failed to get login status:', e);
+      _apiwarn('Failed to get login status:', e);
     }
 
     // Listen for login-state-changed events (pushed by main process after login/logout)
     if (typeof fluidmusic !== 'undefined' && fluidmusic.onLoginStateChanged) {
       fluidmusic.onLoginStateChanged((state) => {
         const { platform, loggedIn, cookie } = state;
-        console.log('Login state changed:', platform, 'loggedIn:', loggedIn);
+        _apilog('Login state changed:', platform, 'loggedIn:', loggedIn);
 
         ApiBridge[platform + 'LoggedIn'] = loggedIn;
         cookieStore[platform] = cookie || '';
@@ -144,12 +148,12 @@
 
     // Login buttons now handled through UserPanel overlay
 
-    console.log('API Bridge initialized — cookies ready');
+    _apilog('API Bridge initialized — cookies ready');
   }
 
   async function loginPlatform(platform) {
     if (typeof fluidmusic === 'undefined') {
-      console.warn(platform + ' login not available (not in Electron)');
+      _apiwarn(platform + ' login not available (not in Electron)');
       return;
     }
 
@@ -169,7 +173,7 @@
         // 1. Store cookie from login result immediately
         if (result.cookie) {
           cookieStore[platform] = result.cookie;
-          console.log('[loginPlatform] Stored cookie for', platform, 'length:', result.cookie.length);
+          _apilog('[loginPlatform] Stored cookie for', platform, 'length:', result.cookie.length);
         }
 
         // 2. Fetch user profile after login
@@ -178,10 +182,10 @@
           if (platform === 'netease') profile = await fetchNeteaseUserDetail();
           else if (platform === 'qq') profile = await fetchQQUserDetail();
                   } catch (e) {
-          console.warn('[loginPlatform] Profile fetch failed for', platform, ':', e.message);
+          _apiwarn('[loginPlatform] Profile fetch failed for', platform, ':', e.message);
         }
 
-        console.log('[loginPlatform] Fetched profile for', platform, ':', profile ? profile.nickname : 'null');
+        _apilog('[loginPlatform] Fetched profile for', platform, ':', profile ? profile.nickname : 'null');
 
         // 3. Profile fetched for UserPanel display
 
@@ -197,9 +201,9 @@
               if (pl.platform === platform) synced[platform][pl.id] = true;
             });
             localStorage.setItem('fluidmusic_synced_playlists', JSON.stringify(synced));
-            console.log('[loginPlatform] Auto-checked ' + allPl.length + ' playlists for ' + platform);
-          } catch(e) { console.warn('Auto-check failed:', e); }
-          console.log('[loginPlatform] Fetched playlists after login:',
+            _apilog('[loginPlatform] Auto-checked ' + allPl.length + ' playlists for ' + platform);
+          } catch(e) { _apiwarn('Auto-check failed:', e); }
+          _apilog('[loginPlatform] Fetched playlists after login:',
             'netease=' + (playlists.netease || []).length,
             'qq=' + (playlists.qq || []).length);
 
@@ -211,14 +215,14 @@
             BubbleChamber.setUserPlaylists(playlists);
           }
         } catch (e) {
-          console.error('[loginPlatform] Failed to fetch playlists:', e);
+          _apiwarn('[loginPlatform] Failed to fetch playlists:', e);
         }
 
         // Notify app of login (legacy event)
         window.dispatchEvent(new CustomEvent('fluidmusic:login', { detail: { platform } }));
       }
     } catch (e) {
-      console.error(platform + ' login failed:', e);
+      _apiwarn(platform + ' login failed:', e);
     } finally {
       if (btn && !ApiBridge[platform + 'LoggedIn']) {
         const platformNames = { netease: '网易云音乐', qq: 'QQ音乐', };
@@ -235,31 +239,26 @@
   async function openQQLogin() { return loginPlatform('qq'); }
 
   // ── Netease User Detail ──
+function _makeNeteaseUser(profile) {
+    return {
+      avatarUrl: profile.avatarUrl || '',
+      nickname: profile.nickname || '网易云用户',
+      vipType: profile.vipType || 0,
+      followeds: profile.followeds || 0,
+      follows: profile.follows || 0,
+      playlistCount: profile.playlistCount || 0,
+    };
+  }
+
   async function fetchNeteaseUserDetail() {
     try {
-      // Use account endpoint — identifies user from cookie without needing uid
       const data = await fetchApi('/api/netease/account', {}, 'netease');
       if (data && data.profile) {
-        ApiBridge.neteaseUser = {
-          avatarUrl: data.profile.avatarUrl || '',
-          nickname: data.profile.nickname || '网易云用户',
-          vipType: data.profile.vipType || 0,
-          followeds: data.profile.followeds || 0,
-          follows: data.profile.follows || 0,
-          playlistCount: data.profile.playlistCount || 0,
-        };
+        ApiBridge.neteaseUser = _makeNeteaseUser(data.profile);
       } else {
-        // Fallback: try user/detail without uid (server will use account endpoint)
         const fallbackData = await fetchApi('/api/netease/user/detail', {}, 'netease');
         if (fallbackData && fallbackData.profile) {
-          ApiBridge.neteaseUser = {
-            avatarUrl: fallbackData.profile.avatarUrl || '',
-            nickname: fallbackData.profile.nickname || '网易云用户',
-            vipType: fallbackData.profile.vipType || 0,
-            followeds: fallbackData.profile.followeds || 0,
-            follows: fallbackData.profile.follows || 0,
-            playlistCount: fallbackData.profile.playlistCount || 0,
-          };
+          ApiBridge.neteaseUser = _makeNeteaseUser(fallbackData.profile);
         } else {
           ApiBridge.neteaseUser = {
             avatarUrl: '', nickname: '网易云用户', vipType: 0,
@@ -269,7 +268,7 @@
       }
       return ApiBridge.neteaseUser;
     } catch (e) {
-      console.warn('Failed to fetch Netease user detail:', e);
+      _apiwarn('Failed to fetch Netease user detail:', e);
       return null;
     }
   }
@@ -282,7 +281,7 @@
     }
     try {
       const data = await fetchApi('/api/qq/user/detail', {}, 'qq', 'GET');
-      console.log('[fetchQQUserDetail] API response:', JSON.stringify(data).substring(0, 300));
+      _apilog('[fetchQQUserDetail] API response:', JSON.stringify(data).substring(0, 300));
       if (data && data.code === 0 && data.data) {
         const creator = data.data.creator || data.data;
         const nick = creator.nick || creator.nickname || creator.name || '';
@@ -300,7 +299,7 @@
       }
       return ApiBridge.qqUser;
     } catch (e) {
-      console.warn('Failed to fetch QQ user detail:', e);
+      _apiwarn('Failed to fetch QQ user detail:', e);
       return ApiBridge.qqUser;
     }
   }
@@ -328,7 +327,7 @@
           }));
         }
       } catch (e) {
-        console.warn('Failed to fetch Netease playlists:', e);
+        _apiwarn('Failed to fetch Netease playlists:', e);
       }
     }
 
@@ -348,7 +347,7 @@
           platform: 'qq',
         }));
       } catch (e) {
-        console.warn('Failed to fetch QQ playlists:', e);
+        _apiwarn('Failed to fetch QQ playlists:', e);
       }
     }
 

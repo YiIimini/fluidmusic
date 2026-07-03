@@ -467,7 +467,7 @@
           if (typeof FluidAudio !== 'undefined' && FluidAudio.playlist[i]) {
             const t = FluidAudio.playlist[i];
             if ((!t.url || t.platform === 'qq') && t.id) {
-              t.url = await PlaylistChamber.fetchTrackUrl(t);
+              await window._ensureTrackUrl(t);
             }
             if (t.url) {
               FluidAudio.load(t.url, t);
@@ -516,7 +516,7 @@
             const t = playTracks[startIdx];
             // Fetch URL ONLY for the first track — rest on-demand
             if ((!t.url || t.platform === 'qq') && t.id) {
-              try { t.url = await PlaylistChamber.fetchTrackUrl(t); } catch(e) {}
+              await window._ensureTrackUrl(t);
             }
             if (t.url) {
               FluidAudio.load(t.url, t);
@@ -577,7 +577,7 @@
           const origText = btn.textContent;
           btn.textContent = '…';
           const t = tracks[i];
-          if ((!t.url || t.platform === 'qq') && t.id) t.url = await PlaylistChamber.fetchTrackUrl(t);
+          await window._ensureTrackUrl(t);
           if (t.url && typeof FluidAudio !== 'undefined') {
             FluidAudio.setPlaylist(tracks, i);
             if (typeof QueueChamber !== 'undefined') {
@@ -664,7 +664,7 @@
           e.stopPropagation();
           const t = tracks[i];
           if ((!t.url || t.platform === 'qq') && t.id && typeof ApiBridge !== 'undefined') {
-            t.url = await PlaylistChamber.fetchTrackUrl(t);
+            await window._ensureTrackUrl(t);
           }
           if (t.url && typeof FluidAudio !== 'undefined') {
             FluidAudio.load(t.url, t);
@@ -721,7 +721,7 @@
           e.stopPropagation();
           const t = tracks[i];
           if ((!t.url || t.platform === 'qq') && t.id && typeof ApiBridge !== 'undefined') {
-            t.url = await PlaylistChamber.fetchTrackUrl(t);
+            await window._ensureTrackUrl(t);
           }
           if (t.url && typeof FluidAudio !== 'undefined') {
             FluidAudio.load(t.url, t);

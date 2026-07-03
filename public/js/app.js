@@ -149,7 +149,6 @@
       if (typeof _updateMiniPlayer === 'function') _updateMiniPlayer(track);
 
       // Sync particle cover — always attempt
-      console.log('[onTrackChange] FIRED | track keys:', track ? Object.keys(track) : 'null', '| coverUrl:', track && track.coverUrl);
       // Update fallback cover image (always show, even if particle cover disabled)
       const fallbackImg = document.getElementById('cover-fallback');
       const coverUrl = track.coverUrl || track.cover || '';
