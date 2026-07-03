@@ -1037,6 +1037,24 @@ ipcMain.handle('fluidmusic-pick-bg-video', async () => {
   }
 });
 
+
+
+// ── Desktop lyric window ──
+const { createLyricWindow, sendLyricUpdate, closeLyricWindow } = require('./lyric-window');
+
+ipcMain.handle('fluidmusic-toggle-lyrics', (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (!win) return;
+  createLyricWindow(win);
+});
+
+ipcMain.handle('fluidmusic-send-lyrics', (_event, text, nextText) => {
+  sendLyricUpdate(text, nextText);
+});
+
+ipcMain.handle('fluidmusic-close-lyrics', () => {
+  closeLyricWindow();
+});
 ipcMain.handle('fluidmusic-clear-bg-video', async () => {
   try {
     const destDir = path.join(app.getPath('userData'), 'backgrounds');

@@ -77,6 +77,12 @@ contextBridge.exposeInMainWorld('fluidmusic', {
   pickBgVideo: () => ipcRenderer.invoke('fluidmusic-pick-bg-video'),
   clearBgVideo: () => ipcRenderer.invoke('fluidmusic-clear-bg-video'),
 
+
+  // Desktop lyric window controls
+  toggleLyrics: () => ipcRenderer.invoke('fluidmusic-toggle-lyrics'),
+  sendLyrics: (text, nextText) => ipcRenderer.invoke('fluidmusic-send-lyrics', text, nextText),
+  closeLyrics: () => ipcRenderer.invoke('fluidmusic-close-lyrics'),
+
   // Settings persistence
   saveSettings: (settings) => ipcRenderer.invoke('fluidmusic-save-settings', settings),
   loadSettings: () => ipcRenderer.invoke('fluidmusic-load-settings'),
