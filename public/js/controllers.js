@@ -179,9 +179,7 @@
           } else if (FluidAudio.playlist.length > 0) {
             const idx = FluidAudio.playlistIndex >= 0 ? FluidAudio.playlistIndex : 0;
             const t = FluidAudio.playlist[idx];
-            if ((!t.url || t.platform === 'qq') && t.id && window._fetchTrackUrl) {
-              try { t.url = await window._fetchTrackUrl(t); } catch(e) {}
-            }
+            await window._ensureTrackUrl(t);
             if (t.url) {
               FluidAudio.load(t.url, t);
               FluidAudio.play();
@@ -442,9 +440,7 @@
             FluidAudio.setPlaylist(trackList, idx);
             // Trigger URL fetch then play
             (async () => {
-              if ((!track.url || track.platform === 'qq') && track.id && window._fetchTrackUrl) {
-                try { track.url = await window._fetchTrackUrl(track); } catch(e) {}
-              }
+              await window._ensureTrackUrl(track);
               if (track.url) {
                 FluidAudio.load(track.url, track);
                 FluidAudio.play();

@@ -44,6 +44,14 @@
   // Legacy fetchTrackUrl alias (used externally as window._fetchTrackUrl)
   window._fetchTrackUrl = PlaylistChamber.fetchTrackUrl;
 
+  // Centralized URL resolution: ensures a track has a playable URL.
+  // Replaces the guard pattern duplicated across 7+ call sites.
+  window._ensureTrackUrl = async function(track) {
+    if (!track || track.url && track.platform !== 'qq') return;
+    if (!track.id || !window._fetchTrackUrl) return;
+    try { track.url = await window._fetchTrackUrl(track); } catch(_) {}
+  };
+
   // Register with module registry if available
   if (typeof __FM !== 'undefined') __FM.register('bubbleChamber', [], function () { return window.BubbleChamber; }, { priority: 5 });
 

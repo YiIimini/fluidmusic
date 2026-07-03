@@ -204,9 +204,7 @@
       row.querySelector('.pli-play').addEventListener('click', async (e) => {
         e.stopPropagation();
         const t = pl.tracks[i];
-        if ((!t.url || t.platform === 'qq') && t.id && typeof window._fetchTrackUrl === 'function') {
-          t.url = await window._fetchTrackUrl(t);
-        }
+        await window._ensureTrackUrl(t);
         if (t.url && typeof FluidAudio !== 'undefined') {
           FluidAudio.setPlaylist(pl.tracks, i);
           FluidAudio.load(t.url, t);
@@ -224,9 +222,7 @@
 
   async function playFirstTrack(tracks) {
     const t = tracks[0];
-    if ((!t.url || t.platform === 'qq') && t.id && typeof window._fetchTrackUrl === 'function') {
-      try { t.url = await window._fetchTrackUrl(t); } catch (_) {}
-    }
+    await window._ensureTrackUrl(t);
     if (t.url && typeof FluidAudio !== 'undefined') {
       FluidAudio.load(t.url, t);
       FluidAudio.play();

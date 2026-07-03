@@ -413,7 +413,7 @@
     if (track) {
       if ((!track.url || track.platform === 'qq') && track.id) {
         try {
-          track.url = await (window._fetchTrackUrl ? window._fetchTrackUrl(track) : Promise.resolve(''));
+          await window._ensureTrackUrl(track);
         } catch(e) { console.warn('URL fetch failed:', e); }
       }
       if (track.url) {
@@ -455,7 +455,7 @@
     if (track) {
       if ((!track.url || track.platform === 'qq') && track.id) {
         try {
-          track.url = await (window._fetchTrackUrl ? window._fetchTrackUrl(track) : Promise.resolve(''));
+          await window._ensureTrackUrl(track);
         } catch(e) { console.warn('URL fetch failed:', e); }
       }
       if (track.url) {
