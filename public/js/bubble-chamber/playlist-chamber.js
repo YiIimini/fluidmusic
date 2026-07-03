@@ -176,7 +176,7 @@
 
         const hasCover = pl.coverUrl && String(pl.coverUrl).trim();
         let coverHtml = hasCover
-          ? `<img class="playlist-item-cover" src="${ChamberBase.escapeHtml(pl.coverUrl)}" alt="" onerror="this.style.display='none'">`
+          ? `<img class="playlist-item-cover" src="${ChamberBase.escapeHtml(pl.coverUrl)}" alt="">`
           : `<span class="playlist-item-cover playlist-cover-heart">❤️</span>`;
 
         const desc = (pl.description || pl.desc || pl.bio || '...').substring(0, 60);
@@ -590,7 +590,7 @@
         searchInput.id = 'playlist-search';
         searchInput.placeholder = '搜索当前列表...';
         searchInput.style.cssText = 'flex:1;padding:5px 10px;border-radius:8px;border:1px solid var(--glass-border);background:rgba(255,255,255,0.05);color:var(--text-primary);font-size:12px;outline:none;font-family:var(--font-main);min-width:120px;';
-        searchInput.setAttribute('oninput', 'window._filterPlaylistTracks(this.value)');
+        searchInput.addEventListener('input', function() { window._filterPlaylistTracks(this.value); });
         searchInput.setAttribute('aria-label', '搜索当前歌单');
         toolbarRow.appendChild(searchInput);
 
@@ -610,7 +610,7 @@
 
         const thumbUrl = track.coverUrl || '';
         const thumbHtml = thumbUrl
-          ? `<img class="pli-thumb" src="${ChamberBase.escapeHtml(thumbUrl)}" alt="" onerror="this.style.display='none'">`
+          ? `<img class="pli-thumb" src="${ChamberBase.escapeHtml(thumbUrl)}" alt="">`
           : `<span class="pli-thumb pli-thumb-empty">🎵</span>`;
 
         row.innerHTML = `

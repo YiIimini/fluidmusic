@@ -204,9 +204,7 @@
     list.innerHTML = tracks.map((t, i) => `
       <div class="search-result-row" data-idx="${i}"
         style="display:flex;align-items:center;gap:10px;padding:8px 14px;cursor:pointer;
-        transition:background 0.15s;border-bottom:1px solid rgba(255,255,255,0.03);"
-        onmouseenter="this.style.background='rgba(255,255,255,0.04)'"
-        onmouseleave="this.style.background='transparent'">
+        transition:background 0.15s;border-bottom:1px solid rgba(255,255,255,0.03);"">
         <div style="width:36px;height:36px;border-radius:6px;flex-shrink:0;
           background:${t.coverUrl ? 'url(' + escapeHtml(t.coverUrl) + ') center/cover' : 'rgba(255,255,255,0.05)'};">
         </div>

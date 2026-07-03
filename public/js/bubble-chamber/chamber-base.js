@@ -275,5 +275,21 @@
   };
 
   window.ChamberBase = ChamberBase;
+  // Wire playlist-back button (moved from inline onclick for CSP compliance)
+  var btnBack = document.getElementById('btn-playlist-back');
+  if (btnBack) {
+    btnBack.addEventListener('click', function() {
+      if (typeof DataCache !== 'undefined') {
+        var c = DataCache.getCachedPlaylists();
+        if (c) {
+          if (typeof BubbleChamber !== 'undefined') BubbleChamber.setUserPlaylists(c);
+          btnBack.style.display = 'none';
+          return;
+        }
+      }
+      if (typeof FluidMusicApp !== 'undefined') FluidMusicApp.syncPlaylists();
+    });
+  }
+
   console.log('FluidMusic Chamber Base loaded');
 })();
