@@ -37,8 +37,8 @@
 </style>
 </head>
 <body>
-  <div class="lyric-current" id="lyricCurrent"></div>
-  <div class="lyric-next" id="lyricNext"></div>
+  <div class="lyric-current" id="lyricCurrent" aria-live="assertive" aria-atomic="true"></div>
+  <div class="lyric-next" id="lyricNext" role="status"></div>
   <script>
     // Listen for lyric updates from main process via preload bridge
     if (window.fluidmusic && window.fluidmusic.onLyricUpdate) {

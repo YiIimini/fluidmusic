@@ -45,13 +45,13 @@
 </style>
 </head>
 <body>
-  <canvas id="mini-cover" width="140" height="140"></canvas>
-  <div id="mini-title">FluidMusic</div>
-  <div id="mini-artist">准备播放</div>
+  <canvas id="mini-cover" width="140" height="140" role="img" aria-label="专辑封面"></canvas>
+  <div id="mini-title" aria-live="polite" aria-atomic="true">FluidMusic</div>
+  <div id="mini-artist" aria-live="polite" aria-atomic="true">准备播放</div>
   <div class="controls">
-    <button class="ctrl-btn" id="btn-prev" title="上一曲">⏮</button>
-    <button class="ctrl-btn play-btn" id="btn-play" title="播放/暂停">▶</button>
-    <button class="ctrl-btn" id="btn-next" title="下一曲">⏭</button>
+    <button class="ctrl-btn" id="btn-prev" title="上一曲" aria-label="上一曲">⏮</button>
+    <button class="ctrl-btn play-btn" id="btn-play" title="播放/暂停" aria-label="播放/暂停">▶</button>
+    <button class="ctrl-btn" id="btn-next" title="下一曲" aria-label="下一曲">⏭</button>
   </div>
   <script>
     const btnPrev = document.getElementById('btn-prev');
