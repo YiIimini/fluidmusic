@@ -963,7 +963,7 @@
     togglePlay: () => { if (typeof FluidAudio !== 'undefined') FluidAudio.togglePlay(); },
     nextTrack: () => { if (typeof FluidAudio !== 'undefined') FluidAudio.next(); },
     prevTrack: () => { if (typeof FluidAudio !== 'undefined') FluidAudio.prev(); },
-    getQueueMode: () => (typeof queueMode !== 'undefined' ? queueMode : 'queue'),
+    getQueueMode: function() { return 'queue'; },
   };
 
   console.log('FluidMusic App Controller loaded');
