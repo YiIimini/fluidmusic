@@ -28,6 +28,7 @@
       lyricsColor: '#ffffff',
       lyricsHighlightColor: '#5588ee',
       lyricsFadeStrength: 0.5,
+      lyricsVisibleLines: 0,
 
       // Playlist
       playlistStyle: 'default',
@@ -49,6 +50,7 @@
       bgIntensity: 0.8,
       bgSpeed: 1.0,
       bgColorScheme: 'dark',
+      bgNoiseScale: 0.5,
 
       // Chambers
       chamberTransparency: 0.15,
@@ -72,6 +74,7 @@
       // Wallpaper
       wallpaperOpacity: 0.3,
       wallpaperRippleSpeed: 1.0,
+      wallpaperBlur: 20,
 
       // Language
       language: 'zh-CN',
@@ -95,6 +98,8 @@
           { key: 'lyricsFadeStrength', label: '歌词淡化强度', type: 'range', min: 0, max: 1, step: 0.05 },
           { key: 'wallpaperOpacity', label: '壁纸透明度', type: 'range', min: 0, max: 1, step: 0.05 },
           { key: 'wallpaperRippleSpeed', label: '水波纹速度', type: 'range', min: 0.2, max: 2, step: 0.1 },
+          { key: 'bgNoiseScale', label: '背景噪声质量 (低=省GPU)', type: 'range', min: 0.25, max: 1.0, step: 0.05 },
+          { key: 'chamberTransparency', label: '气泡仓透明度', type: 'range', min: 0.05, max: 0.3, step: 0.01 },
           { key: 'particleScatterStrength', label: '粒子散落强度', type: 'range', min: 0, max: 1, step: 0.05 },
           { key: 'particleSensitivity', label: '粒子律动灵敏度', type: 'range', min: 0, max: 1, step: 0.05 },
           { key: 'foamCount', label: '泡沫数量', type: 'range', min: 20, max: 150, step: 5 },
@@ -116,6 +121,8 @@
           { key: 'chamberTopPinned', label: '上仓常驻', type: 'toggle' },
           { key: 'chamberBottomPinned', label: '下仓常驻', type: 'toggle' },
           { key: 'queueDockMag', label: '封面Dock放大', type: 'toggle' },
+          { key: 'lyricsVisibleLines', label: '歌词显示行数 (0=全部)', type: 'range', min: 0, max: 40, step: 1 },
+          { key: 'wallpaperBlur', label: '壁纸模糊度', type: 'range', min: 0, max: 40, step: 1 },
         ],
       },
     },
@@ -173,6 +180,10 @@
     if (typeof FluidBackground !== 'undefined') {
       if (s.bgIntensity != null) FluidBackground.setIntensity(s.bgIntensity);
       if (s.bgSpeed != null) FluidBackground.setSpeed(s.bgSpeed);
+    }
+    // Background quality
+    if (typeof FluidBackground !== 'undefined' && s.bgNoiseScale != null) {
+      if (typeof FluidBackground.setNoiseScale === 'function') FluidBackground.setNoiseScale(s.bgNoiseScale);
     }
     if (typeof FluidAudio !== 'undefined') {
       if (s.volume != null) FluidAudio.setVolume(s.volume);
@@ -242,6 +253,10 @@
       const animEl = document.querySelector('#glass-refract animate');
       if (animEl) animEl.setAttribute('dur', (8 / s.wallpaperRippleSpeed).toFixed(1) + 's');
     }
+    // Wallpaper blur
+    if (s.wallpaperBlur != null) {
+      document.documentElement.style.setProperty('--wallpaper-blur', s.wallpaperBlur + 'px');
+    }
   }
 
   // Default settings snapshot for reset
@@ -249,13 +264,13 @@
     particleResolution: 160, particleScatterStrength: 0.8, particleSensitivity: 0.8,
     particleRotationSpeed: 0.5, particleColor: '#ffffff',
     foamCount: 80, foamSize: 1.5, foamIridescence: 0.6, foamFloatAmplitude: 0.7, foamColorScheme: 0,
-    lyricsLines: 0, lyricsFontSize: 13, lyricsColor: '#ffffff', lyricsHighlightColor: '#5588ee', lyricsFadeStrength: 0.5,
+    lyricsLines: 0, lyricsFontSize: 13, lyricsColor: '#ffffff', lyricsHighlightColor: '#5588ee', lyricsFadeStrength: 0.5, lyricsVisibleLines: 0,
     playlistStyle: 'default', playlistFontSize: 13, playlistTransparency: 0.15,
     foamPreset: 'pearl', foamDensity: 1.0, foamColorIntensity: 1.0,
     controllerParticleDensity: 0.6, controllerSandStrength: 0.5, controllerStyle: 'default',
-    bgIntensity: 0.8, bgSpeed: 1.0, bgColorScheme: 'dark',
+    bgIntensity: 0.8, bgSpeed: 1.0, bgColorScheme: 'dark', bgNoiseScale: 0.5,
     volume: 0.7, chamberTransparency: 0.15, chamberTriggerSensitivity: 0.5, chamberLeftPinned: false, chamberRightPinned: false, chamberTopPinned: true, chamberBottomPinned: true, queueDockMag: true,
-    accountMultiLogin: true, language: 'zh-CN', wallpaperOpacity: 0.5, wallpaperRippleSpeed: 1.0,
+    accountMultiLogin: true, language: 'zh-CN', wallpaperOpacity: 0.5, wallpaperRippleSpeed: 1.0, wallpaperBlur: 20,
   };
 
   function renderTab(tabId) {
