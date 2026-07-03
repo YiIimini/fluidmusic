@@ -68,6 +68,8 @@
       chamberBottomPinned: true,
       chamberLeftPinned: false,
       chamberRightPinned: false,
+      chamberLeftTheme: 'default',
+      chamberRightTheme: 'default',
       queueDockMag: true,
 
       // Account
@@ -175,13 +177,17 @@
         fields: [
           { type: 'section', label: '━━ 仓体外观 ━━' },
           { key: 'chamberOpacity', label: '仓透明度', type: 'range', min: 0.05, max: 0.5, step: 0.01, help: '四个悬浮仓的背景透明度' },
-          { type: 'section', label: '━━ 常驻控制 ━━' },
-          { key: 'chamberTopPinned', label: '上仓常驻', type: 'toggle', help: '播放列表+收藏列表 默认保持可见' },
+          { type: 'section', label: '━━ 上仓（队列+收藏）━━' },
+          { key: 'chamberTopPinned', label: '上仓常驻', type: 'toggle', help: '默认保持可见，关闭后hover触发' },
+          { key: 'queueDockMag', label: 'Dock特效', type: 'toggle', help: '队列中鼠标靠近时封面放大+旋转（macOS Dock风格）' },
+          { type: 'section', label: '━━ 下仓（播放控制）━━' },
           { key: 'chamberBottomPinned', label: '下仓常驻', type: 'toggle', help: '底部控制器默认保持可见' },
+          { type: 'section', label: '━━ 左仓（歌单列表）━━' },
           { key: 'chamberLeftPinned', label: '左仓常驻', type: 'toggle', help: '歌单列表仓默认保持可见，而非hover触发' },
+          { key: 'chamberLeftTheme', label: '左仓主题', type: 'select', options: { default: '默认', warm: '暖色', cool: '冷色', dark: '深色', light: '浅色' }, help: '左仓歌单列表的配色主题' },
+          { type: 'section', label: '━━ 右仓（歌词）━━' },
           { key: 'chamberRightPinned', label: '右仓常驻', type: 'toggle', help: '歌词仓默认保持可见' },
-          { type: 'section', label: '━━ 交互特效 ━━' },
-          { key: 'queueDockMag', label: 'Dock特效', type: 'toggle', help: '上仓队列中鼠标靠近时封面放大+旋转（macOS Dock风格）' },
+          { key: 'chamberRightTheme', label: '右仓主题', type: 'select', options: { default: '默认', warm: '暖色', cool: '冷色', dark: '深色', light: '浅色' }, help: '右仓歌词的配色主题' },
         ],
       },
       system: {
@@ -490,6 +496,13 @@
       });
       // Also set on the base class
       document.documentElement.style.setProperty('--chamber-bg', bg);
+    }
+    // Chamber themes
+    if (s.chamberLeftTheme != null) {
+      document.documentElement.style.setProperty('--chamber-left-theme', s.chamberLeftTheme);
+    }
+    if (s.chamberRightTheme != null) {
+      document.documentElement.style.setProperty('--chamber-right-theme', s.chamberRightTheme);
     }
     // Font families
     if (s.globalFontFamily && s.globalFontFamily !== 'inherit') {
