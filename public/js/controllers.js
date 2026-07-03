@@ -54,7 +54,6 @@
     return m + ':' + String(s).padStart(2, '0');
   }
 
-  // eslint-disable-next-line no-unused-vars
   function setupControllerButtons() {
     const btnPlay = document.getElementById('btn-play');
     const btnPrev = document.getElementById('btn-prev');
@@ -676,6 +675,7 @@
   window.setPlayIcon = setPlayIcon;
   window.setLikeIcon = setLikeIcon;
   window.setPlaymodeIcon = setPlaymodeIcon;
+  window.setupControllerButtons = setupControllerButtons;
 
   if (typeof __FM !== 'undefined') __FM.register('controllers', ['audioEngine'], function () {
     return { setPlayIcon, setLikeIcon, setPlaymodeIcon, formatTime };
