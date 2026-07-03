@@ -40,4 +40,8 @@ export class EventBus {
   removeAll(): void {
     this.listeners.clear();
   }
+
+  dispose(): void {
+    this.removeAll();
+  }
 }

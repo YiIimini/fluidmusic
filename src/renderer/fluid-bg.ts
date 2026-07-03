@@ -268,6 +268,35 @@ export class FluidBackground {
       (this.material.uniforms as FluidBGUniforms).uSpeed.value = v;
     }
   }
+
+  /**
+   * Dispose all WebGL resources and unregister from RendererManager.
+   */
+  dispose(): void {
+    const rm = (window as any).RendererManager ?? this.rm;
+    if (rm?.initialized) {
+      rm.unregisterLayer('bg');
+    }
+
+    if (this.material) {
+      this.material.dispose();
+      this.material = null;
+    }
+    if (this.mesh?.geometry) {
+      this.mesh.geometry.dispose();
+    }
+    if (this.scene) {
+      this.scene.clear();
+      this.scene = null;
+    }
+    if (this.renderer) {
+      this.renderer.dispose();
+      this.renderer = null;
+    }
+    this.camera = null;
+    this.mesh = null;
+    this.initialized = false;
+  }
 }
 
 // ---- Singleton & backward-compat exports ----
