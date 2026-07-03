@@ -4,3 +4,4 @@ node_modules/
 .cookie
 .qq-cookie
 dist/
+.claude/
