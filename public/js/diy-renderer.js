@@ -329,37 +329,41 @@
       importBtn.title = '从JSON文件导入设置';
       importBtn.style.marginLeft = '8px';
       importBtn.addEventListener('click', function() {
-        if (!confirm('导入配置将覆盖当前所有设置，确定继续？')) return;
-
-        if (typeof fluidmusic !== 'undefined' && fluidmusic.importSettings) {
-          fluidmusic.importSettings().then(function(result) {
-            if (result && result.ok && result.config) {
-              applyImportedConfig(result.config, D);
-            } else if (result && !result.cancelled) {
-              if (typeof showToast !== 'undefined') showToast('⚠ ' + (result.error || '导入失败'));
-            }
-          });
-        } else {
-          // Fallback: file input for browser
-          var input = document.createElement('input');
-          input.type = 'file';
-          input.accept = '.json';
-          input.onchange = function() {
-            var file = input.files[0];
-            if (!file) return;
-            var reader = new FileReader();
-            reader.onload = function(e) {
-              try {
-                var config = JSON.parse(e.target.result);
-                applyImportedConfig(config, D);
-              } catch (err) {
-                if (typeof showToast !== 'undefined') showToast('⚠ 无效的配置文件');
+        var doImport = function() {
+          if (typeof fluidmusic !== 'undefined' && fluidmusic.importSettings) {
+            fluidmusic.importSettings().then(function(result) {
+              if (result && result.ok && result.config) {
+                applyImportedConfig(result.config, D);
+              } else if (result && !result.cancelled) {
+                if (typeof showToast !== 'undefined') showToast('⚠ ' + (result.error || '导入失败'));
               }
+            });
+          } else {
+            // Fallback: file input for browser
+            var input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.json';
+            input.onchange = function() {
+              var file = input.files[0];
+              if (!file) return;
+              var reader = new FileReader();
+              reader.onload = function(e) {
+                try {
+                  var config = JSON.parse(e.target.result);
+                  applyImportedConfig(config, D);
+                } catch (err) {
+                  if (typeof showToast !== 'undefined') showToast('⚠ 无效的配置文件');
+                }
+              };
+              reader.readAsText(file);
             };
-            reader.readAsText(file);
-          };
-          input.click();
-        }
+            input.click();
+          }
+        };
+        showCustomDialog('导入配置', '导入配置将覆盖当前所有设置，确定继续？', [
+          { text: '取消', style: '' },
+          { text: '确定导入', style: 'primary', action: doImport }
+        ]);
       });
       sysRow.appendChild(importBtn);
 
