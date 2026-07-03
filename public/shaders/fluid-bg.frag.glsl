@@ -21,7 +21,9 @@ uniform float uMid;
 
 uniform float uTreble; 
 
-uniform float uEnergy; 
+uniform float uEnergy;
+uniform float uNoiseScale;
+uniform sampler2D uNoiseTex;
 
 
 float hash(vec2 p) {
@@ -50,24 +52,8 @@ float noise(vec2 p) {
 }
 
 float fbm(vec2 p) {
-  float value = 0.0; 
-
-  float amplitude = 0.5; 
-
-  float frequency = 1.0; 
-
-  for (int i = 0; 
- i < 5; 
- i++) {
-    value += amplitude * noise(p * frequency); 
-
-    frequency *= 2.0; 
-
-    amplitude *= 0.5; 
-
-  }
-  return value; 
-
+  // Use precomputed noise texture — single sample vs 5 octaves
+  return texture2D(uNoiseTex, p * 0.3).r;
 }
 
 void main() {

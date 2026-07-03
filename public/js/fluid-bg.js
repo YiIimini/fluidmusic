@@ -55,7 +55,35 @@
         uMid: { value: 0 },
         uTreble: { value: 0 },
         uEnergy: { value: 0 },
+        uNoiseScale: { value: 0.5 },
+        uNoiseTex: { value: null },
       };
+
+      // Precompute noise lookup table — replaces 5-octave realtime FBM
+      var noiseCanvas = document.createElement('canvas');
+      noiseCanvas.width = 256;
+      noiseCanvas.height = 256;
+      var nctx = noiseCanvas.getContext('2d');
+      var noiseData = nctx.createImageData(256, 256);
+      for (var y = 0; y < 256; y++) {
+        for (var x = 0; x < 256; x++) {
+          var idx = (y * 256 + x) * 4;
+          // Simple hash-based noise (faster than sin/cos in JS)
+          var nx = (x * 0.01 + y * 0.007);
+          var ny = (y * 0.01 - x * 0.007);
+          var n = Math.sin(nx * 12.9898 + ny * 78.233) * 43758.5453;
+          n = n - Math.floor(n);
+          noiseData.data[idx] = noiseData.data[idx+1] = noiseData.data[idx+2] = Math.floor(n * 255);
+          noiseData.data[idx+3] = 255;
+        }
+      }
+      nctx.putImageData(noiseData, 0, 0);
+      var noiseTexture = new THREE.CanvasTexture(noiseCanvas);
+      noiseTexture.magFilter = THREE.LinearFilter;
+      noiseTexture.minFilter = THREE.LinearFilter;
+      noiseTexture.wrapS = THREE.RepeatWrapping;
+      noiseTexture.wrapT = THREE.RepeatWrapping;
+      uniforms.uNoiseTex.value = noiseTexture;
 
       const geometry = new THREE.PlaneGeometry(2, 2);
 
@@ -71,10 +99,11 @@
       const fragmentShader = [
         'uniform float uTime; uniform vec2 uResolution; uniform float uIntensity; uniform float uSpeed;',
         'uniform vec3 uColorBase; uniform vec3 uColorAccent; uniform float uBass; uniform float uMid; uniform float uTreble; uniform float uEnergy;',
+        'uniform sampler2D uNoiseTex;',
         'varying vec2 vUv;',
         'float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}',
         'float noise(vec2 p){vec2 i=floor(p);vec2 f=fract(p);f=f*f*(3.0-2.0*f);float a=hash(i);float b=hash(i+vec2(1.0,0.0));float c=hash(i+vec2(0.0,1.0));float d=hash(i+vec2(1.0,1.0));return mix(mix(a,b,f.x),mix(c,d,f.x),f.y);}',
-        'float fbm(vec2 p){float v=0.0;float a=0.5;float f=1.0;for(int i=0;i<5;i++){v+=a*noise(p*f);f*=2.0;a*=0.5;}return v;}',
+        'float fbm(vec2 p){return texture2D(uNoiseTex,p*0.3).r;}',
         'void main(){',
         'vec2 uv=gl_FragCoord.xy/uResolution;vec2 c=uv-vec2(0.5);float ar=uResolution.x/uResolution.y;vec2 uva=vec2(c.x*ar,c.y);float d=length(uva);',
         'float r1=sin(d*15.0-uTime*uSpeed*0.6)*0.5+0.5;r1*=smoothstep(1.0,0.0,d)*0.3;',
@@ -167,6 +196,7 @@
 
   function setIntensity(v) { FluidBG.intensity = v; if (FluidBG.material) FluidBG.material.uniforms.uIntensity.value = v; }
   function setSpeed(v) { FluidBG.speed = v; if (FluidBG.material) FluidBG.material.uniforms.uSpeed.value = v; }
+  function setNoiseScale(v) { if (FluidBG.material && FluidBG.material.uniforms.uNoiseScale) FluidBG.material.uniforms.uNoiseScale.value = v; }
 
   FluidBG.init = init;
   FluidBG.tick = tick;
@@ -174,6 +204,7 @@
   FluidBG.resize = resize;
   FluidBG.setIntensity = setIntensity;
   FluidBG.setSpeed = setSpeed;
+  FluidBG.setNoiseScale = setNoiseScale;
 
   if (typeof __FM !== 'undefined') __FM.register('fluidBg', [], function () { return FluidBG; }, { priority: 7 });
   window.FluidBackground = FluidBG;
