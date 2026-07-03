@@ -114,12 +114,16 @@
   transition: opacity 0.5s var(--spring-overshoot), transform 0.5s var(--spring-overshoot);
 }
 .bubble-chamber.visible {
+  display: block !important;
   opacity: 1 !important;
+  visibility: visible !important;
   transform: scale(1);
   pointer-events: auto !important;
 }
 .bubble-chamber.pinned {
+  display: block !important;
   opacity: 1 !important;
+  visibility: visible !important;
   pointer-events: auto !important;
   border-color: rgba(255,255,255,0.18);
   box-shadow:
@@ -152,6 +156,8 @@
 }
 #chamber-left > * { direction: ltr; }
 #chamber-left.visible {
+  display: block !important;
+  visibility: visible !important;
   transform: translate(0, -50%) scale(1);
 }
 
@@ -170,6 +176,8 @@
 }
 #chamber-right > * { direction: ltr; }
 #chamber-right.visible {
+  display: block !important;
+  visibility: visible !important;
   transform: translate(0, -50%) scale(1);
 }
 
@@ -188,6 +196,8 @@
   flex-direction: column; align-items: center; gap: 4px;
 }
 #chamber-top.visible {
+  display: flex !important;
+  visibility: visible !important;
   transform: translate(-50%, 0) scale(1);
 }
 
@@ -209,6 +219,8 @@
   overflow: visible;
 }
 #chamber-bottom.visible {
+  display: flex !important;
+  visibility: visible !important;
   transform: translate(-50%, 0) scale(1);
 }
 
