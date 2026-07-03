@@ -867,6 +867,75 @@ ipcMain.handle('fluidmusic-load-settings', async () => {
   }
 });
 
+
+// ── Settings Export / Import ──
+ipcMain.handle('fluidmusic-export-settings', async () => {
+  const { dialog } = require('electron');
+  const fs = require('fs');
+  const path = require('path');
+
+  const result = await dialog.showSaveDialog({
+    title: '导出 FluidMusic 配置',
+    defaultPath: 'FluidMusic-settings-' + new Date().toISOString().slice(0, 10) + '.json',
+    filters: [{ name: 'JSON', extensions: ['json'] }],
+  });
+
+  if (result.canceled || !result.filePath) return { ok: false, cancelled: true };
+
+  try {
+    // Gather all settings from localStorage-style data
+    const config = {
+      version: '1.0',
+      exportedAt: new Date().toISOString(),
+      settings: {},
+      wallpaper: null,
+      favorites: [],
+      customPlaylists: [],
+      syncedPlaylists: {},
+    };
+
+    // The renderer will send the actual data — this just creates the file
+    // For now, we return the path so the renderer can write to it
+    return { ok: true, filePath: result.filePath, write: true };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+});
+
+ipcMain.handle('fluidmusic-import-settings', async () => {
+  const { dialog } = require('electron');
+  const fs = require('fs');
+
+  const result = await dialog.showOpenDialog({
+    title: '导入 FluidMusic 配置',
+    filters: [{ name: 'JSON', extensions: ['json'] }],
+    properties: ['openFile'],
+  });
+
+  if (result.canceled || !result.filePaths.length) return { ok: false, cancelled: true };
+
+  try {
+    const data = fs.readFileSync(result.filePaths[0], 'utf8');
+    const config = JSON.parse(data);
+    if (!config || !config.settings) {
+      return { ok: false, error: '无效的配置文件格式' };
+    }
+    return { ok: true, config };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+});
+
+ipcMain.handle('fluidmusic-write-file', async (_event, filePath, content) => {
+  const fs = require('fs');
+  try {
+    fs.writeFileSync(filePath, content, 'utf8');
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+});
+
 // Renderer-to-terminal logging (debug)
 ipcMain.on('fluidmusic-renderer-log', (_event, msg) => {
   console.log('[Renderer]', msg);

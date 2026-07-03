@@ -258,7 +258,118 @@
         }
       });
       sysRow.appendChild(restoreBtn);
+
+      // Export button
+      var exportBtn = document.createElement('button');
+      exportBtn.className = 'user-panel-btn';
+      exportBtn.textContent = '📤 导出配置';
+      exportBtn.title = '将所有设置导出为JSON文件';
+      exportBtn.style.marginLeft = '8px';
+      exportBtn.addEventListener('click', function() {
+        var config = {
+          version: '1.0',
+          exportedAt: new Date().toISOString(),
+          settings: JSON.parse(JSON.stringify(D.settings)),
+          localStorage: {}
+        };
+        // Gather relevant localStorage keys
+        var keys = [
+          'fluidmusic-wallpaper', 'fluidmusic-has-bg-video',
+          'fluidmusic_favorites', 'fluidmusic_custom_playlists',
+          'fluidmusic_synced_playlists', 'fluidmusic_locale',
+          'fluidmusic-settings'
+        ];
+        keys.forEach(function(k) {
+          var v = localStorage.getItem(k);
+          if (v !== null) config.localStorage[k] = v;
+        });
+
+        if (typeof fluidmusic !== 'undefined' && fluidmusic.exportSettings) {
+          fluidmusic.exportSettings().then(function(result) {
+            if (result && result.ok && result.filePath) {
+              fluidmusic.writeFile(result.filePath, JSON.stringify(config, null, 2)).then(function(wr) {
+                if (wr && wr.ok) {
+                  if (typeof showToast !== 'undefined') showToast('✅ 配置已导出');
+                }
+              });
+            }
+          });
+        } else {
+          // Fallback: download as blob in browser
+          var blob = new Blob([JSON.stringify(config, null, 2)], { type: 'application/json' });
+          var url = URL.createObjectURL(blob);
+          var a = document.createElement('a');
+          a.href = url;
+          a.download = 'FluidMusic-settings-' + new Date().toISOString().slice(0, 10) + '.json';
+          a.click();
+          URL.revokeObjectURL(url);
+          if (typeof showToast !== 'undefined') showToast('✅ 配置已下载');
+        }
+      });
+      sysRow.appendChild(exportBtn);
+
+      // Import button
+      var importBtn = document.createElement('button');
+      importBtn.className = 'user-panel-btn';
+      importBtn.textContent = '📥 导入配置';
+      importBtn.title = '从JSON文件导入设置';
+      importBtn.style.marginLeft = '8px';
+      importBtn.addEventListener('click', function() {
+        if (!confirm('导入配置将覆盖当前所有设置，确定继续？')) return;
+
+        if (typeof fluidmusic !== 'undefined' && fluidmusic.importSettings) {
+          fluidmusic.importSettings().then(function(result) {
+            if (result && result.ok && result.config) {
+              applyImportedConfig(result.config, D);
+            } else if (result && !result.cancelled) {
+              if (typeof showToast !== 'undefined') showToast('⚠ ' + (result.error || '导入失败'));
+            }
+          });
+        } else {
+          // Fallback: file input for browser
+          var input = document.createElement('input');
+          input.type = 'file';
+          input.accept = '.json';
+          input.onchange = function() {
+            var file = input.files[0];
+            if (!file) return;
+            var reader = new FileReader();
+            reader.onload = function(e) {
+              try {
+                var config = JSON.parse(e.target.result);
+                applyImportedConfig(config, D);
+              } catch (err) {
+                if (typeof showToast !== 'undefined') showToast('⚠ 无效的配置文件');
+              }
+            };
+            reader.readAsText(file);
+          };
+          input.click();
+        }
+      });
+      sysRow.appendChild(importBtn);
+
       container.appendChild(sysRow);
+    }
+
+    // ── Import helper: apply a loaded config ──
+    function applyImportedConfig(config, D) {
+      if (!config || !config.settings) {
+        if (typeof showToast !== 'undefined') showToast('⚠ 无效的配置文件格式');
+        return;
+      }
+      // Merge settings
+      Object.assign(D.settings, config.settings);
+      // Restore localStorage items
+      if (config.localStorage) {
+        Object.keys(config.localStorage).forEach(function(k) {
+          localStorage.setItem(k, config.localStorage[k]);
+        });
+      }
+      D.saveSettings();
+      D.applySettings();
+      D._renderTab('system', D);
+      if (typeof showToast !== 'undefined') showToast('✅ 配置已导入，部分设置在重启后生效');
     }
 
     // Attach listeners
