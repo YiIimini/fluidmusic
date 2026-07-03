@@ -4,21 +4,35 @@ const http = require('http');
 const https = require('https');
 const fs = require('fs');
 
+// ── Persistent cookie store (survives server restarts) ──
+// Cookies are injected by the Electron main process via setCookies()
+// Falls back to legacy plaintext files if running standalone
+let persistentCookies = { netease: '', qq: '' };
+
+// Legacy fallback: read plaintext files (only used when running without Electron)
 const COOKIE_FILE = path.join(__dirname, '.cookie');
 const QQ_COOKIE_FILE = path.join(__dirname, '.qq-cookie');
+try { if (fs.existsSync(COOKIE_FILE) && !persistentCookies.netease) persistentCookies.netease = fs.readFileSync(COOKIE_FILE, 'utf8').trim(); }
+catch (e) { /* ignore */ }
+try { if (fs.existsSync(QQ_COOKIE_FILE) && !persistentCookies.qq) persistentCookies.qq = fs.readFileSync(QQ_COOKIE_FILE, 'utf8').trim(); }
+catch (e) { /* ignore */ }
 
-// ── Persistent cookie store (survives server restarts) ──
-let persistentCookies = { netease: '', qq: '' };
-try { if (fs.existsSync(COOKIE_FILE)) persistentCookies.netease = fs.readFileSync(COOKIE_FILE, 'utf8').trim(); }
-catch (e) { persistentCookies.netease = ''; }
-try { if (fs.existsSync(QQ_COOKIE_FILE)) persistentCookies.qq = fs.readFileSync(QQ_COOKIE_FILE, 'utf8').trim(); }
-catch (e) { persistentCookies.qq = ''; }
+// Called by main.js to inject decrypted cookies at startup
+function setCookies(netease, qq) {
+  if (netease) persistentCookies.netease = netease;
+  if (qq) persistentCookies.qq = qq;
+  console.log('[CookieStore] Cookies injected from main process | netease:', !!netease, '| qq:', !!qq);
+}
 
 function savePersistentCookie(platform, cookie) {
   if (!cookie) return;
   persistentCookies[platform] = cookie;
-  const file = platform === 'qq' ? QQ_COOKIE_FILE : COOKIE_FILE;
-  try { fs.writeFileSync(file, cookie); } catch (e) {}
+  // Main process handles encrypted persistence via cookie-store.js
+  // Legacy fallback: write to plaintext file
+  try {
+    const file = platform === 'qq' ? QQ_COOKIE_FILE : COOKIE_FILE;
+    fs.writeFileSync(file, cookie);
+  } catch (e) { /* ignore */ }
   console.log('[CookieStore] Saved ' + platform + ' cookie (' + cookie.length + ' bytes)');
 }
 
@@ -29,6 +43,29 @@ const PORT = process.env.PORT || 3000;
 // Serve static files from public/
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
+
+// ── Background video serving ──
+app.get('/bg-video', (req, res) => {
+  try {
+    const fs = require('fs');
+    const path = require('path');
+    const videoDir = process.env.BG_VIDEO_PATH;
+    if (!videoDir) return res.status(404).end();
+    // Find the bg-video file in the directory
+    const files = fs.readdirSync(videoDir).filter(f => f.startsWith('bg-video'));
+    if (files.length === 0) return res.status(404).end();
+    const videoPath = path.join(videoDir, files[0]);
+    if (!fs.existsSync(videoPath)) return res.status(404).end();
+    const ext = path.extname(videoPath).toLowerCase();
+    const mimeMap = { '.mp4': 'video/mp4', '.mov': 'video/quicktime', '.webm': 'video/webm', '.mkv': 'video/x-matroska', '.avi': 'video/x-msvideo' };
+    res.setHeader('Content-Type', mimeMap[ext] || 'video/mp4');
+    res.setHeader('Accept-Ranges', 'bytes');
+    res.setHeader('Cache-Control', 'no-cache');
+    fs.createReadStream(videoPath).pipe(res);
+  } catch (e) {
+    res.status(500).end();
+  }
+});
 
 // ── API Proxy Helper ──
 function proxyRequest(targetUrl, res, options = {}) {
@@ -455,6 +492,42 @@ app.get('/api/qq/lyric', (req, res) => {
 });
 
 
+// ── Cover image proxy (avoids CORS tainting for particle cover pixel reading) ──
+app.get('/api/cover-proxy', (req, res) => {
+  const targetUrl = req.query.url;
+  if (!targetUrl || !/^https?:\/\//.test(targetUrl)) {
+    return res.status(400).json({ error: 'Invalid URL' });
+  }
+
+  const parsed = new URL(targetUrl);
+  const transport = parsed.protocol === 'https:' ? https : http;
+
+  const proxyReq = transport.request({
+    hostname: parsed.hostname,
+    port: parsed.port,
+    path: parsed.pathname + parsed.search,
+    method: 'GET',
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+      'Referer': parsed.protocol + '//' + parsed.hostname + '/',
+    },
+  }, (proxyRes) => {
+    // Forward CORS headers so canvas can read pixel data
+    res.set({
+      'Access-Control-Allow-Origin': '*',
+      'Content-Type': proxyRes.headers['content-type'] || 'image/jpeg',
+      'Cache-Control': 'public, max-age=86400',
+    });
+    proxyRes.pipe(res);
+  });
+
+  proxyReq.on('error', (err) => {
+    console.error('[CoverProxy] Error:', err.message);
+    res.status(502).json({ error: 'Cover proxy error' });
+  });
+  proxyReq.end();
+});
+
 // ── Serve index.html for root ──
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
@@ -465,3 +538,5 @@ const server = app.listen(PORT, '127.0.0.1', () => {
 });
 
 module.exports = server;
+server.setCookies = setCookies;
+server._cookieStore = persistentCookies;

@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: http: https:; media-src 'self' http: https: blob:; connect-src 'self' http://127.0.0.1:* https:; font-src 'self' https://fonts.gstatic.com;">
+<title>FluidMusic</title>
+  <script type="module" crossorigin src="./assets/main-BcxOI_Z7.js"></script>
+  <link rel="modulepreload" crossorigin href="./assets/bridge-ekXZbfJb.js">
+  <link rel="stylesheet" crossorigin href="./assets/main-DTLsMeIm.css">
+</head>
+<body>
+
+<!-- Loading Overlay -->
+<div id="loading-overlay">
+  <div class="loading-spinner-ring"></div>
+  <div class="loading-text" id="loading-msg">正在加载 FluidMusic...</div>
+  <div class="loading-sub" id="loading-sub"></div>
+</div>
+
+
+<!-- SVG Filter Definitions: Chromatic Aberration, Glass Refraction, Water Ripple -->
+<svg style="position:absolute;width:0;height:0" aria-hidden="true">
+  <defs>
+    <!-- 色差折射滤镜 -->
+    <filter id="chromatic-aberration">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="0.8,0" result="blur-r" />
+      <feOffset in="blur-r" dx="1.5" dy="0" result="shifted-r" />
+      <feColorMatrix in="shifted-r" type="matrix" values="1 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.3 0" result="red" />
+      <feGaussianBlur in="SourceGraphic" stdDeviation="0.8,0" result="blur-b" />
+      <feOffset in="blur-b" dx="-1.5" dy="0" result="shifted-b" />
+      <feColorMatrix in="shifted-b" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 1 0 0 0  0 0 0 0.3 0" result="blue" />
+      <feMerge>
+        <feMergeNode in="red"/>
+        <feMergeNode in="blue"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <!-- 玻璃折射 -->
+    <filter id="glass-refract">
+      <feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="5">
+        <animate attributeName="baseFrequency" values="0.03;0.035;0.03" dur="8s" repeatCount="indefinite"/>
+      </feTurbulence>
+      <feDisplacementMap in="SourceGraphic" scale="3" xChannelSelector="R" yChannelSelector="G"/>
+    </filter>
+    <!-- 水波纹 -->
+    <filter id="water-ripple">
+      <feTurbulence type="fractalNoise" baseFrequency="0.015,0.02" numOctaves="3" seed="3">
+        <animate attributeName="seed" values="3;8;3" dur="12s" repeatCount="indefinite"/>
+      </feTurbulence>
+      <feDisplacementMap in="SourceGraphic" scale="2.5" xChannelSelector="R" yChannelSelector="G"/>
+    </filter>
+  </defs>
+</svg>
+
+
+<!-- Layer -1: Wallpaper Background -->
+<div id="wallpaper-layer"></div>
+<!-- Layer 0: Fluid Background -->
+<div id="layer-bg"><canvas id="bg-canvas"></canvas></div>
+
+<!-- Layer 1: Pass-through -->
+<div id="layer-passthrough"></div>
+
+<!-- Layer 3.5: Foam Visualizer (above wallpaper, below center core, audio-reactive) -->
+<div id="foam-visualizer-layer" style="display:none;position:fixed;inset:0;z-index:2;pointer-events:none;opacity:0;transition:opacity 0.6s var(--ease-fluid);">
+  <canvas id="foam-canvas" style="width:100%;height:100%;"></canvas>
+</div>
+
+<!-- Layer 5: Center Core -->
+<div id="center-core">
+  <div id="center-core-inner">
+
+    <div id="particle-cover-container">
+      <canvas id="particle-canvas" style="position:absolute;top:0;left:0;z-index:5;pointer-events:none;border-radius:14px;"></canvas>
+    </div>
+    <div id="song-info">
+      <div id="song-title">FluidMusic</div>
+      <div id="song-artist">流体动态音乐播放器</div>
+    </div>
+    <div id="spectrum-container" style="width:260px;height:56px;margin-top:2px;position:relative;overflow:visible;">
+      <canvas id="spectrum-canvas" style="width:100%;height:100%;"></canvas>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px;width:260px;margin-top:2px;">
+      <span id="time-current" style="font-size:10px;color:var(--text-dim);font-variant-numeric:tabular-nums;min-width:32px;text-align:right;">0:00</span>
+      <div id="progress-bar-container" style="flex:1;height:3px;">
+        <div id="progress-bar-fill"></div>
+        <div id="progress-bar-thumb"></div>
+        <div id="progress-bar-particles"></div>
+      </div>
+      <span id="time-duration" style="font-size:10px;color:var(--text-dim);font-variant-numeric:tabular-nums;min-width:32px;">0:00</span>
+    </div>
+    <div id="inline-lyric" style="display:none;font-size:15px;font-weight:600;color:var(--text-primary);text-align:center;margin-top:6px;margin-bottom:4px;padding-bottom:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:260px;line-height:1.4;transition:opacity 0.4s var(--ease-fluid);text-shadow:0 0 12px rgba(130,180,255,0.35),0 0 24px rgba(130,180,255,0.15);">...</div>
+
+  </div>
+
+  <!-- Edge trigger zones -->
+  <div class="edge-trigger" id="edge-left" title="歌单"></div>
+  <div class="edge-trigger" id="edge-right" title="歌词"></div>
+  <div class="edge-trigger" id="edge-top" title="账号与队列"></div>
+  <div class="edge-trigger" id="edge-bottom" title="控制器"></div>
+</div>
+
+<!-- Layer 3: Left Chamber — Playlist -->
+<div class="bubble-chamber" id="chamber-left">
+  <button class="chamber-back-btn" id="btn-playlist-back" title="返回歌单列表" style="display:none;" onclick="if(typeof DataCache!=='undefined'){var c=DataCache.getCachedPlaylists();if(c){BubbleChamber.setUserPlaylists(c);document.getElementById('btn-playlist-back').style.display='none';return}}if(typeof FluidMusicApp!=='undefined')FluidMusicApp.syncPlaylists();">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+  </button>
+  <div class="chamber-title">🎵 歌单
+    <button class="chamber-refresh-btn" id="btn-refresh-playlists" title="刷新">↻</button>
+    <button class="chamber-refresh-btn" id="btn-import-local" title="导入本地歌曲" style="margin-left:4px;">📂</button>
+  </div>
+  <div id="playlist-items">
+    <div class="playlist-loading">
+      <div class="playlist-loading-spinner"></div>
+      加载中...
+    </div>
+  </div>
+</div>
+
+<!-- Layer 4: Right Chamber — Lyrics -->
+<div class="bubble-chamber" id="chamber-right">
+  <div class="chamber-title">📝 歌词</div>
+  <div id="lyrics-container">
+    <div class="lyric-line active">暂无歌词</div>
+  </div>
+</div>
+
+<!-- User Management Overlay (triggered from core top-left) -->
+<div id="user-overlay">
+  <div id="user-panel">
+    <div style="position:relative; display:flex; align-items:center; padding:0 20px;">
+      <div id="user-tabs">
+        <button class="user-tab active" data-tab="netease">🎧 网易云</button>
+        <button class="user-tab" data-tab="qq">🎵 QQ音乐</button>
+      </div>
+      <button id="user-panel-close">✕</button>
+    </div>
+    <div id="user-content"></div>
+  </div>
+</div>
+
+<!-- Layer 1.5: Search Bar -->
+<div id="search-bar-container" style="position:fixed;top:8px;left:50%;transform:translateX(-50%);z-index:50;
+  display:flex;align-items:center;gap:6px;opacity:0;pointer-events:none;
+  transition:opacity 0.3s var(--spring-expand);">
+  <input type="text" id="search-input" placeholder="搜索音乐..."
+    style="width:320px;padding:7px 14px;border-radius:18px;border:1px solid var(--glass-border);
+    background:rgba(10,10,24,0.85);color:var(--text-primary);font-size:12px;font-family:var(--font-main);
+    backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);outline:none;
+    transition:border-color 0.2s,box-shadow 0.2s;"
+    onfocus="this.style.borderColor='var(--accent-color)';this.style.boxShadow='0 0 12px rgba(100,150,255,0.2)'"
+    onblur="this.style.borderColor='var(--glass-border)';this.style.boxShadow='none'">
+  <button id="btn-search-close" title="关闭搜索" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:14px;padding:4px 8px;">✕</button>
+</div>
+
+<!-- Search Results Overlay -->
+<div id="search-results-overlay" style="position:fixed;top:52px;left:50%;transform:translateX(-50%);z-index:49;
+  width:420px;max-height:420px;overflow-y:auto;border-radius:14px;border:1px solid var(--glass-border);
+  background:rgba(10,10,24,0.9);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
+  display:none;padding:4px 0;">
+  <div id="search-results-list"></div>
+</div>
+
+<!-- Layer 2: Top Chamber — Queue / Favorites -->
+<div class="bubble-chamber visible" id="chamber-top">
+  <div id="chamber-top-header" style="display:flex;align-items:center;justify-content:center;width:100%;">
+    <span id="queue-label" class="queue-title" style="text-align:center;margin:0;">📀 播放队列</span>
+  </div>
+  <div id="queue-row" style="display:flex;align-items:center;gap:8px;width:100%;">
+    <button id="btn-queue-swap" class="queue-action-btn" title="切换收藏/队列">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="17,1 21,5 17,9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7,23 3,19 7,15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/>
+      </svg>
+    </button>
+    <div id="queue-area">
+      <div class="queue-item far"></div>
+      <div class="queue-item"></div>
+      <div class="queue-item"></div>
+      <div class="queue-item center"></div>
+      <div class="queue-item"></div>
+      <div class="queue-item"></div>
+      <div class="queue-item far"></div>
+    </div>
+    <button id="btn-queue-clear" class="queue-action-btn queue-action-danger" title="清空当前列表">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+      </svg>
+    </button>
+  </div>
+</div>
+
+<!-- Layer 4.5: Bottom Controller — three-section layout -->
+<div class="bubble-chamber" id="chamber-bottom">
+  <!-- Section 1: macOS traffic lights -->
+  <span id="traffic-lights" class="traffic-lights-hidden">
+    <button class="traffic-light traffic-close" id="tl-close" title="关闭窗口"></button>
+    <button class="traffic-light traffic-minimize" id="tl-minimize" title="最小化"></button>
+    <button class="traffic-light traffic-maximize" id="tl-maximize" title="最大化/还原"></button>
+  </span>
+
+  <!-- Section 2: Playback controls (centered) -->
+  <div class="controller-center">
+    <button class="controller-btn" id="btn-like" title="收藏到本地列表">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+      </svg>
+    </button>
+    <button class="controller-btn" id="btn-playmode" title="播放模式: 顺序播放">
+      <svg id="icon-playmode-single" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display:none;"><polyline points="17,1 21,5 17,9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7,23 3,19 7,15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/><circle cx="12" cy="12" r="2.5" fill="currentColor" stroke="none"/></svg>
+      <svg id="icon-playmode-shuffle" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display:none;"><polyline points="16,3 21,3 21,8"/><line x1="3" y1="11" x2="21" y2="11"/><polyline points="8,21 3,21 3,16"/><line x1="21" y1="13" x2="3" y2="13"/></svg>
+      <svg id="icon-playmode-seq" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+    </button>
+    <button class="controller-btn" id="btn-prev" title="上一曲">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="11,18 5,12 11,6"/><polyline points="19,18 13,12 19,6"/>
+      </svg>
+    </button>
+    <button class="controller-btn primary" id="btn-play" title="播放/暂停">
+      <svg id="icon-play" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="6,3 20,12 6,21"/></svg>
+      <svg id="icon-pause" viewBox="0 0 24 24" fill="currentColor" stroke="none" style="display:none;"><rect x="6" y="3" width="4" height="18" rx="1"/><rect x="14" y="3" width="4" height="18" rx="1"/></svg>
+    </button>
+    <button class="controller-btn" id="btn-next" title="下一曲">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="13,6 19,12 13,18"/><polyline points="5,6 11,12 5,18"/>
+      </svg>
+    </button>
+    <button class="controller-btn" id="btn-fx" title="均衡器视觉预设">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26"/></svg>
+    </button>
+    <span style="position:relative;display:inline-flex;align-items:center;">
+    <button class="controller-btn" id="btn-eq" title="音频均衡器">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="9" y1="21" x2="9" y2="8"/><line x1="15" y1="21" x2="15" y2="3"/><line x1="20" y1="21" x2="20" y2="10"/></svg>
+    </button>
+    <button class="controller-btn" id="btn-volume" title="音量">
+      <svg id="icon-vol-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="11,5 6,9 2,9 2,15 6,15 11,19"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
+      <svg id="icon-vol-mute" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display:none;"><polygon points="11,5 6,9 2,9 2,15 6,15 11,19"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
+    </button>
+    <div id="volume-tooltip"><input type="range" id="volume-slider" min="0" max="100" value="70" orient="horizontal"></div>
+    </span>
+  </div>
+
+
+
+  <!-- Section 3: User & Settings -->
+  <div class="controller-right">
+    <span id="sleep-timer-display" style="display:none;font-size:10px;color:var(--text-dim);margin-right:4px;font-family:var(--font-main);white-space:nowrap;"></span>
+    <button class="controller-btn" id="btn-sleep" title="睡眠定时器">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+    </button>
+    <button class="controller-btn" id="btn-user" title="用户管理">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+    </button>
+    <button class="controller-btn" id="btn-settings" title="DIY 设置">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+    </button>
+  </div>
+</div>
+
+
+
+<!-- Layer 6: DIY Settings Overlay -->
+<div id="diy-overlay">
+  <div id="diy-panel">
+    <div style="position:relative; display:flex; align-items:center; padding:0 20px;">
+      <div id="diy-tabs">
+        <button class="diy-tab active" data-tab="visual">🎨 UI特效</button>
+        <button class="diy-tab" data-tab="system">⚙️ 系统</button>
+      </div>
+      <button id="diy-close">✕</button>
+    </div>
+    <div id="diy-content"></div>
+  </div>
+</div>
+
+<!-- Scripts -->
+<script>
+window.onerror = function(msg, url, line) {
+  console.error('RENDERER ERROR:', msg, 'at', url, ':', line);
+  document.title = 'ERR: ' + msg;
+  var dbg = document.createElement('div');
+  dbg.id = 'js-error-dump';
+  dbg.style.cssText = 'position:fixed;bottom:0;left:0;right:0;background:red;color:white;padding:8px;z-index:9999;font-size:11px;';
+  dbg.textContent = 'JS ERROR: ' + msg + ' @ ' + url + ':' + line;
+  document.body.appendChild(dbg);
+};
+</script>
+<!-- Mini Player Overlay -->
+<div id="mini-player" style="display:none;position:fixed;bottom:20px;right:20px;z-index:100;
+  width:280px;border-radius:16px;border:1px solid var(--glass-border);
+  background:rgba(10,10,24,0.92);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+  box-shadow:0 12px 40px rgba(0,0,0,0.5);overflow:hidden;cursor:move;
+  transition:transform 0.3s var(--spring-expand),opacity 0.3s var(--spring-expand);">
+  <div id="mini-player-header" style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;cursor:move;">
+    <span style="font-size:10px;color:var(--text-dim);font-weight:600;">🎵 MINI PLAYER</span>
+    <div style="display:flex;gap:4px;">
+      <button id="btn-mini-restore" title="还原窗口" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:12px;padding:2px 6px;">⬆</button>
+      <button id="btn-mini-close" title="关闭迷你窗口" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:12px;padding:2px 6px;">✕</button>
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;gap:10px;padding:4px 12px 12px;">
+    <div id="mini-cover" style="width:52px;height:52px;border-radius:8px;flex-shrink:0;
+      background:rgba(255,255,255,0.05) center/cover;"></div>
+    <div style="flex:1;min-width:0;">
+      <div id="mini-title" style="font-size:12px;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">未播放</div>
+      <div id="mini-artist" style="font-size:10px;color:var(--text-dim);margin-top:2px;">—</div>
+    </div>
+  </div>
+  <div style="display:flex;justify-content:center;gap:12px;padding:4px 12px 12px;">
+    <button id="btn-mini-prev" title="上一曲" style="background:none;border:none;color:var(--text-primary);cursor:pointer;font-size:16px;padding:4px 8px;">⏮</button>
+    <button id="btn-mini-play" title="播放/暂停" style="background:var(--accent-color);border:none;color:#fff;cursor:pointer;
+      width:36px;height:36px;border-radius:50%;font-size:14px;display:flex;align-items:center;justify-content:center;">▶</button>
+    <button id="btn-mini-next" title="下一曲" style="background:none;border:none;color:var(--text-primary);cursor:pointer;font-size:16px;padding:4px 8px;">⏭</button>
+  </div>
+</div>
+
+<!-- TypeScript Bridge (bundled by Vite) -->
+<script src="vendor/three.min.js"></script>
+<script src="js/ts-loader.js"></script>
+<script src="js/module-registry.js"></script>
+<script src="js/audio-engine.js"></script>
+<script src="js/renderer-manager.js"></script>
+<script src="js/fluid-bg.js"></script>
+<script src="js/particle-cover.js"></script>
+<script src="js/foam-system.js"></script>
+<script src="js/foam-equalizer.js"></script>
+<script src="js/spectrum-3d.js"></script>
+<script src="js/bubble-chamber.js"></script>
+<script src="js/lastfm.js"></script>
+<script src="js/custom-playlists.js"></script>
+<script src="js/favorites.js"></script>
+<script src="js/user-panel.js"></script>
+<script src="js/api-bridge.js"></script>
+<script src="js/i18n.js"></script>
+<script src="js/data-cache.js"></script>
+<script src="js/search.js"></script>
+<script src="js/diy-settings.js"></script>
+<script src="js/app.js"></script>
+
+
+
+
+
+</body>
+</html>

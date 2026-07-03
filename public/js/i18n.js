@@ -152,6 +152,7 @@
     },
   };
 
+  if (typeof __FM !== 'undefined') __FM.register('i18n', [], function () { return I18N; }, { priority: 10 });
   window.I18N = I18N;
   console.log('FluidMusic i18n System loaded');
 })();

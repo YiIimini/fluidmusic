@@ -6,7 +6,7 @@
 (function () {
   const BubbleChamber = {
     chambers: {},
-    pinned: { left: false, right: false, top: false, bottom: false },
+    pinned: { top: true, bottom: true, left: false, right: false },
     hovered: { left: false, right: false, top: false },
     edgeZones: {},
     lyricsLines: [],
@@ -92,52 +92,97 @@
     // ── Dock-style magnification for queue covers ──
     const queueArea = document.getElementById('queue-area');
     if (queueArea) {
-      const items = queueArea.querySelectorAll('.queue-item');
-      let dockMagEnabled = true; // can be toggled via settings
+      let dockMagEnabled = true;
+      let dockRafId = null;
+      let dockMouseX = 0, dockMouseY = 0;
+      let dockActive = false;
 
-      function updateDockMagnification(e) {
-        if (!dockMagEnabled) return;
-        const qRect = queueArea.getBoundingClientRect();
-        const mouseX = e.clientX;
-        const mouseY = e.clientY;
+      // Cache item rects once per frame to avoid layout thrashing
+      const updateDockMagnification = () => {
+        dockRafId = null;
+        if (!dockMagEnabled || !dockActive) return;
+
+        const items = queueArea.querySelectorAll('.queue-item');
+        if (items.length === 0) return;
+
+        // Read phase: cache all rects at once (single layout pass)
+        const itemData = [];
         items.forEach((item) => {
-          const iRect = item.getBoundingClientRect();
-          const itemCenterX = iRect.left + iRect.width / 2;
-          const itemCenterY = iRect.top + iRect.height / 2;
-          const dx = mouseX - itemCenterX;
-          const dy = mouseY - itemCenterY;
+          const r = item.getBoundingClientRect();
+          itemData.push({
+            el: item,
+            cx: r.left + r.width / 2,
+            cy: r.top + r.height / 2,
+          });
+        });
+
+        // Write phase: apply transforms (no layout reads below this line)
+        const maxDist = 220;
+        for (let i = 0; i < itemData.length; i++) {
+          const { el, cx, cy } = itemData[i];
+          const dx = dockMouseX - cx;
+          const dy = dockMouseY - cy;
           const dist = Math.sqrt(dx * dx + dy * dy);
-          const maxDist = 220;
+
           if (dist < maxDist) {
             const factor = 1 - (dist / maxDist);
             const scale = 0.85 + factor * 0.75;
-            const rotY = (dx / maxDist) * 35; // rotate toward mouse X
-            const rotX = -(dy / maxDist) * 25; // rotate toward mouse Y (inverted)
-            const brightness = 0.4 + factor * 1.4;
-            item.style.transform = 'perspective(500px) rotateY(' + rotY.toFixed(1) + 'deg) rotateX(' + rotX.toFixed(1) + 'deg) scale(' + scale.toFixed(2) + ') translateY(' + (-factor * 8).toFixed(1) + 'px)';
-            item.style.filter = 'brightness(' + brightness.toFixed(2) + ') saturate(' + (0.4 + factor * 1.2).toFixed(2) + ') drop-shadow(0 ' + (factor * 12).toFixed(0) + 'px ' + (factor * 16).toFixed(0) + 'px rgba(0,0,0,' + (factor * 0.5).toFixed(2) + '))';
-            item.style.opacity = (0.35 + factor * 0.65).toFixed(2);
-            item.style.zIndex = Math.round(8 + factor * 5);
+            const rotY = (dx / maxDist) * 35;
+            const rotX = -(dy / maxDist) * 25;
+            const lift = -factor * 8;
+            el.style.transform = 'perspective(500px) rotateY(' + rotY.toFixed(1) + 'deg) rotateX(' + rotX.toFixed(1) + 'deg) scale(' + scale.toFixed(2) + ') translateY(' + lift.toFixed(1) + 'px)';
+            el.style.opacity = (0.35 + factor * 0.65).toFixed(2);
+            el.style.zIndex = Math.round(8 + factor * 5);
+            // Use box-shadow instead of filter for performance
+            const shadowAlpha = factor * 0.5;
+            el.style.boxShadow = '0 ' + (factor * 12).toFixed(0) + 'px ' + (factor * 16).toFixed(0) + 'px rgba(0,0,0,' + shadowAlpha.toFixed(2) + ')';
+            el.classList.add('dock-active');
           } else {
-            item.style.transform = '';
-            item.style.filter = '';
-            item.style.opacity = '';
-            item.style.zIndex = '';
+            el.style.transform = '';
+            el.style.opacity = '';
+            el.style.zIndex = '';
+            el.style.boxShadow = '';
+            el.classList.remove('dock-active');
           }
-        });
+        }
       }
 
-      queueArea.addEventListener('mousemove', updateDockMagnification);
+      const scheduleDockUpdate = (e) => {
+        dockMouseX = e.clientX;
+        dockMouseY = e.clientY;
+        if (!dockRafId) {
+          dockRafId = requestAnimationFrame(updateDockMagnification);
+        }
+      };
+
+      queueArea.addEventListener('mousemove', (e) => {
+        scheduleDockUpdate(e);
+        // Edge-triggered carousel scroll
+        var rect = queueArea.getBoundingClientRect();
+        var edgePct = 0.15; // 15% from edges triggers scroll
+        var leftEdge = rect.left + rect.width * edgePct;
+        var rightEdge = rect.right - rect.width * edgePct;
+        var scrollSpeed = 0;
+        if (e.clientX < leftEdge) {
+          scrollSpeed = -3 * (1 - (e.clientX - rect.left) / (rect.width * edgePct));
+        } else if (e.clientX > rightEdge) {
+          scrollSpeed = 3 * ((e.clientX - rightEdge) / (rect.width * edgePct));
+        }
+        queueArea.scrollLeft += scrollSpeed;
+      }, { passive: true });
+      queueArea.addEventListener('mouseenter', () => { dockActive = true; });
       queueArea.addEventListener('mouseleave', () => {
-        items.forEach((item) => {
+        dockActive = false;
+        if (dockRafId) { cancelAnimationFrame(dockRafId); dockRafId = null; }
+        queueArea.querySelectorAll('.queue-item').forEach((item) => {
           item.style.transform = '';
-          item.style.filter = '';
           item.style.opacity = '';
           item.style.zIndex = '';
+          item.style.boxShadow = '';
+          item.classList.remove('dock-active');
         });
       });
 
-      // Expose toggle
       window._dockMagEnabled = function(v) { dockMagEnabled = v; };
     }
 
@@ -248,11 +293,13 @@
     return result;
   }
 
-  function setLyrics(lyricText, currentIndex) {
+  function setLyrics(lyricText, currentIndex, transText) {
     const container = document.getElementById('lyrics-container');
     if (!container) return;
 
     BubbleChamber.lyricTimes = parseLyricTimes(lyricText);
+    // Parse translation lyrics too (for bilingual display)
+    BubbleChamber.transTimes = transText ? parseLyricTimes(transText) : null;
 
     container.innerHTML = '';
     if (BubbleChamber.lyricTimes.length === 0) {
@@ -268,38 +315,113 @@
     BubbleChamber.lyricTimes.forEach((lt, i) => {
       const div = document.createElement('div');
       div.className = 'lyric-line';
-      div.textContent = lt.text;
+      div.innerHTML = '<span class="lyric-orig">' + escapeHtml(lt.text) + '</span>';
+
+      // Find matching translation (closest time match)
+      if (BubbleChamber.transTimes && BubbleChamber.transTimes.length > 0) {
+        let bestTrans = '';
+        let bestDiff = Infinity;
+        for (const tt of BubbleChamber.transTimes) {
+          const diff = Math.abs(tt.time - lt.time);
+          if (diff < bestDiff && diff < 3) { // within 3 seconds
+            bestDiff = diff;
+            bestTrans = tt.text;
+          }
+        }
+        if (bestTrans && bestTrans !== lt.text) {
+          div.innerHTML += '<span class="lyric-trans">' + escapeHtml(bestTrans) + '</span>';
+        }
+      }
+
       container.appendChild(div);
     });
     highlightLyric(0);
   }
 
-  // Find lyric index for current playback time
+  // Find lyric index for current playback time using binary search
   function findLyricIndex(currentTimeSec) {
     const times = BubbleChamber.lyricTimes;
     if (!times || times.length === 0) return -1;
-    for (let i = times.length - 1; i >= 0; i--) {
-      if (times[i].time <= currentTimeSec) return i;
+    // Binary search: find the last lyric whose time <= currentTimeSec
+    let lo = 0, hi = times.length - 1;
+    while (lo <= hi) {
+      const mid = (lo + hi) >>> 1;
+      if (times[mid].time <= currentTimeSec) {
+        lo = mid + 1;
+      } else {
+        hi = mid - 1;
+      }
     }
-    return 0;
+    return hi >= 0 ? hi : 0;
   }
 
   function highlightLyric(index) {
     const container = document.getElementById('lyrics-container');
     if (!container) return;
-    if (BubbleChamber._lastLyricIdx === index) return;
+    const changed = BubbleChamber._lastLyricIdx !== index;
     BubbleChamber._lastLyricIdx = index;
     const lines = container.querySelectorAll('.lyric-line');
     lines.forEach((line, i) => {
-      line.classList.toggle('active', i === index);
+      const isActive = (i === index);
+      if (line.classList.contains('active') !== isActive) {
+        line.classList.toggle('active', isActive);
+        if (isActive) {
+          // Reset transform on newly active line
+          line.style.transform = '';
+          line.style.textShadow = '';
+        }
+      }
     });
     if (index >= 0 && lines[index]) {
-    // Update inline lyric in center core
-    const inlineLyric = document.getElementById('inline-lyric');
-    if (inlineLyric && BubbleChamber.lyricTimes && index >= 0 && index < BubbleChamber.lyricTimes.length) {
-      inlineLyric.textContent = BubbleChamber.lyricTimes[index].text;
+      // Update inline lyric in center core
+      const inlineLyric = document.getElementById('inline-lyric');
+      if (inlineLyric && BubbleChamber.lyricTimes && index >= 0 && index < BubbleChamber.lyricTimes.length) {
+        inlineLyric.textContent = BubbleChamber.lyricTimes[index].text;
+      }
+      if (changed) {
+        lines[index].scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
     }
-      lines[index].scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
+  // Audio-reactive lyric animation — called from render loop
+  function animateLyrics() {
+    if (!BubbleChamber._lastLyricIdx || BubbleChamber._lastLyricIdx < 0) return;
+    const container = document.getElementById('lyrics-container');
+    if (!container) return;
+    const lines = container.querySelectorAll('.lyric-line');
+    const idx = BubbleChamber._lastLyricIdx;
+    if (!lines[idx]) return;
+
+    let energy = 0, bass = 0, mid = 0;
+    if (typeof FluidAudio !== 'undefined' && FluidAudio.bands) {
+      energy = FluidAudio.bands.energy || 0;
+      bass = FluidAudio.bands.bass || 0;
+      mid = FluidAudio.bands.mid || 0;
+    }
+
+    const activeLine = lines[idx];
+
+    // Gentle breathing scale — feels alive
+    const scale = 1 + energy * 0.08 + bass * 0.06;
+    // Subtle vertical float — like the lyric is floating on sound waves
+    const floatY = Math.sin(Date.now() * 0.003) * 2 * energy + bass * 3;
+    // Color warmth shifts with energy
+    const glowIntensity = energy * 0.6 + bass * 0.4;
+
+    activeLine.style.transform = 'scale(' + scale.toFixed(3) + ') translateY(' + floatY.toFixed(1) + 'px)';
+    activeLine.style.textShadow = '0 0 ' + (8 + glowIntensity * 20).toFixed(0) + 'px rgba(180,200,255,' + (0.2 + glowIntensity * 0.5).toFixed(2) + '), 0 ' + (bass * 8).toFixed(0) + 'px ' + (bass * 12).toFixed(0) + 'px rgba(130,160,255,' + (bass * 0.3).toFixed(2) + ')';
+
+    // Neighboring lines get subtle movement too
+    for (let i = -2; i <= 2; i++) {
+      if (i === 0) continue;
+      const ni = idx + i;
+      if (ni >= 0 && ni < lines.length && !lines[ni].classList.contains('active')) {
+        const dist = Math.abs(i);
+        const nFloat = Math.sin(Date.now() * 0.002 + i) * energy * (3 - dist);
+        lines[ni].style.transform = 'translateY(' + nFloat.toFixed(1) + 'px)';
+        lines[ni].style.opacity = (0.4 - dist * 0.08 + energy * 0.15).toFixed(2);
+      }
     }
   }
 
@@ -349,6 +471,49 @@
     }
   }
 
+  // Refresh sidebar from cache only (no API call) — used after user toggles synced playlists
+  function refreshPlaylistListFromCache() {
+    if (typeof DataCache === 'undefined') return;
+    const playlists = DataCache.getCachedPlaylists();
+    if (!playlists) {
+      console.log('[BubbleChamber] refreshFromCache: no cached playlists, falling back to API');
+      refreshPlaylistList();
+      return;
+    }
+    console.log('[BubbleChamber] refreshFromCache: updating sidebar from local cache');
+    setUserPlaylists(playlists);
+  }
+
+  // Fetch and cache songs for a single playlist (used when user enables sync)
+  async function fetchAndCachePlaylistSongs(pl) {
+    if (typeof ApiBridge === 'undefined' || typeof DataCache === 'undefined') return;
+    try {
+      let tracks = [];
+      if (pl.platform === 'netease') {
+        const data = await ApiBridge.getNeteasePlaylist(pl.id);
+        const plData = (data && (data.playlist || data.result));
+        if (plData && plData.tracks) {
+          tracks = plData.tracks
+            .filter(t => { if (!t.id || !t.name) return false; if (t.status === -1 || t.noCopyrightRcmd) return false; if (t.fee > 0 && t.privilege && t.privilege.st < 0) return false; return true; })
+            .map(t => ({ title: t.name, artist: (t.ar || []).map(a => a.name).join('/'), url: '', coverUrl: ((t.al && t.al.picUrl) || pl.coverUrl || '').replace(/^http:/, 'https:'), id: t.id, platform: pl.platform }));
+        }
+      } else if (pl.platform === 'qq') {
+        const data = await ApiBridge.getQQPlaylist(pl.id);
+        if (data && data.cdlist && data.cdlist[0] && data.cdlist[0].songlist) {
+          tracks = data.cdlist[0].songlist
+            .filter(t => { if (!t.songmid && !t.id) return false; if (!t.name && !t.songname) return false; if (t.pay && (t.pay.pay_play === 1 || t.pay.pay_down === 1)) return false; if (t.action && t.action.switch) return false; return true; })
+            .map(t => ({ title: t.name || t.songname || '未知', artist: (t.singer || []).map(s => s.name).join('/') || '未知', url: '', coverUrl: ((t.albumurl || t.albummid ? 'https://y.gtimg.cn/music/photo_new/T002R300x300M000' + t.albummid + '.jpg' : '') || pl.coverUrl || '').replace(/^http:/, 'https:'), id: t.songmid || t.id, platform: pl.platform }));
+        }
+      }
+      if (tracks.length > 0) {
+        DataCache.cachePlaylistSongs(pl.id, pl.platform, tracks);
+        console.log('[fetchAndCachePlaylistSongs] Cached ' + tracks.length + ' songs for ' + pl.platform + ' ' + pl.name);
+      }
+    } catch (e) {
+      console.warn('[fetchAndCachePlaylistSongs] Failed for ' + pl.platform + ' ' + pl.name, e);
+    }
+  }
+
   // ── User playlist rendering (with covers, 48px) ──
 
   // ── Get synced playlist IDs from user settings ──
@@ -389,12 +554,20 @@
       ...(playlists.qq || []),
     ];
 
-    if (allPlaylists.length === 0) {
+    if (allPlaylists.length === 0 && (!window.CustomPlaylists || window.CustomPlaylists.getAll().length === 0)) {
       showPlaylistEmpty();
-      return;
+    } else if (allPlaylists.length > 0 || (window.CustomPlaylists && window.CustomPlaylists.getAll().length > 0)) {
+      // Will render below
+    } else {
+      showPlaylistEmpty();
     }
 
     container.innerHTML = '';
+
+    // ── Custom Playlists Section (local) ──
+    if (typeof CustomPlaylists !== 'undefined') {
+      CustomPlaylists.renderInSidebar(container);
+    }
 
     const names = { netease: '🎧 网易云音乐', qq: '🎵 QQ音乐' };
     const platforms = ['netease', 'qq'];
@@ -421,10 +594,10 @@
         const platformClass = pl.platform === 'qq' ? 'qq' : 'net';
         const dot = `<span class="platform-dot ${platformClass}"></span>`;
 
-      let coverHtml = `<span class="playlist-item-cover" style="display:flex;align-items:center;justify-content:center;background:rgba(238,102,68,0.12);border:1px solid rgba(238,102,68,0.2);font-size:22px;">❤️</span>`;
-      if (pl.coverUrl) {
-        coverHtml = `<img class="playlist-item-cover" src="${escapeHtml(pl.coverUrl)}" alt="" onerror="this.style.display='none';this.parentElement.querySelector('.playlist-item-info .playlist-item-count').innerHTML='${dot} '+(this.parentElement.querySelector('.playlist-item-info .playlist-item-count').dataset.desc||'...');">`;
-      }
+      const hasCover = pl.coverUrl && String(pl.coverUrl).trim();
+      let coverHtml = hasCover
+        ? `<img class="playlist-item-cover" src="${escapeHtml(pl.coverUrl)}" alt="" onerror="this.style.display='none'">`
+        : `<span class="playlist-item-cover playlist-cover-heart">❤️</span>`;
 
       const desc = (pl.description || pl.desc || pl.bio || '...').substring(0, 60);
       const platformLabel = pl.platform === 'qq' ? 'QQ' : '网易';
@@ -432,7 +605,7 @@
         ${coverHtml}
         <div class="playlist-item-info">
           <span class="playlist-item-name">${escapeHtml(pl.name)}</span>
-          <span class="playlist-item-count" data-desc="${escapeHtml(desc)}">${dot} ${escapeHtml(platformLabel)} · ${escapeHtml(desc)}</span>
+          <span class="playlist-item-count">${dot} ${escapeHtml(platformLabel)} · ${escapeHtml(desc)}</span>
         </div>
       `;
 
@@ -444,12 +617,23 @@
       });
     });
 
-    // Pin left chamber to show playlists
-    const chamberLeft = document.getElementById('chamber-left');
-    if (chamberLeft) {
-      chamberLeft.classList.add('visible', 'pinned');
-      BubbleChamber.pinned.left = true;
+    // Apply chamber pinned state from settings
+    var settings = null;
+    try { var raw = localStorage.getItem('fluidmusic-settings'); if (raw) settings = JSON.parse(raw); } catch(_) {}
+    var pins = { top: true, bottom: true, left: false, right: false };
+    if (settings) {
+      if (typeof settings.chamberTopPinned === 'boolean') pins.top = settings.chamberTopPinned;
+      if (typeof settings.chamberBottomPinned === 'boolean') pins.bottom = settings.chamberBottomPinned;
+      if (typeof settings.chamberLeftPinned === 'boolean') pins.left = settings.chamberLeftPinned;
+      if (typeof settings.chamberRightPinned === 'boolean') pins.right = settings.chamberRightPinned;
     }
+    BubbleChamber.pinned = pins;
+    Object.keys(pins).forEach(function(side) {
+      if (pins[side]) {
+        var el = document.getElementById('chamber-' + side);
+        if (el) el.classList.add('visible', 'pinned');
+      }
+    });
   }
 
   async function loadPlaylistSongs(pl) {
@@ -476,10 +660,6 @@
             FluidAudio.setPlaylist(tracks, 0);
           }
           updateQueueDisplay(tracks[0], tracks, 0);
-          // Background silent cache refresh (no UI re-render)
-          setTimeout(async () => {
-            await fetchTracksFromApi(pl, { skipUrlPrefetch: true, silent: true });
-          }, 500);
           return;
         }
       }
@@ -570,37 +750,7 @@
       }
 
 
-      // ── URL pre-fetch filter: verify playability for QQ ──
-      // Skip URL pre-fetch for background refreshes (cached tracks already have URLs)
-      if (tracks.length > 0 && pl.platform === 'qq' && !opts.skipUrlPrefetch) {
-        const cachedTracks = [];
-        const failedTracks = [];
-        // Pre-fetch URLs in staggered batches (3 tracks per batch, 400ms apart) to avoid rate-limit
-        for (let i = 0; i < tracks.length; i += 3) {
-          const batch = tracks.slice(i, i + 3);
-          const results = await Promise.allSettled(batch.map(async (t) => {
-            // Check cache first
-            const cacheKey = 'track_url_' + pl.platform + '_' + t.id;
-            let url = (typeof DataCache !== 'undefined') ? DataCache.get(cacheKey) : null;
-            if (!url) {
-              url = await fetchTrackUrl(t);
-              if (url && typeof DataCache !== 'undefined') {
-                DataCache.set(cacheKey, url);
-              }
-            }
-            t.url = url || '';
-            return t;
-          }));
-          results.forEach((r) => {
-            if (r.status === 'fulfilled' && r.value.url) cachedTracks.push(r.value);
-            else if (r.status === 'fulfilled') failedTracks.push(r.value);
-          });
-          // Stagger: wait between batches
-          if (i + 3 < tracks.length) await new Promise(r => setTimeout(r, 400));
-        }
-        console.log('[Playlist] URL pre-fetch: ' + cachedTracks.length + ' playable, ' + failedTracks.length + ' filtered out');
-        tracks = cachedTracks;
-      }
+
 
       if (tracks.length === 0) {
         const emptyText = typeof I18N !== 'undefined' ? I18N.t('playlist.emptyPlaylist') : '歌单为空';
@@ -646,26 +796,72 @@
   // ── Lazy track URL fetcher ──
   async function fetchTrackUrl(track) {
     if (typeof ApiBridge === 'undefined') return '';
+    const trackId = track.id || track.songmid || '';
+    const platform = track.platform || '';
+
+    // 1. Check cached URL first
+    if (typeof DataCache !== 'undefined') {
+      const cached = DataCache.getCachedTrackUrl(trackId, platform);
+      if (cached) { console.log('[URL Cache] HIT', platform, track.title || trackId); return cached; }
+      console.log('[URL Cache] MISS', platform, track.title || trackId);
+    }
+
     try {
+      let url = '';
+      let apiResponse = null;
       if (track.platform === 'netease') {
-        const data = await ApiBridge.getNeteaseSongUrl(track.id);
-        return (data && data.data && data.data[0] && data.data[0].url) || '';
+        apiResponse = await ApiBridge.getNeteaseSongUrl(track.id);
+        url = (apiResponse && apiResponse.data && apiResponse.data[0] && apiResponse.data[0].url) || '';
       } else if (track.platform === 'qq') {
-        const data = await ApiBridge.getQQSongUrl(track.id);
-        // QQ song URL response: { req_0: { data: { midurlinfo: [...], sip: [...] } } }
-        if (data && data.req_0 && data.req_0.data) {
-          const d = data.req_0.data;
+        apiResponse = await ApiBridge.getQQSongUrl(track.id);
+        if (apiResponse && apiResponse.req_0 && apiResponse.req_0.data) {
+          const d = apiResponse.req_0.data;
           const sip = (d.sip || [])[0] || '';
           const purl = (d.midurlinfo && d.midurlinfo[0] && d.midurlinfo[0].purl) || '';
-          if (sip && purl) return sip + purl;
+          if (sip && purl) url = sip + purl;
         }
-        return '';
-      
       }
+      // 2. Cache the fetched URL
+      if (url && typeof DataCache !== 'undefined') {
+        DataCache.cacheTrackUrl(trackId, platform, url);
+      }
+      // 3. Diagnose failure when URL is empty
+      if (!url && typeof showToast !== 'undefined') {
+        const reason = diagnoseUrlFailure(track, apiResponse);
+        showToast('⚠ ' + reason, 3500);
+      }
+      return url;
     } catch (e) {
       console.warn('Failed to fetch track URL:', e);
+      if (typeof showToast !== 'undefined') {
+        showToast('⚠ 网络请求失败，请检查网络连接', 3000);
+      }
     }
     return '';
+  }
+
+  // Diagnose why a track URL fetch failed
+  function diagnoseUrlFailure(track, apiResponse) {
+    if (track.platform === 'netease') {
+      if (!apiResponse || apiResponse.code !== 200) {
+        return '网易云: 歌曲无版权或已下架';
+      }
+      const songData = apiResponse.data && apiResponse.data[0];
+      if (songData && songData.fee > 0) return '网易云: 付费歌曲/VIP专属';
+      if (songData && songData.noCopyrightRcmd) return '网易云: 版权受限（无版权）';
+      return '网易云: 无可用播放源';
+    }
+    if (track.platform === 'qq') {
+      if (!apiResponse || !apiResponse.req_0 || !apiResponse.req_0.data) {
+        return 'QQ音乐: API返回异常';
+      }
+      const d = apiResponse.req_0.data;
+      const purl = (d.midurlinfo && d.midurlinfo[0] && d.midurlinfo[0].purl) || '';
+      if (!purl) return 'QQ音乐: 歌曲无版权或VIP专属';
+      if (purl.includes('guid-error')) return 'QQ音乐: 登录鉴权失败，请重新登录';
+      return 'QQ音乐: 无可用播放源';
+    }
+    return '无法获取播放地址（版权/VIP限制）';
   }
 
   function setPlaylist(tracks, currentIndex) {
@@ -707,24 +903,39 @@
 
     container.innerHTML = '';
 
-    // Play All button
+    // Play All button — uses cached track data, fetches URL only for first track
     if (tracks.length > 0) {
       const playAll = document.createElement('div');
       playAll.className = 'playlist-item playlist-playall';
       playAll.textContent = '▶ 播放全部 (' + tracks.length + ')';
       playAll.addEventListener('click', async () => {
         if (typeof FluidAudio !== 'undefined') {
-          // Pre-fetch URLs for all tracks
-          for (const t of tracks) {
-            if ((!t.url || t.platform === 'qq') && t.id) { try { t.url = await fetchTrackUrl(t); } catch(e) {} }
+          // Respect current play mode: shuffle list if in random mode
+          var playTracks = tracks.slice();
+          var startIdx = 0;
+          var mode = (FluidAudio.playMode || 'sequential');
+          if (mode === 'random') {
+            // Fisher-Yates shuffle
+            for (var i = playTracks.length - 1; i > 0; i--) {
+              var j = Math.floor(Math.random() * (i + 1));
+              var tmp = playTracks[i]; playTracks[i] = playTracks[j]; playTracks[j] = tmp;
+            }
           }
-          FluidAudio.setPlaylist(tracks, 0);
-          updateQueueDisplay(tracks[0], tracks, 0);
-          const t = tracks[0];
+          FluidAudio.setPlaylist(playTracks, startIdx);
+          updateQueueDisplay(playTracks[startIdx], playTracks, startIdx);
+          const t = playTracks[startIdx];
+          // Fetch URL ONLY for the first track — rest on-demand
+          if ((!t.url || t.platform === 'qq') && t.id) {
+            try { t.url = await fetchTrackUrl(t); } catch(e) {}
+          }
           if (t.url) {
             FluidAudio.load(t.url, t);
             FluidAudio.play();
             setActivePlaylistItem(0);
+          } else if (typeof showToast !== 'undefined') {
+            showToast('⚠ 无法获取播放地址');
+            // Auto-skip to next
+            setTimeout(function() { FluidAudio.next(); }, 1500);
           }
         }
       });
@@ -738,13 +949,19 @@
       const trackInfo = track.title || track.name || '未知';
       const artistInfo = track.artist ? ' — ' + track.artist : '';
 
+      const thumbUrl = track.coverUrl || '';
+      const thumbHtml = thumbUrl
+        ? `<img class="pli-thumb" src="${escapeHtml(thumbUrl)}" alt="" onerror="this.style.display='none'">`
+        : `<span class="pli-thumb pli-thumb-empty">🎵</span>`;
+
       row.innerHTML = `
+        ${thumbHtml}
+        <span class="pli-name">${escapeHtml(trackInfo + artistInfo)}</span>
         <span class="pli-actions">
           <button class="pli-btn pli-fav" data-action="fav" data-idx="${i}" title="收藏">♥</button>
           <button class="pli-btn pli-play" data-action="play" data-idx="${i}" title="立即播放">▶</button>
           <button class="pli-btn pli-add" data-action="add" data-idx="${i}" title="添加到队列">+</button>
         </span>
-        <span class="pli-name">${escapeHtml(trackInfo + artistInfo)}</span>
       `;
 
       // Wire actions
@@ -926,13 +1143,26 @@
     const pl = playlist || [];
     const idx = (currentIndex != null) ? currentIndex : -1;
 
+    // Sync with play mode: random mode shuffles the display order
+    var displayOrder = pl.slice();
+    var mode = (typeof FluidAudio !== 'undefined') ? FluidAudio.playMode : 'sequential';
+    if (mode === 'random' && pl.length > 1) {
+      // Keep current track at its position, shuffle the rest
+      var rest = displayOrder.slice(0, idx).concat(displayOrder.slice(idx + 1));
+      for (var ri = rest.length - 1; ri > 0; ri--) {
+        var rj = Math.floor(Math.random() * (ri + 1));
+        var tmp = rest[ri]; rest[ri] = rest[rj]; rest[rj] = tmp;
+      }
+      displayOrder = rest.slice(0, idx).concat([displayOrder[idx]], rest.slice(idx));
+    }
+
     for (let i = 0; i < total; i++) {
       const offset = i - center;
       let trackIndex = 0;
-      if (pl.length > 0) {
-        trackIndex = ((idx + offset) % pl.length + pl.length) % pl.length;
+      if (displayOrder.length > 0) {
+        trackIndex = ((idx + offset) % displayOrder.length + displayOrder.length) % displayOrder.length;
       }
-      const track = pl[trackIndex];
+      const track = displayOrder[trackIndex];
 
       items[i].className = 'queue-item';
       if (offset === 0) {
@@ -987,11 +1217,15 @@
   BubbleChamber.showPlaylistEmpty = showPlaylistEmpty;
   BubbleChamber.refreshPlaylistLabels = refreshPlaylistLabels;
   BubbleChamber.refreshPlaylistList = refreshPlaylistList;
+  BubbleChamber.refreshPlaylistListFromCache = refreshPlaylistListFromCache;
+  BubbleChamber.fetchAndCachePlaylistSongs = fetchAndCachePlaylistSongs;
   BubbleChamber.renderFavoritesList = renderFavoritesList;
   BubbleChamber.getSyncedPlaylistIds = getSyncedPlaylistIds;
   BubbleChamber.filterSyncedPlaylists = filterSyncedPlaylists;
   BubbleChamber.renderQueueList = renderQueueList;
+  BubbleChamber.animateLyrics = animateLyrics;
 
+  if (typeof __FM !== 'undefined') __FM.register('bubbleChamber', [], function () { return BubbleChamber; }, { priority: 5 });
   window.BubbleChamber = BubbleChamber;
   window._fetchTrackUrl = fetchTrackUrl;
   console.log('FluidMusic Bubble Chamber Manager loaded');

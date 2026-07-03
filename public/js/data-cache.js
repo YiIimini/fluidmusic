@@ -95,7 +95,7 @@
     const entry = DataCache.get('playlists');
     if (!entry || entry.v !== CACHE_VERSION) return null;
     // Cache valid for 30 minutes
-    if (Date.now() - entry.ts > 30 * 60 * 1000) return null;
+    if (Date.now() - entry.ts > 6 * 60 * 60 * 1000) return null; // 6 hour cache
     return entry.data;
   };
 
@@ -110,7 +110,7 @@
   DataCache.getCachedPlaylistSongs = function (playlistId, platform) {
     const entry = DataCache.get('plsongs_' + platform + '_' + playlistId);
     if (!entry) return null;
-    if (Date.now() - entry.ts > 60 * 60 * 1000) return null; // 1 hour
+    if (Date.now() - entry.ts > 24 * 60 * 60 * 1000) return null; // 24 hour cache
     return entry.data;
   };
 
@@ -127,6 +127,23 @@
     keys.forEach(k => { localStorage.removeItem(k); delete DataCache._mem[k]; });
   };
 
+  
+  // ── Track URL cache (survives across sessions) ──
+  DataCache.cacheTrackUrl = function (trackId, platform, url) {
+    if (!trackId || !url) return;
+    DataCache.set('track_url_' + platform + '_' + trackId, { url, ts: Date.now() });
+  };
+
+  DataCache.getCachedTrackUrl = function (trackId, platform) {
+    const entry = DataCache.get('track_url_' + platform + '_' + trackId);
+    if (!entry) return null;
+    // QQ Music URLs expire ~30 min; use 25 min to be safe
+    // Netease URLs last longer; use 2 hours
+    const ttl = platform === 'qq' ? 25 * 60 * 1000 : 2 * 60 * 60 * 1000;
+    if (Date.now() - entry.ts > ttl) return null;
+    return entry.url;
+  };
+
   DataCache.clearAll = function () {
     const keys = [];
     for (let i = 0; i < localStorage.length; i++) {
@@ -137,6 +154,7 @@
     DataCache._mem = {};
   };
 
+  if (typeof __FM !== 'undefined') __FM.register('dataCache', [], function () { return DataCache; }, { priority: 9 });
   window.DataCache = DataCache;
   console.log('FluidMusic Data Cache loaded');
 })();

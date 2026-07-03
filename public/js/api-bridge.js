@@ -345,6 +345,7 @@
   ApiBridge.getQQSongUrl = getQQSongUrl;
   ApiBridge.getQQLyric = getQQLyric;
 
+  if (typeof __FM !== 'undefined') __FM.register('apiBridge', [], function () { return ApiBridge; }, { priority: 5 });
   window.ApiBridge = ApiBridge;
   console.log('FluidMusic API Bridge loaded');
 })();

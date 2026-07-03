@@ -25,15 +25,21 @@
   function init(canvas) {
     if (FluidBG.initialized) return true;
     try {
-      const canvasEl = canvas || document.getElementById('bg-canvas');
-      const renderer = new THREE.WebGLRenderer({ canvas: canvasEl, alpha: true, antialias: false });
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-      renderer.setClearColor(0x000000, 0);
-      renderer.setSize(window.innerWidth, window.innerHeight);
-      // 双保险：CSS opacity 让桌面透视
-      canvasEl.style.opacity = '0.4';
+      // Use shared renderer manager instead of creating own WebGL context
+      if (typeof RendererManager === 'undefined' || !RendererManager.initialized) {
+        if (typeof RendererManager !== 'undefined') RendererManager.init();
+        if (!RendererManager.initialized) {
+          console.warn('[FluidBG] RendererManager not available, creating fallback renderer');
+          const canvasEl = canvas || document.getElementById('bg-canvas');
+          const renderer = new THREE.WebGLRenderer({ canvas: canvasEl, alpha: true, antialias: false });
+          renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+          renderer.setClearColor(0x000000, 0);
+          renderer.setSize(window.innerWidth, window.innerHeight);
+          canvasEl.style.opacity = '0.4';
+          FluidBG.renderer = renderer;
+        }
+      }
 
-      FluidBG.renderer = renderer;
       FluidBG.scene = new THREE.Scene();
       FluidBG.camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 10);
       FluidBG.camera.position.z = 1;
@@ -101,6 +107,15 @@
       FluidBG.scene.add(FluidBG.mesh);
 
       FluidBG.initialized = true;
+
+      // Register with shared renderer manager
+      if (typeof RendererManager !== 'undefined' && RendererManager.initialized) {
+        RendererManager.registerLayer('bg', FluidBG.scene, FluidBG.camera, {
+          tick: tick,
+          visible: true,
+        });
+      }
+
       console.log('Fluid BG initialized');
       return true;
     } catch (e) {
@@ -109,29 +124,44 @@
     }
   }
 
+  // Extra smoothing for fluid bg to prevent flicker
+  var _smoothBass = 0, _smoothMid = 0, _smoothTreb = 0, _smoothEnergy = 0;
+
   function tick(dt) {
     if (!FluidBG.initialized) return;
     FluidBG.time += dt || 0.016;
     const u = FluidBG.material.uniforms;
     u.uTime.value = FluidBG.time;
 
-    // Audio reactivity
+    // Heavy smoothing on audio to eliminate visual flicker/strobing
     if (typeof FluidAudio !== 'undefined' && FluidAudio.bands) {
-      u.uBass.value = FluidAudio.bands.bass;
-      u.uMid.value = FluidAudio.bands.mid;
-      u.uTreble.value = FluidAudio.bands.treble;
-      u.uEnergy.value = FluidAudio.bands.energy;
+      var s = 0.04; // slow smoothing factor
+      _smoothBass += (FluidAudio.bands.bass - _smoothBass) * s;
+      _smoothMid += (FluidAudio.bands.mid - _smoothMid) * s;
+      _smoothTreb += (FluidAudio.bands.treble - _smoothTreb) * s;
+      _smoothEnergy += (FluidAudio.bands.energy - _smoothEnergy) * s;
+      u.uBass.value = _smoothBass * 0.5;       // Reduced amplitude
+      u.uMid.value = _smoothMid * 0.4;
+      u.uTreble.value = _smoothTreb * 0.3;
+      u.uEnergy.value = _smoothEnergy * 0.4;
     }
   }
 
   function render() {
+    // Rendering is handled by RendererManager; this is a no-op fallback
+    if (typeof RendererManager !== 'undefined' && RendererManager.initialized) return;
+    // Fallback: direct render if RendererManager not available
     if (!FluidBG.initialized || !FluidBG.renderer) return;
     FluidBG.renderer.render(FluidBG.scene, FluidBG.camera);
   }
 
   function resize() {
     if (!FluidBG.initialized) return;
-    FluidBG.renderer.setSize(window.innerWidth, window.innerHeight);
+    if (typeof RendererManager !== 'undefined' && RendererManager.initialized) {
+      RendererManager.resize(window.innerWidth, window.innerHeight);
+    } else if (FluidBG.renderer) {
+      FluidBG.renderer.setSize(window.innerWidth, window.innerHeight);
+    }
     FluidBG.material.uniforms.uResolution.value.set(window.innerWidth, window.innerHeight);
   }
 
@@ -145,6 +175,7 @@
   FluidBG.setIntensity = setIntensity;
   FluidBG.setSpeed = setSpeed;
 
+  if (typeof __FM !== 'undefined') __FM.register('fluidBg', [], function () { return FluidBG; }, { priority: 7 });
   window.FluidBackground = FluidBG;
   window.addEventListener('resize', resize);
   console.log('FluidMusic Fluid Background loaded');

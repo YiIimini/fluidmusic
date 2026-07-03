@@ -8,39 +8,93 @@
   let lastTime = 0;
   let appReady = false;
 
+  // ── Visual Effects Toggles ──
+  // Persisted to localStorage, defaults: lightweight effects ON, heavy OFF
+  const VISUAL_DEFAULTS = {
+    fluidBg: true,        // Fluid background (low GPU)
+    particleCover: true,  // 3D particle album cover
+    spectrum3D: true,     // 3D spectrum rings (low GPU)
+  };
+
+  let _visualEnabled = { ...VISUAL_DEFAULTS };
+
+  function loadVisualSettings() {
+    try {
+      const saved = localStorage.getItem('fluidmusic-visual');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        Object.keys(VISUAL_DEFAULTS).forEach(k => {
+          if (typeof parsed[k] === 'boolean') _visualEnabled[k] = parsed[k];
+        });
+      }
+    } catch (_) { /* keep defaults */ }
+  }
+
+  function saveVisualSettings() {
+    try {
+      localStorage.setItem('fluidmusic-visual', JSON.stringify(_visualEnabled));
+    } catch (_) { /* ignore quota */ }
+  }
+
+  // Expose for DIY settings panel
+  window._fluidVisualEnabled = _visualEnabled;
+  window._fluidVisualSave = function() {
+    saveVisualSettings();
+    // Sync cover fallback when particle toggle changes
+    _syncCoverFallback();
+  };
+
+  function _syncCoverFallback() {
+    var fb = document.getElementById('cover-fallback');
+    if (fb) {
+      fb.style.display = _visualEnabled.particleCover ? 'none' : 'block';
+    }
+  }
+
   // ── Background brightness detection for auto text contrast ──
+  // Uses a small offscreen 2D canvas to sample what's actually rendered behind the element
+  let _brightnessSampleCanvas = null;
+
   function detectBackgroundBrightness(element) {
     if (!element) return 0.5;
     const rect = element.getBoundingClientRect();
     const cx = rect.left + rect.width / 2;
     const cy = rect.top + rect.height / 2;
 
-    // Sample points from behind the element using a hidden canvas
-    const bgCanvas = document.getElementById('bg-canvas');
-    if (!bgCanvas) return 0.5;
-
-    try {
-      const ctx = bgCanvas.getContext('2d');
-      if (!ctx) return 0.5;
-      // Sample a small region
-      const imageData = ctx.getImageData(
-        Math.max(0, cx * (bgCanvas.width / window.innerWidth)),
-        Math.max(0, cy * (bgCanvas.height / window.innerHeight)),
-        1, 1
-      );
-      if (imageData && imageData.data) {
-        const [r, g, b] = imageData.data;
-        // Perceived brightness (luminance formula)
-        return (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    // Method 1: Sample wallpaper layer brightness (if wallpaper is loaded)
+    const wpLayer = document.getElementById('wallpaper-layer');
+    if (wpLayer && wpLayer.classList.contains('loaded')) {
+      const wpOpacity = parseFloat(wpLayer.style.opacity || 0.5);
+      if (wpOpacity > 0.2) {
+        // Wallpaper is visible — sample its average brightness
+        try {
+          if (!_brightnessSampleCanvas) {
+            _brightnessSampleCanvas = document.createElement('canvas');
+            _brightnessSampleCanvas.width = 10;
+            _brightnessSampleCanvas.height = 10;
+          }
+          const ctx = _brightnessSampleCanvas.getContext('2d');
+          // Sample from the wallpaper layer's background image
+          const bgImage = wpLayer.style.backgroundImage;
+          if (bgImage && bgImage.startsWith('url(')) {
+            // Approximate: wallpaper is set via data URL, sample a few points
+            // Since we can't directly read the background-image pixels, use statistical heuristic
+            const sampleY = cy / window.innerHeight;
+            // Wallpaper visible → background is lighter than fluid bg alone
+            return 0.45 + wpOpacity * 0.25;
+          }
+        } catch (_) {}
       }
-    } catch (e) {
-      // Fallback: use element's own background analysis
     }
 
-    // Fallback: check if the area has mostly dark or light surroundings
+    // Method 2: Use element position heuristic (reliable, no DOM overhead)
+    // Fluid background is always dark (#0d0d1a), so areas over fluid bg are dark
+    // Top area (chamber-top) has more light from queue covers
+    // Side chambers are over the dark fluid bg
     const sampleY = cy / window.innerHeight;
-    // Top area tends to have desktop background (lighter), bottom darker
-    return sampleY > 0.5 ? 0.3 : 0.6;
+    if (sampleY < 0.15) return 0.5;  // Top strip (chamber-top)
+    if (sampleY > 0.85) return 0.3;  // Bottom (controller)
+    return 0.25; // Left/right chambers over dark fluid bg
   }
 
   function applyTextContrast() {
@@ -117,7 +171,6 @@
     const btnNext = document.getElementById('btn-next');
     const btnLike = document.getElementById('btn-like');
 
-    const btnFx = document.getElementById('btn-fx');
     const btnVolume = document.getElementById('btn-volume');
     const progressBar = document.getElementById('progress-bar-container');
     const progressFill = document.getElementById('progress-bar-fill');
@@ -128,6 +181,106 @@
     let playMode = 0; // 0=sequential, 1=shuffle, 2=single-loop
     let fxOn = false;
     let isDraggingProgress = false;
+
+    // ── Mini Player ──
+    const miniPlayer = document.getElementById('mini-player');
+    const btnMiniRestore = document.getElementById('btn-mini-restore');
+    const btnMiniClose = document.getElementById('btn-mini-close');
+    const btnMiniPlay = document.getElementById('btn-mini-play');
+    const btnMiniPrev = document.getElementById('btn-mini-prev');
+    const btnMiniNext = document.getElementById('btn-mini-next');
+
+    function updateMiniPlayer(track) {
+      if (!miniPlayer || miniPlayer.style.display === 'none') return;
+      const title = document.getElementById('mini-title');
+      const artist = document.getElementById('mini-artist');
+      const cover = document.getElementById('mini-cover');
+      if (title) title.textContent = track ? (track.title || '未知') : '未播放';
+      if (artist) artist.textContent = track ? (track.artist || '—') : '—';
+      if (cover && track && track.coverUrl) {
+        cover.style.backgroundImage = 'url(' + track.coverUrl + ')';
+      }
+    }
+
+    function showMiniPlayer() {
+      if (!miniPlayer) return;
+      miniPlayer.style.display = '';
+      miniPlayer.style.opacity = '1';
+      miniPlayer.style.transform = 'scale(1)';
+      updateMiniPlayer(typeof FluidAudio !== 'undefined' ? FluidAudio.currentTrack : null);
+    }
+
+    function hideMiniPlayer() {
+      if (!miniPlayer) return;
+      miniPlayer.style.opacity = '0';
+      miniPlayer.style.transform = 'scale(0.9)';
+      setTimeout(() => { miniPlayer.style.display = 'none'; }, 300);
+    }
+
+    // Toggle with Cmd+Shift+M
+    document.addEventListener('keydown', (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'M') {
+        e.preventDefault();
+        if (miniPlayer && miniPlayer.style.display !== 'none') {
+          hideMiniPlayer();
+        } else {
+          showMiniPlayer();
+        }
+      }
+    });
+
+    if (btnMiniRestore) btnMiniRestore.addEventListener('click', hideMiniPlayer);
+    if (btnMiniClose) btnMiniClose.addEventListener('click', hideMiniPlayer);
+
+    if (btnMiniPlay) {
+      btnMiniPlay.addEventListener('click', () => {
+        if (typeof FluidAudio !== 'undefined') {
+          FluidAudio.togglePlay();
+          btnMiniPlay.textContent = FluidAudio.playing ? '⏸' : '▶';
+        }
+      });
+    }
+    if (btnMiniPrev) {
+      btnMiniPrev.addEventListener('click', () => {
+        if (typeof FluidAudio !== 'undefined') FluidAudio.prev();
+      });
+    }
+    if (btnMiniNext) {
+      btnMiniNext.addEventListener('click', () => {
+        if (typeof FluidAudio !== 'undefined') FluidAudio.next();
+      });
+    }
+
+    // Drag mini player
+    if (miniPlayer) {
+      const header = document.getElementById('mini-player-header');
+      let dragX = 0, dragY = 0, startX = 0, startY = 0;
+      if (header) {
+        header.addEventListener('mousedown', (e) => {
+          dragX = e.clientX - miniPlayer.offsetLeft;
+          dragY = e.clientY - miniPlayer.offsetTop;
+          startX = miniPlayer.offsetLeft;
+          startY = miniPlayer.offsetTop;
+          const onDrag = (ev) => {
+            miniPlayer.style.left = (ev.clientX - dragX) + 'px';
+            miniPlayer.style.top = (ev.clientY - dragY) + 'px';
+            miniPlayer.style.right = 'auto';
+            miniPlayer.style.bottom = 'auto';
+          };
+          const onDragEnd = () => {
+            document.removeEventListener('mousemove', onDrag);
+            document.removeEventListener('mouseup', onDragEnd);
+          };
+          document.addEventListener('mousemove', onDrag);
+          document.addEventListener('mouseup', onDragEnd);
+        });
+      }
+    }
+
+    // Expose for external use
+    window._showMiniPlayer = showMiniPlayer;
+    window._hideMiniPlayer = hideMiniPlayer;
+    window._updateMiniPlayer = updateMiniPlayer;
 
     // ── Play / Pause ──
     if (btnPlay) {
@@ -213,8 +366,19 @@
     }
 
 
-    // Init playmode icon
-    setPlaymodeIcon(0);
+    // Init playmode icon from settings
+    var savedMode = 0;
+    if (typeof DIYSettings !== 'undefined' && DIYSettings.settings && DIYSettings.settings.playMode) {
+      var modeMap = { sequential: 0, random: 1, single: 2 };
+      savedMode = modeMap[DIYSettings.settings.playMode] || 0;
+      if (typeof FluidAudio !== 'undefined') FluidAudio.playMode = DIYSettings.settings.playMode;
+    }
+    playMode = savedMode;
+    setPlaymodeIcon(playMode);
+    if (playMode > 0) {
+      var bpm = document.getElementById('btn-playmode');
+      if (bpm) bpm.classList.add('toggled');
+    }
     // ── Inline lyric observer: show in center when right chamber hidden ──
     function updateInlineLyricVisibility() {
       const chamberRight = document.getElementById('chamber-right');
@@ -289,6 +453,64 @@
       });
     }
 
+    // ── Sleep Timer ──
+    let sleepTimerId = null;
+    let sleepEndTime = 0;
+    const SLEEP_PRESETS = [0, 15, 30, 45, 60]; // minutes, 0 = off
+    let sleepPresetIdx = 0;
+
+    const btnSleep = document.getElementById('btn-sleep');
+    const sleepDisplay = document.getElementById('sleep-timer-display');
+
+    function updateSleepDisplay() {
+      if (!sleepDisplay) return;
+      if (!sleepTimerId || sleepEndTime <= 0) {
+        sleepDisplay.style.display = 'none';
+        if (btnSleep) btnSleep.classList.remove('toggled');
+        return;
+      }
+      const remaining = Math.max(0, Math.ceil((sleepEndTime - Date.now()) / 1000));
+      const min = Math.floor(remaining / 60);
+      const sec = remaining % 60;
+      sleepDisplay.style.display = '';
+      sleepDisplay.textContent = min + ':' + String(sec).padStart(2, '0');
+      if (btnSleep) btnSleep.classList.add('toggled');
+    }
+
+    function startSleepTimer(minutes) {
+      clearInterval(sleepTimerId);
+      if (minutes <= 0) {
+        sleepEndTime = 0;
+        updateSleepDisplay();
+        showToast('⏰ 睡眠定时器已关闭');
+        return;
+      }
+      sleepEndTime = Date.now() + minutes * 60 * 1000;
+      showToast('⏰ 睡眠定时器: ' + minutes + ' 分钟');
+      updateSleepDisplay();
+
+      sleepTimerId = setInterval(() => {
+        updateSleepDisplay();
+        if (Date.now() >= sleepEndTime) {
+          clearInterval(sleepTimerId);
+          sleepTimerId = null;
+          sleepEndTime = 0;
+          if (typeof FluidAudio !== 'undefined' && FluidAudio.playing) {
+            FluidAudio.pause();
+            showToast('😴 睡眠定时结束，播放已暂停');
+          }
+          updateSleepDisplay();
+        }
+      }, 1000);
+    }
+
+    if (btnSleep) {
+      btnSleep.addEventListener('click', () => {
+        sleepPresetIdx = (sleepPresetIdx + 1) % SLEEP_PRESETS.length;
+        startSleepTimer(SLEEP_PRESETS[sleepPresetIdx]);
+      });
+    }
+
     // ── Queue Clear ──
     const btnQueueClear = document.getElementById('btn-queue-clear');
     if (btnQueueClear) {
@@ -339,6 +561,12 @@
                 showToast('▶ ' + (track.title || track.name || '播放'));
               } else {
                 showToast('⚠ 无法获取播放地址');
+                // Auto-skip to next track after 1.5s
+                setTimeout(function() {
+                  if (typeof FluidAudio !== 'undefined' && FluidAudio.playlist && FluidAudio.playlist.length > 1) {
+                    FluidAudio.next();
+                  }
+                }, 1500);
               }
             })();
           }
@@ -366,18 +594,18 @@
       });
     }
 
-    // ── FX / Effects Toggle (cycles foam equalizer presets) ──
-    const fxPresets = ['pearl', 'deepsea', 'stardust', 'aurora'];
-    let fxIndex = 0;
-    if (btnFx) {
-      btnFx.addEventListener('click', () => {
-        fxIndex = (fxIndex + 1) % fxPresets.length;
-        btnFx.classList.add('toggled');
-        if (typeof FoamEqualizer !== 'undefined') {
-          FoamEqualizer.setPreset(fxPresets[fxIndex]);
-          showToast('🎨 特效: ' + fxPresets[fxIndex]);
+    // ── EQ / Audio Equalizer Toggle (cycles presets) ──
+    const btnEQ = document.getElementById('btn-eq');
+    if (btnEQ) {
+      btnEQ.addEventListener('click', () => {
+        if (typeof FluidAudio !== 'undefined' && FluidAudio.toggleEQ) {
+          FluidAudio.toggleEQ();
+          if (FluidAudio.eqEnabled) {
+            btnEQ.classList.add('toggled');
+          } else {
+            btnEQ.classList.remove('toggled');
+          }
         }
-        setTimeout(() => btnFx.classList.remove('toggled'), 600);
       });
     }
 
@@ -429,6 +657,17 @@
       });
 
       // Slider change
+      // Sync volume from settings on startup
+      if (typeof DIYSettings !== 'undefined' && DIYSettings.settings && DIYSettings.settings.volume != null) {
+        var savedVol = Math.round(DIYSettings.settings.volume * 100);
+        volumeSlider.value = savedVol;
+        if (typeof FluidAudio !== 'undefined') FluidAudio.setVolume(DIYSettings.settings.volume);
+        // Update volume icon
+        var vid = document.getElementById('icon-volume-high');
+        if (!vid) vid = document.getElementById('icon-volume-mid');
+        if (vid) vid.style.display = savedVol > 0 ? '' : 'none';
+      }
+
       volumeSlider.addEventListener('input', () => {
         const v = volumeSlider.value / 100;
         if (typeof FluidAudio !== 'undefined') FluidAudio.setVolume(v);
@@ -444,6 +683,38 @@
       });
     }
 
+    // ── Custom Dialog (replaces native confirm/alert with styled UI) ──
+    window.showCustomDialog = function (title, message, buttons) {
+      const overlay = document.createElement('div');
+      overlay.style.cssText = 'position:fixed;inset:0;z-index:300;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.55);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);';
+
+      const btnHtml = (buttons || [{ text: '确定', style: 'primary' }]).map((b, i) => {
+        const isPrimary = b.style === 'primary' || !b.style;
+        const isDanger = b.style === 'danger';
+        const bg = isDanger ? 'rgba(220,60,60,0.8)' : isPrimary ? 'var(--accent-color)' : 'transparent';
+        const border = isPrimary || isDanger ? 'none' : '1px solid var(--glass-border)';
+        return '<button class="custom-dialog-btn" data-idx="' + i + '" style="padding:7px 18px;border-radius:8px;border:' + border + ';background:' + bg + ';color:' + (isPrimary || isDanger ? '#fff' : 'var(--text-dim)') + ';cursor:pointer;font-size:12px;font-family:var(--font-main);transition:all 0.2s;">' + b.text + '</button>';
+      }).join('');
+
+      overlay.innerHTML = '<div style="background:rgba(14,14,28,0.96);border:1px solid var(--glass-border);border-radius:14px;padding:22px;width:340px;backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);box-shadow:0 20px 60px rgba(0,0,0,0.5);"><div style="font-size:14px;font-weight:600;color:var(--text-primary);margin-bottom:8px;">' + title + '</div><div style="font-size:12px;color:var(--text-dim);line-height:1.5;margin-bottom:16px;">' + message + '</div><div style="display:flex;gap:8px;justify-content:flex-end;">' + btnHtml + '</div></div>';
+      document.body.appendChild(overlay);
+
+      const close = () => overlay.remove();
+      overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+
+      overlay.querySelectorAll('.custom-dialog-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const idx = parseInt(btn.dataset.idx, 10);
+          if (buttons && buttons[idx] && buttons[idx].action) {
+            buttons[idx].action();
+          }
+          close();
+        });
+        btn.addEventListener('mouseenter', function() { this.style.opacity = '0.85'; });
+        btn.addEventListener('mouseleave', function() { this.style.opacity = '1'; });
+      });
+    };
+
     // ── Toast notification system ──
     window.showToast = function (msg, duration) {
       duration = duration || 1500;
@@ -451,7 +722,7 @@
       if (!toast) {
         toast = document.createElement('div');
         toast.id = 'global-toast';
-        toast.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);z-index:99;'
+        toast.style.cssText = 'position:fixed;top:136px;left:50%;transform:translateX(-50%);z-index:99;'
           + 'padding:6px 16px;border-radius:12px;background:rgba(10,10,24,0.75);border:1px solid var(--glass-border);'
           + 'backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);'
           + 'color:var(--text-primary);font-size:11px;font-family:var(--font-main);'
@@ -499,17 +770,26 @@
       progressBar.addEventListener('mousedown', (e) => {
         isDraggingProgress = true;
         progressBar.classList.add('dragging');
+        progressBar.setPointerCapture(e.pointerId || 1);
         const ratio = seekTo(e.clientX);
         spawnParticle(e.clientX, e.clientY);
       });
 
-      document.addEventListener('mousemove', (e) => {
+      progressBar.addEventListener('pointermove', (e) => {
         if (!isDraggingProgress) return;
         seekTo(e.clientX);
         if (Math.random() < 0.3) spawnParticle(e.clientX, e.clientY);
       });
 
-      document.addEventListener('mouseup', () => {
+      progressBar.addEventListener('pointerup', () => {
+        if (isDraggingProgress) {
+          isDraggingProgress = false;
+          progressBar.classList.remove('dragging');
+        }
+      });
+
+      // Also handle pointer cancel (e.g. context menu, system gesture)
+      progressBar.addEventListener('pointercancel', () => {
         if (isDraggingProgress) {
           isDraggingProgress = false;
           progressBar.classList.remove('dragging');
@@ -536,18 +816,39 @@
       document.getElementById('song-title').textContent = track.title || '未知歌曲';
       document.getElementById('song-artist').textContent = track.artist || '未知作者';
 
-      // Sync particle cover — always attempt, even without explicit coverUrl
-      if (typeof ParticleCover !== 'undefined') {
-        if (track && track.coverUrl) {
-          ParticleCover.loadImage(track.coverUrl);
-        } else if (track) {
-          // Try generating a cover URL from platform data
-          console.log('[onTrackChange] No coverUrl for track:', track.title || track.name);
+      // Scrobble to Last.fm
+      if (typeof LastFM !== 'undefined') LastFM.onTrackChange(track);
+
+      // Sync mini player
+      if (typeof _updateMiniPlayer === 'function') _updateMiniPlayer(track);
+
+      // Sync particle cover — always attempt
+      console.log('[onTrackChange] FIRED | track keys:', track ? Object.keys(track) : 'null', '| coverUrl:', track && track.coverUrl);
+      // Update fallback cover image (always show, even if particle cover disabled)
+      const fallbackImg = document.getElementById('cover-fallback');
+      const coverUrl = track.coverUrl || track.cover || '';
+      if (fallbackImg && coverUrl && String(coverUrl).startsWith('http')) {
+        fallbackImg.src = coverUrl;
+        fallbackImg.style.display = _visualEnabled.particleCover ? 'none' : 'block';
+      } else if (fallbackImg) {
+        fallbackImg.src = 'assets/icon.png';
+        fallbackImg.style.display = _visualEnabled.particleCover ? 'none' : 'block';
+      }
+
+      if (_visualEnabled.particleCover && typeof ParticleCover !== 'undefined' && ParticleCover.initialized && track) {
+        if (coverUrl && String(coverUrl).startsWith('http')) {
+          ParticleCover.loadImage(coverUrl);
+        } else if (coverUrl) {
+          const fixed = String(coverUrl).replace(/^http:/, 'https:');
+          if (fixed.startsWith('https://')) ParticleCover.loadImage(fixed);
         }
       }
-      // Sync top chamber queue display
+      // Sync top chamber queue display + active track highlight
       if (typeof FluidAudio !== 'undefined' && typeof BubbleChamber !== 'undefined') {
         BubbleChamber.updateQueueDisplay(track, FluidAudio.playlist || [], FluidAudio.playlistIndex);
+        if (typeof BubbleChamber.setActivePlaylistItem === 'function') {
+          BubbleChamber.setActivePlaylistItem(FluidAudio.playlistIndex);
+        }
       }
 
       // Sync like button with favorites
@@ -560,22 +861,23 @@
         }
       }
 
-      // Fetch lyrics if available
+      // Fetch lyrics if available (with translation for Netease)
       if (track && track.id && track.platform && typeof ApiBridge !== 'undefined') {
         (async () => {
           try {
             let lyricText = '';
+            let transText = '';
             if (track.platform === 'netease') {
               const data = await ApiBridge.getNeteaseLyric(track.id);
-              lyricText = (data && data.lrc && data.lrc.lyric) || (data && data.tlyric && data.tlyric.lyric) || '';
+              lyricText = (data && data.lrc && data.lrc.lyric) || '';
+              transText = (data && data.tlyric && data.tlyric.lyric) || '';
             } else if (track.platform === 'qq') {
               const data = await ApiBridge.getQQLyric(track.id);
               lyricText = (data && data.lyric) || '';
             }
 
-
             if (lyricText && typeof BubbleChamber !== 'undefined') {
-              BubbleChamber.setLyrics(lyricText, 0);
+              BubbleChamber.setLyrics(lyricText, 0, transText);
             }
           } catch (e) {
             console.warn('Failed to fetch lyrics:', e);
@@ -648,12 +950,14 @@
                     ', qq=' + (playlists.qq || []).length +
 '');
         _lastSyncTime = Date.now();
+        _syncPending = false;
         return true;
       } else {
         console.log('No playlists found — showing empty state');
         if (typeof BubbleChamber !== 'undefined') {
           BubbleChamber.showPlaylistEmpty();
         }
+        _syncPending = false;
         return false;
       }
     } catch (e) {
@@ -744,6 +1048,32 @@
   }
 
   // ── Playlist refresh button ──
+  function setupImportButton() {
+    const btn = document.getElementById('btn-import-local');
+    if (!btn) return;
+    btn.addEventListener('click', async () => {
+      if (typeof fluidmusic === 'undefined' || !fluidmusic.importLocalFiles) {
+        showToast('⚠ 本地导入需要 Electron 环境');
+        return;
+      }
+      try {
+        const result = await fluidmusic.importLocalFiles();
+        if (result && result.ok && result.tracks && result.tracks.length > 0) {
+          if (typeof FluidAudio !== 'undefined') {
+            FluidAudio.playlist.push(...result.tracks);
+            if (FluidAudio.playlistIndex < 0) FluidAudio.playlistIndex = 0;
+            if (typeof BubbleChamber !== 'undefined') {
+              BubbleChamber.updateQueueDisplay(FluidAudio.currentTrack, FluidAudio.playlist, FluidAudio.playlistIndex);
+            }
+          }
+          showToast('✅ 已导入 ' + result.tracks.length + ' 首本地歌曲');
+        }
+      } catch (e) {
+        showToast('⚠ 导入失败');
+      }
+    });
+  }
+
   function setupRefreshButton() {
     const btn = document.getElementById('btn-refresh-playlists');
     if (btn) {
@@ -774,25 +1104,41 @@
       layer.style.backgroundImage = 'url(' + dataUrl + ')';
       layer.style.opacity = opacity;
       layer.classList.add('loaded');
+      // Enhance glass blur when wallpaper is active for deep water transparency
+      document.documentElement.style.setProperty('--glass-blur-amount', '18px');
+      document.documentElement.style.setProperty('--chamber-alpha', '0.12');
     } else {
       layer.style.backgroundImage = '';
       layer.style.opacity = '0';
       layer.classList.remove('loaded');
+      document.documentElement.style.setProperty('--glass-blur-amount', '12px');
+      document.documentElement.style.setProperty('--chamber-alpha', '0.08');
     }
   };
 
   function initWallpaper() {
     try {
-      const saved = localStorage.getItem('fluidmusic-wallpaper');
+      // Restore video background — reconstruct URL with current port
+      if (localStorage.getItem('fluidmusic-has-bg-video') === 'true') {
+        var wpLayer = document.getElementById('wallpaper-layer');
+        if (wpLayer) {
+          var videoUrl = window.location.origin + '/bg-video?t=' + Date.now();
+          var vidHtml = '<video src="' + videoUrl + '" autoplay muted loop playsinline preload="auto" style="width:100%;height:100%;object-fit:cover;background:#0a0a14;" onerror="this.parentElement.classList.remove(\'loaded\');this.parentElement.innerHTML=\'\';localStorage.removeItem(\'fluidmusic-has-bg-video\');"></video>';
+          wpLayer.innerHTML = vidHtml;
+          wpLayer.classList.add('loaded');
+        }
+      }
+      // Restore image background
+      var saved = localStorage.getItem('fluidmusic-wallpaper');
       if (saved) {
         applyWallpaper(saved);
       }
-      // Apply opacity from settings (in case DIYSettings loaded first)
-      const layer = document.getElementById('wallpaper-layer');
+      // Apply opacity from settings
+      var layer = document.getElementById('wallpaper-layer');
       if (layer && layer.classList.contains('loaded')) {
-        const raw = localStorage.getItem('fluidmusic-settings');
+        var raw = localStorage.getItem('fluidmusic-settings');
         if (raw) {
-          const s = JSON.parse(raw);
+          var s = JSON.parse(raw);
           if (s.wallpaperOpacity != null) layer.style.opacity = s.wallpaperOpacity;
         }
       }
@@ -800,54 +1146,126 @@
   }
 
   // ── Main render loop ──
+  let _lowPowerMode = false;
+  let _lastUIUpdate = 0;
+  let _lastLowPowerRender = 0;
+  const LOW_POWER_FPS = 2;       // Render at 2fps when idle
+  const LOW_POWER_INTERVAL = 1000 / LOW_POWER_FPS;
+
+  function isIdle() {
+    // Window hidden → full low power
+    if (document.hidden) return true;
+    // Audio not playing and no pending transitions → low power
+    const audioIdle = (typeof FluidAudio === 'undefined' ||
+                       !FluidAudio.audio ||
+                       FluidAudio.audio.paused);
+    // Keep full rate during cover transitions
+    const hasTransition = (typeof ParticleCover !== 'undefined' &&
+                           ParticleCover.initialized &&
+                           typeof ParticleCover._transitioning !== 'undefined' &&
+                           ParticleCover._transitioning);
+    return audioIdle && !hasTransition;
+  }
+
+  function updateLowPowerMode() {
+    const wasLow = _lowPowerMode;
+    _lowPowerMode = isIdle();
+    if (!_lowPowerMode && wasLow) {
+      lastTime = performance.now(); // reset dt to avoid jump
+    }
+    if (_lowPowerMode && !wasLow) {
+      _lastLowPowerRender = performance.now(); // allow one immediate low-power frame
+    }
+  }
+
+  // Visibility changes (window hide/show)
+  document.addEventListener('visibilitychange', () => {
+    updateLowPowerMode();
+  });
+
   function animate(timestamp) {
     requestAnimationFrame(animate);
+
+    updateLowPowerMode();
+
+    // Full low power: window hidden — skip everything
+    if (document.hidden) {
+      lastTime = timestamp;
+      return;
+    }
+
+    // Idle low power: audio paused, no transition — render at LOW_POWER_FPS
+    if (_lowPowerMode) {
+      if (timestamp - _lastLowPowerRender < LOW_POWER_INTERVAL) {
+        return;
+      }
+      _lastLowPowerRender = timestamp;
+      lastTime = timestamp;
+      // Fall through to render one low-power frame
+    }
 
     const dt = lastTime ? Math.min((timestamp - lastTime) / 1000, 0.1) : 0.016;
     lastTime = timestamp;
 
-    if (typeof FluidBackground !== 'undefined' && FluidBackground.initialized) {
-      FluidBackground.tick(dt);
-      FluidBackground.render();
+    // ── Unified visual rendering via shared WebGL context ──
+    const V = _visualEnabled;
+    if (typeof RendererManager !== 'undefined' && RendererManager.initialized) {
+      // Tick all visual modules (in registration order) — only if enabled
+      if (V.fluidBg && typeof FluidBackground !== 'undefined' && FluidBackground.initialized) {
+        FluidBackground.tick(dt);
+      }
+      if (V.particleCover && typeof ParticleCover !== 'undefined' && ParticleCover.initialized) {
+        ParticleCover.tick(dt);
+      }
+      if (V.spectrum3D && typeof Spectrum3D !== 'undefined' && Spectrum3D.initialized) {
+        Spectrum3D.tick(dt);
+      }
+      // Single render call composites all layers
+      RendererManager.render();
+    } else {
+      // Fallback: legacy per-module rendering
+      if (V.fluidBg && typeof FluidBackground !== 'undefined' && FluidBackground.initialized) {
+        FluidBackground.tick(dt);
+        FluidBackground.render();
+      }
+      if (V.particleCover && typeof ParticleCover !== 'undefined' && ParticleCover.initialized) {
+        ParticleCover.tick(dt);
+        ParticleCover.render();
+      }
     }
 
-    if (typeof ParticleCover !== 'undefined' && ParticleCover.initialized) {
-      ParticleCover.tick(dt);
-      ParticleCover.render();
+    // Audio-reactive lyric animation
+    if (typeof BubbleChamber !== 'undefined' && BubbleChamber.animateLyrics) {
+      BubbleChamber.animateLyrics();
     }
 
-    if (typeof FoamSystem !== 'undefined' && FoamSystem.initialized) {
-      FoamSystem.tick(dt);
-      FoamSystem.render();
-    if (typeof FoamSystem !== 'undefined' && typeof FoamSystem.updateFoamVisibility === 'function') {
-      FoamSystem.updateFoamVisibility();
-    }
+    if (V.spectrum3D && typeof Spectrum3D !== 'undefined' && Spectrum3D.initialized) {
+      // If RendererManager handles Spectrum3D, skip standalone tick/render
+      if (!RendererManager || !RendererManager.initialized) {
+        Spectrum3D.tick(dt);
+        Spectrum3D.render();
+      }
     }
 
-
-    // ── Progress bar + time display update ──
+    // ── Progress bar + time display update (throttled to 250ms) ──
     if (typeof FluidAudio !== 'undefined' && FluidAudio.audio && !isNaN(FluidAudio.audio.duration)) {
-      const ratio = FluidAudio.audio.currentTime / FluidAudio.audio.duration;
-      const fill = document.getElementById('progress-bar-fill');
-      const thumb = document.getElementById('progress-bar-thumb');
-      if (fill && !document.getElementById('progress-bar-container').classList.contains('dragging')) {
-        fill.style.width = (ratio * 100) + '%';
+      if (timestamp - _lastUIUpdate > 250) {
+        _lastUIUpdate = timestamp;
+        const ratio = FluidAudio.audio.currentTime / FluidAudio.audio.duration;
+        const fill = document.getElementById('progress-bar-fill');
+        const thumb = document.getElementById('progress-bar-thumb');
+        const container = document.getElementById('progress-bar-container');
+        if (fill && container && !container.classList.contains('dragging')) {
+          fill.style.width = (ratio * 100) + '%';
+        }
+        if (thumb && container && !container.classList.contains('dragging')) {
+          thumb.style.left = (ratio * 100) + '%';
+        }
+        const tc = document.getElementById('time-current');
+        const td = document.getElementById('time-duration');
+        if (tc) tc.textContent = formatTime(FluidAudio.audio.currentTime);
+        if (td) td.textContent = formatTime(FluidAudio.audio.duration);
       }
-      if (thumb && !document.getElementById('progress-bar-container').classList.contains('dragging')) {
-        thumb.style.left = (ratio * 100) + '%';
-      }
-      const tc = document.getElementById('time-current');
-      const td = document.getElementById('time-duration');
-      if (tc) tc.textContent = formatTime(FluidAudio.audio.currentTime);
-      if (td) td.textContent = formatTime(FluidAudio.audio.duration);
-    }
-    if (typeof FoamEqualizer !== 'undefined' && FoamEqualizer.initialized) {
-      FoamEqualizer.tick(dt);
-      FoamEqualizer.render();
-    if (typeof Spectrum3D !== 'undefined' && Spectrum3D.initialized) {
-      Spectrum3D.tick(dt);
-      Spectrum3D.render();
-    }
     }
   }
 
@@ -855,14 +1273,29 @@
   async function init() {
     console.log('FluidMusic starting...');
 
+    // 0. Load visual settings
+    loadVisualSettings();
+    console.log('[init] Visual settings:', JSON.stringify(_visualEnabled));
+
     // 0. Init i18n first
     if (typeof I18N !== 'undefined') {
       I18N.init();
     }
 
-    // 0. Init favorites (needs to be early for like button state)
+    // 0. Init favorites, custom playlists, lastfm
+    if (typeof LastFM !== 'undefined') {
+      LastFM.init();
+    }
+    if (typeof CustomPlaylists !== 'undefined') {
+      CustomPlaylists.init();
+    }
     if (typeof Favorites !== 'undefined') {
       Favorites.init();
+    }
+
+    // 0.5 Init shared WebGL renderer (must come before visual modules)
+    if (typeof RendererManager !== 'undefined') {
+      RendererManager.init();
     }
 
     // 1. Init audio engine
@@ -871,28 +1304,27 @@
       setupAudioCallbacks();
     }
 
-    // 2. Init fluid background
-    if (typeof FluidBackground !== 'undefined') {
+    // 2. Init fluid background (registers with RendererManager)
+    if (_visualEnabled.fluidBg && typeof FluidBackground !== 'undefined') {
       FluidBackground.init();
     }
 
-    // 3. Init particle cover with demo image
-    if (typeof ParticleCover !== 'undefined') {
+    // 3. Init particle cover with demo image (heavy — disabled by default)
+    if (_visualEnabled.particleCover && typeof ParticleCover !== 'undefined') {
       const initOk = ParticleCover.init(null, 'assets/icon.png');
-      if (initOk === false) console.warn('[init] ParticleCover failed to init');
+      if (initOk === false) {
+        console.warn('[init] ParticleCover failed to init');
+      } else {
+        console.log('[init] ParticleCover init OK');
+      }
+    } else {
+      console.log('[init] ParticleCover disabled (toggle in DIY settings)');
     }
 
-    // 4. Init foam system
-    if (typeof FoamSystem !== 'undefined') {
-      FoamSystem.init();
-    }
-
-    // 5. Init foam equalizer (replaces old spectrum)
-    if (typeof FoamEqualizer !== 'undefined') {
-      FoamEqualizer.init();
-    if (typeof Spectrum3D !== 'undefined') {
-      Spectrum3D.init();
-    }
+    // 4. Init spectrum
+    if (_visualEnabled.spectrum3D && typeof Spectrum3D !== 'undefined') {
+      const s3dOk = Spectrum3D.init();
+      console.log('[init] Spectrum3D init ' + (s3dOk ? 'OK' : 'FAILED'));
     }
 
     // 6. Init bubble chambers
@@ -925,6 +1357,11 @@
       if (typeof BubbleChamber !== 'undefined') BubbleChamber.refreshPlaylistLabels();
     });
 
+    // 7.5 Init search module
+    if (typeof FluidSearch !== 'undefined') {
+      FluidSearch.init();
+    }
+
     // 8. Init user panel overlay
     if (typeof UserPanel !== 'undefined') {
       UserPanel.init();
@@ -942,6 +1379,7 @@
     setupTrafficLights();
     setupControllerButtons();
     setupRefreshButton();
+    setupImportButton();
     setupKeyboard();
 
     // ── 11. Smart startup: favorites → cache → API batch ──
@@ -974,15 +1412,14 @@
       cachedPlaylists = DataCache.getCachedPlaylists();
     }
 
-    // Clean old song caches before fetching new data (avoid stale entries)
-    if (typeof DataCache !== 'undefined') {
-      DataCache.clearAllPlaylistSongs();
-      console.log('[Startup] Old playlist song caches cleared');
-    }
+    // KEEP cached songs — only refresh in background, never wipe
+    console.log('[Startup] Preserving existing caches, background refresh only');
+
 
     // Step C: Load cached or API playlists with delays
     const hasAnyLogin = (typeof ApiBridge !== 'undefined') &&
       (ApiBridge.neteaseLoggedIn || ApiBridge.qqLoggedIn);
+    console.log('[Startup] hasAnyLogin:', hasAnyLogin, '| netease:', ApiBridge && ApiBridge.neteaseLoggedIn, '| qq:', ApiBridge && ApiBridge.qqLoggedIn, '| cachedPlaylists:', !!cachedPlaylists);
 
     if (hasAnyLogin) {
       updateLoading('同步歌单数据', '正在从服务器获取最新数据...');
@@ -1002,15 +1439,21 @@
           setTimeout(() => prefetchAllPlaylistSongs(cachedPlaylists), 500);
         }
 
-        // Background refresh with delay
+        // Background refresh: only if playlist cache is stale (>6h since last fetch)
         setTimeout(async () => {
-          updateLoading('更新歌单数据', '后台同步中...');
-          const fresh = await syncPlaylists();
-          if (fresh) {
-            if (typeof DataCache !== 'undefined') {
-              // syncPlaylists already calls fetchUserPlaylists internally
-              // DataCache is updated in syncPlaylists via the BubbleChamber path
+          const cacheEntry = typeof DataCache !== 'undefined' ? DataCache.get('playlists') : null;
+          const isStale = !cacheEntry || (Date.now() - cacheEntry.ts) > 6 * 60 * 60 * 1000;
+          if (isStale) {
+            console.log('[Startup] Playlist cache stale, background refresh...');
+            updateLoading('更新歌单数据', '后台同步中...');
+            const fresh = await syncPlaylists();
+            if (fresh && typeof DataCache !== 'undefined') {
+              // Re-run prefetch for fresh playlists in background
+              const latest = DataCache.getCachedPlaylists();
+              if (latest) setTimeout(() => prefetchAllPlaylistSongs(latest), 1000);
             }
+          } else {
+            console.log('[Startup] Playlist cache fresh, skipping API refresh');
           }
           if (loadingOverlay) loadingOverlay.classList.add('hidden');
         }, 2000);
@@ -1127,6 +1570,47 @@
       });
     }
 
+    // 12.5 Wire macOS native events (menu bar, dock, media keys)
+    if (typeof fluidmusic !== 'undefined') {
+      if (fluidmusic.onMediaControl) {
+        fluidmusic.onMediaControl((action) => {
+          switch (action) {
+            case 'toggle':
+              if (typeof FluidAudio !== 'undefined') FluidAudio.togglePlay();
+              break;
+            case 'next':
+              if (typeof FluidAudio !== 'undefined') FluidAudio.next();
+              break;
+            case 'prev':
+              if (typeof FluidAudio !== 'undefined') FluidAudio.prev();
+              break;
+            case 'vol-up':
+              if (typeof FluidAudio !== 'undefined') {
+                FluidAudio.setVolume(Math.min(1, FluidAudio.volume + 0.05));
+              }
+              break;
+            case 'vol-down':
+              if (typeof FluidAudio !== 'undefined') {
+                FluidAudio.setVolume(Math.max(0, FluidAudio.volume - 0.05));
+              }
+              break;
+          }
+        });
+      }
+      if (fluidmusic.onOpenSettings) {
+        fluidmusic.onOpenSettings(() => {
+          if (typeof DIYSettings !== 'undefined' && DIYSettings.toggle) {
+            DIYSettings.toggle();
+          }
+        });
+      }
+      if (fluidmusic.onThemeChanged) {
+        fluidmusic.onThemeChanged((theme) => {
+          document.documentElement.setAttribute('data-theme', theme);
+        });
+      }
+    }
+
     // 13. Start auto contrast detection
     startContrastPolling();
 
@@ -1159,9 +1643,16 @@
       return !!platformIds[pl.id];
     });
 
+    // Auto-sync all playlists if none are explicitly synced
     if (fetchList.length === 0) {
-      console.log('[Prefetch] No synced playlists to fetch');
-      return;
+      console.log('[Prefetch] No synced playlists — auto-syncing all ' + allPl.length + ' playlists');
+      allPl.forEach(pl => {
+        if (!syncedIds[pl.platform]) syncedIds[pl.platform] = {};
+        syncedIds[pl.platform][pl.id] = true;
+      });
+      localStorage.setItem('fluidmusic_synced_playlists', JSON.stringify(syncedIds));
+      // Re-filter now that all are synced
+      fetchList.push(...allPl);
     }
     console.log('[Prefetch] Pre-fetching', fetchList.length, 'of', allPl.length, 'synced playlists...');
 

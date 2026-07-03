@@ -3,6 +3,18 @@
 // Mocks for browser APIs not available in jsdom
 // ============================================================
 
+// Mock IndexedDB using fake-indexeddb
+import { IDBFactory, IDBKeyRange, IDBCursor } from 'fake-indexeddb';
+
+global.indexedDB = new IDBFactory();
+global.IDBKeyRange = IDBKeyRange;
+global.IDBCursor = IDBCursor;
+
+// Mock structuredClone if not available (used internally by fake-indexeddb)
+if (!global.structuredClone) {
+  global.structuredClone = (val) => JSON.parse(JSON.stringify(val));
+}
+
 // Mock localStorage
 const store = {};
 global.localStorage = {
