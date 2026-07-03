@@ -1,0 +1,29 @@
+/* ── CSS Custom Properties ── */
+:root {
+  --bg-deep: #0d0d1a;
+  --glass-bg: rgba(10, 10, 20, 0.05);
+  --chamber-bg: rgba(10, 10, 20, 0.06);
+  --chamber-bg-deep: rgba(10, 10, 24, 0.18);
+  --glass-border: rgba(255, 255, 255, 0.06);
+  --glass-hover: rgba(255, 255, 255, 0.10);
+  --glass-active: rgba(130, 180, 255, 0.12);
+  --text-primary: rgba(255, 255, 255, 0.92);
+  --text-secondary: rgba(255, 255, 255, 0.55);
+  --text-dim: rgba(255, 255, 255, 0.30);
+  --text-dark: rgba(18, 18, 28, 0.92);
+  --text-dark-secondary: rgba(18, 18, 28, 0.60);
+  --accent: #6699ff;
+  --accent-warm: #ee6644;
+  --accent-glow: rgba(130, 180, 255, 0.08);
+  --platform-netease: #ec4141;
+  --platform-qq: #31c27c;
+  --font-main: 'Inter', 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-weight-body: 400;
+  --font-weight-heading: 700;
+  --letter-spacing-body: 0.02em;
+  --letter-spacing-heading: 0.04em;
+  --spring-expand: cubic-bezier(0.1, 1.1, 0.1, 1.1);
+  --spring-overshoot: cubic-bezier(0.1, 1.5, 0.2, 1.0);
+  --spring-collapse: cubic-bezier(0.3, -0.3, 0, 1);
+  --ease-fluid: cubic-bezier(0.1, 0.9, 0.2, 1.0);
+}

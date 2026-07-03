@@ -1,7 +1,10 @@
-const { app, BrowserWindow, ipcMain, shell, screen, session, globalShortcut } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, screen, session, globalShortcut, systemPreferences, nativeTheme, Menu } = require('electron');
 const net = require('net');
 const path = require('path');
 const fs = require('fs');
+const { createApplicationMenu } = require('./menu');
+const { saveCookie: secureSaveCookie, loadCookie: secureLoadCookie, deleteCookie: secureDeleteCookie } = require('./cookie-store');
+const { initAutoUpdater, stopAutoUpdater } = require('./updater');
 
 let mainWindow = null;
 let localServer = null;
@@ -193,10 +196,13 @@ async function openQQMusicLoginWindow(owner) {
 // After login, navigate the window to Kugou user pages and capture
 // internal XHR/fetch requests to discover real playlist/user endpoints.
 
+  const LOGIN_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes max for login window
+
 function createLoginWindow(owner, partition, loginUrl, title, readCookieFn, hasLoginFn, isPlaybackLoginFn, warmupUrl) {
   return new Promise((resolve) => {
     let settled = false;
     let pollTimer = null;
+    let timeoutTimer = null;
     let kugouPageTimer = null;
     let warmupStarted = false;
     let pageCheckTriggered = false;
@@ -219,6 +225,7 @@ function createLoginWindow(owner, partition, loginUrl, title, readCookieFn, hasL
       if (settled) return;
       settled = true;
       if (pollTimer) clearInterval(pollTimer);
+      if (timeoutTimer) clearTimeout(timeoutTimer);
       if (kugouPageTimer) clearInterval(kugouPageTimer);
       if (loginWindow && !loginWindow.isDestroyed()) loginWindow.close();
       resolve(result);
@@ -358,6 +365,10 @@ function createLoginWindow(owner, partition, loginUrl, title, readCookieFn, hasL
     });
 
     pollTimer = setInterval(checkCookies, 1200);
+    timeoutTimer = setTimeout(() => {
+      console.log('[LoginWindow] Timeout after ' + (LOGIN_TIMEOUT_MS / 1000) + 's — closing window');
+      finish({ ok: false, cancelled: true, message: title + '登录超时，请重试' });
+    }, LOGIN_TIMEOUT_MS);
     loginWindow.loadURL(loginUrl).catch((e) => finish({ ok: false, error: e.message }));
   });
 }
@@ -396,24 +407,71 @@ async function createWindow() {
   process.env.HOST = '127.0.0.1';
   process.env.PORT = String(port);
 
+  // Restore video background path so Express can serve it
+  try {
+    const bgDir = path.join(app.getPath('userData'), 'backgrounds');
+    if (fs.existsSync(bgDir)) {
+      const files = fs.readdirSync(bgDir).filter(f => f.startsWith('bg-video'));
+      if (files.length > 0) {
+        process.env.BG_VIDEO_PATH = bgDir;
+        console.log('[startup] BG_VIDEO_PATH set to', bgDir, '(found', files[0] + ')');
+      }
+    }
+  } catch (_) {}
+
   localServer = require(path.join(__dirname, '..', 'server.js'));
   await waitForServer(localServer);
 
-  // Verify existing sessions — only clear if cookies are truly expired
+  // Inject securely stored cookies into the API proxy server
   try {
-    const qqSession = session.fromPartition(QQ_LOGIN_PARTITION);
-    const qqCookie = await readQQLoginCookieHeader(qqSession);
-    const qqObj = parseCookieHeader(qqCookie);
-    console.log('[startup] QQ cookies found:', Object.keys(qqObj).length, 'keys:',
-      Object.keys(qqObj).filter(k => ['uin','qqmusic_uin','qm_keyst','qqmusic_key','p_skey','skey','wxuin'].includes(k)).join(', '));
-    if (!qqCookieHasLogin(qqCookie)) {
-      await qqSession.clearStorageData({ storages: ['cookies', 'localstorage'] });
-      console.log('[startup] QQ session expired, cleared');
-    } else {
-      console.log('[startup] QQ session valid, keeping (uin present)');
+    const neteaseCookie = secureLoadCookie('netease');
+    const qqCookie = secureLoadCookie('qq');
+    if (localServer.setCookies) {
+      localServer.setCookies(neteaseCookie, qqCookie);
+    }
+    // Also populate in-memory store
+    if (neteaseCookie) cookieStore.netease = neteaseCookie;
+    if (qqCookie) cookieStore.qq = qqCookie;
+  } catch (e) {
+    console.warn('[startup] Failed to load encrypted cookies:', e.message);
+  }
+
+  // Inject loaded cookies into Chromium session partitions (so they persist across restarts)
+  try {
+    if (cookieStore.qq) {
+      const qqSession = session.fromPartition(QQ_LOGIN_PARTITION);
+      const parsed = parseCookieHeader(cookieStore.qq);
+      for (const [name, value] of Object.entries(parsed)) {
+        await qqSession.cookies.set({
+          url: 'https://y.qq.com',
+          name, value,
+          domain: '.qq.com',
+          path: '/',
+          secure: true,
+          httpOnly: false,
+          expirationDate: Math.floor(Date.now() / 1000) + 365 * 24 * 3600,
+        });
+      }
+      console.log('[startup] QQ cookies restored to session partition (' + Object.keys(parsed).length + ' keys)');
+    }
+    if (cookieStore.netease) {
+      const neSession = session.fromPartition(NETEASE_LOGIN_PARTITION);
+      const parsed = parseCookieHeader(cookieStore.netease);
+      for (const [name, value] of Object.entries(parsed)) {
+        await neSession.cookies.set({
+          url: 'https://music.163.com',
+          name, value,
+          domain: '.163.com',
+          path: '/',
+          secure: true,
+          httpOnly: false,
+          expirationDate: Math.floor(Date.now() / 1000) + 365 * 24 * 3600,
+        });
+      }
+      console.log('[startup] Netease cookies restored to session partition (' + Object.keys(parsed).length + ' keys)');
     }
   } catch (e) {
-    console.warn('[startup] QQ session check failed:', e.message);
+    console.warn('[startup] Cookie session restore failed:', e.message);
   }
 
   const screenBounds = screen.getPrimaryDisplay().workArea;
@@ -433,7 +491,7 @@ async function createWindow() {
     backgroundColor: '#00000000',
     hasShadow: true,
     fullscreenable: true,
-    resizable: false,
+    resizable: true,
     autoHideMenuBar: true,
     titleBarStyle: 'hidden',
     trafficLightPosition: { x: -100, y: -100 },
@@ -443,7 +501,7 @@ async function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false,
+      sandbox: true,
       backgroundThrottling: false,
     },
   });
@@ -453,8 +511,17 @@ async function createWindow() {
     return { action: 'deny' };
   });
 
+  // Track whether Escape should be intercepted for fullscreen exit
+  // (skip when an overlay is open — renderer handles Escape there)
+  let overlayOpen = false;
+  ipcMain.handle('fluidmusic-overlay-state', (_event, open) => {
+    overlayOpen = open;
+  });
+
   mainWindow.webContents.on('before-input-event', (event, input) => {
     if (input.type === 'keyDown' && (input.key === 'Escape' || input.code === 'Escape') && mainWindow.isFullScreen()) {
+      // Don't exit fullscreen if an overlay is open (DIY settings / user panel)
+      if (overlayOpen) return;
       event.preventDefault();
       mainWindow.setFullScreen(false);
     }
@@ -470,6 +537,30 @@ async function createWindow() {
   });
   mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
     console.error('[createWindow] did-fail-load:', errorCode, errorDescription);
+  });
+
+  // Renderer crash recovery — reload the page if the renderer process dies
+  mainWindow.webContents.on('render-process-gone', (event, details) => {
+    console.error('[MainWindow] Renderer crashed:', details.reason, 'exitCode:', details.exitCode);
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      console.log('[MainWindow] Attempting to reload...');
+      mainWindow.loadURL(`http://127.0.0.1:${mainServerPort}`).catch((e) => {
+        console.error('[MainWindow] Reload after crash failed:', e.message);
+      });
+    }
+  });
+
+  // Detect unresponsive renderer (e.g. infinite loop in shader)
+  mainWindow.webContents.on('unresponsive', () => {
+    console.warn('[MainWindow] Renderer became unresponsive');
+  });
+
+  // macOS: hide instead of close (standard behavior — Dock click restores)
+  mainWindow.on('close', (e) => {
+    if (process.platform === 'darwin' && !app.isQuitting) {
+      e.preventDefault();
+      mainWindow.hide();
+    }
   });
 
   mainWindow.on('closed', () => {
@@ -494,6 +585,77 @@ async function createWindow() {
     console.log('[createWindow] loadURL succeeded');
   } catch (e) {
     console.error('[createWindow] loadURL failed:', e.message);
+  }
+
+  // ── Auto-update (checks every 4 hours) ──
+  try {
+    initAutoUpdater(mainWindow);
+  } catch (e) {
+    console.warn('[createWindow] Auto-updater init failed:', e.message);
+  }
+
+  // ── macOS native integrations ──
+  if (process.platform === 'darwin') {
+    // Application menu bar
+    createApplicationMenu(mainWindow);
+
+    // Dock right-click menu
+    const dockMenu = Menu.buildFromTemplate([
+      {
+        label: '播放 / 暂停',
+        click: () => mainWindow.webContents.send('media-control', 'toggle')
+      },
+      {
+        label: '下一曲',
+        click: () => mainWindow.webContents.send('media-control', 'next')
+      },
+      {
+        label: '上一曲',
+        click: () => mainWindow.webContents.send('media-control', 'prev')
+      },
+      { type: 'separator' },
+      {
+        label: '显示窗口',
+        click: () => {
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            if (mainWindow.isMinimized()) mainWindow.restore();
+            mainWindow.show();
+            mainWindow.focus();
+          }
+        }
+      },
+    ]);
+    app.dock.setMenu(dockMenu);
+
+    // Dark mode awareness — push theme changes to renderer
+    nativeTheme.on('updated', () => {
+      const theme = nativeTheme.shouldUseDarkColors ? 'dark' : 'light';
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('theme-changed', theme);
+      }
+    });
+
+    // Media keys via globalShortcut (works when app is in focus)
+    try {
+      globalShortcut.register('MediaPlayPause', () => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('media-control', 'toggle');
+        }
+      });
+      globalShortcut.register('MediaNextTrack', () => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('media-control', 'next');
+        }
+      });
+      globalShortcut.register('MediaPreviousTrack', () => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('media-control', 'prev');
+        }
+      });
+      console.log('[createWindow] Media keys registered');
+    } catch (e) {
+      console.warn('[createWindow] Failed to register media keys:', e.message);
+    }
   }
 }
 
@@ -562,9 +724,10 @@ ipcMain.handle('fluidmusic-login-platform', async (event, platform) => {
     default: return { ok: false, error: 'Unknown platform: ' + platform };
   }
 
-  // Update in-memory store and push to renderer
+  // Update in-memory store, encrypt and persist, push to renderer
   if (result && result.ok && result.cookie) {
     cookieStore[platform] = result.cookie;
+    secureSaveCookie(platform, result.cookie);
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('login-state-changed', {
         platform,
@@ -621,8 +784,9 @@ ipcMain.handle('fluidmusic-logout-platform', async (_event, platform) => {
     default: return { ok: false, error: 'Unknown platform' };
   }
 
-  // Clear in-memory cookie and push to renderer
+  // Clear in-memory cookie, delete encrypted file, push to renderer
   cookieStore[platform] = '';
+  secureDeleteCookie(platform);
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send('login-state-changed', {
       platform,
@@ -685,8 +849,7 @@ if (!gotSingleInstanceLock) {
   });
 
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
-    else focusMainWindow();
+    if (!focusMainWindow()) createWindow();
   });
 
   app.on('window-all-closed', () => {
@@ -694,9 +857,69 @@ if (!gotSingleInstanceLock) {
   });
 
   app.on('before-quit', () => {
+    app.isQuitting = true;
+    stopAutoUpdater();
+    globalShortcut.unregisterAll();
     if (localServer && localServer.close) localServer.close();
   });
 }
+
+// ── Local music file import ──
+ipcMain.handle('fluidmusic-import-local-files', async () => {
+  const { dialog } = require('electron');
+  const fs = require('fs');
+  const path = require('path');
+
+  const result = await dialog.showOpenDialog({
+    properties: ['openFile', 'multiSelections'],
+    filters: [
+      { name: '音频文件', extensions: ['mp3', 'flac', 'wav', 'm4a', 'aac', 'ogg', 'wma', 'aiff'] },
+      { name: '所有文件', extensions: ['*'] },
+    ],
+  });
+
+  if (result.canceled || !result.filePaths.length) return { ok: false, cancelled: true };
+
+  const tracks = [];
+  for (const filePath of result.filePaths) {
+    try {
+      const stat = fs.statSync(filePath);
+      const ext = path.extname(filePath).toLowerCase().replace('.', '');
+      const fileName = path.basename(filePath, path.extname(filePath));
+
+      // Try to parse artist - title from filename
+      let title = fileName;
+      let artist = '本地文件';
+      const dashIdx = fileName.indexOf(' - ');
+      if (dashIdx > 0) {
+        artist = fileName.substring(0, dashIdx).trim();
+        title = fileName.substring(dashIdx + 3).trim();
+      }
+
+      // Read file as data URL for local playback
+      const buffer = fs.readFileSync(filePath);
+      const mimeMap = { mp3: 'audio/mpeg', flac: 'audio/flac', wav: 'audio/wav', m4a: 'audio/mp4', aac: 'audio/aac', ogg: 'audio/ogg', wma: 'audio/x-ms-wma', aiff: 'audio/aiff' };
+      const mime = mimeMap[ext] || 'audio/mpeg';
+      const dataUrl = 'data:' + mime + ';base64,' + buffer.toString('base64');
+
+      tracks.push({
+        id: 'local_' + Date.now() + '_' + Math.random().toString(36).substr(2, 8),
+        title: title,
+        artist: artist,
+        url: dataUrl,
+        coverUrl: '',
+        platform: 'local',
+        duration: 0,
+        filePath: filePath,
+        fileSize: stat.size,
+      });
+    } catch (e) {
+      console.warn('[Import] Failed to read:', filePath, e.message);
+    }
+  }
+
+  return { ok: true, tracks };
+});
 
 // ── Wallpaper file picker ──
 ipcMain.handle('fluidmusic-pick-wallpaper', async () => {
@@ -713,6 +936,10 @@ ipcMain.handle('fluidmusic-pick-wallpaper', async () => {
   
   try {
     const filePath = result.filePaths[0];
+    console.log('[Wallpaper] Source:', filePath);
+    if (!fs.existsSync(filePath)) {
+      return { ok: false, error: '文件不存在' };
+    }
     const ext = path.extname(filePath).toLowerCase().replace('.', '');
     const mimeMap = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', gif: 'image/gif', bmp: 'image/bmp' };
     const mime = mimeMap[ext] || 'image/png';
@@ -720,6 +947,41 @@ ipcMain.handle('fluidmusic-pick-wallpaper', async () => {
     const base64 = data.toString('base64');
     return { ok: true, dataUrl: `data:${mime};base64,${base64}` };
   } catch (e) {
+    console.error('[Wallpaper] Failed:', e.message);
+    return { ok: false, error: e.message };
+  }
+});
+
+ipcMain.handle('fluidmusic-pick-bg-video', async () => {
+  const { dialog } = require('electron');
+  const fs = require('fs');
+  const path = require('path');
+
+  const result = await dialog.showOpenDialog({
+    properties: ['openFile'],
+    filters: [{ name: 'Videos', extensions: ['mp4', 'mov', 'webm', 'mkv', 'avi'] }],
+  });
+
+  if (result.canceled || !result.filePaths.length) return { ok: false, cancelled: true };
+
+  try {
+    const srcPath = result.filePaths[0];
+    console.log('[BgVideo] Source:', srcPath);
+    const destDir = path.join(app.getPath('userData'), 'backgrounds');
+    if (!fs.existsSync(destDir)) fs.mkdirSync(destDir, { recursive: true });
+    const ext = path.extname(srcPath).toLowerCase();
+    const destName = 'bg-video' + ext;
+    const destPath = path.join(destDir, destName);
+    // Clean old files, then copy
+    try { fs.readdirSync(destDir).forEach(f => { if (f.startsWith('bg-video')) fs.unlinkSync(path.join(destDir, f)); }); } catch(_) {}
+    fs.copyFileSync(srcPath, destPath);
+    // Tell Express server where the video is
+    process.env.BG_VIDEO_PATH = destDir;
+    const videoUrl = `http://127.0.0.1:${mainServerPort}/bg-video?t=${Date.now()}`;
+    console.log('[BgVideo] Ready | URL:', videoUrl);
+    return { ok: true, dataUrl: videoUrl, fileName: path.basename(srcPath) };
+  } catch (e) {
+    console.error('[BgVideo] Failed:', e.message);
     return { ok: false, error: e.message };
   }
 });

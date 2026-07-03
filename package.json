@@ -1,6 +1,6 @@
 {
   "name": "fluidmusic",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "FluidMusic — 流体动态音乐播放器",
   "main": "desktop/main.js",
   "scripts": {
@@ -53,6 +53,7 @@
   },
   "devDependencies": {
     "@types/node": "^26.1.0",
+    "@types/three": "^0.185.0",
     "concurrently": "^10.0.3",
     "electron": "^33.4.0",
     "electron-builder": "^25.1.0",

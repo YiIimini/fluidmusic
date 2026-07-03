@@ -64,16 +64,11 @@
   function init(canvas) {
     if (Spectrum3D.initialized) return true;
     try {
-      const renderer = new THREE.WebGLRenderer({ canvas: canvas || document.getElementById('spectrum-canvas'), alpha: true, antialias: true });
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-      renderer.setClearColor(0x000000, 0);
-
+      // Use shared renderer via RendererManager instead of creating own WebGL context
       const container = canvas ? canvas.parentElement : document.getElementById('spectrum-container');
       const w = container ? container.clientWidth : 360;
       const h = container ? container.clientHeight : 80;
-      renderer.setSize(w, h);
 
-      Spectrum3D.renderer = renderer;
       Spectrum3D.scene = new THREE.Scene();
       Spectrum3D.camera = new THREE.PerspectiveCamera(50, w / Math.max(h, 1), 0.1, 30);
       Spectrum3D.camera.position.set(0, 0, 5);
@@ -112,7 +107,23 @@
       }
 
       Spectrum3D.initialized = true;
-      console.log('Spectrum 3D initialized');
+
+      // Register with shared renderer manager for sub-region rendering
+      if (typeof RendererManager !== 'undefined' && RendererManager.initialized && container) {
+        const rect = container.getBoundingClientRect();
+        RendererManager.registerLayer('spectrum', Spectrum3D.scene, Spectrum3D.camera, {
+          tick: tick,
+          visible: true,
+        });
+        RendererManager.setLayerViewport('spectrum',
+          Math.round(rect.left * window.devicePixelRatio),
+          Math.round((window.innerHeight - rect.bottom) * window.devicePixelRatio),
+          Math.round(rect.width * window.devicePixelRatio),
+          Math.round(rect.height * window.devicePixelRatio)
+        );
+      }
+
+      console.log('Spectrum 3D initialized (shared renderer)');
       return true;
     } catch (e) {
       console.error('Spectrum 3D init failed:', e);
@@ -164,7 +175,10 @@
   }
 
   function render() {
-    if (!Spectrum3D.initialized || !Spectrum3D.renderer) return;
+    if (!Spectrum3D.initialized) return;
+    // Rendering handled by RendererManager when available
+    if (typeof RendererManager !== 'undefined' && RendererManager.initialized) return;
+    if (!Spectrum3D.renderer) return;
     Spectrum3D.renderer.render(Spectrum3D.scene, Spectrum3D.camera);
   }
 
@@ -172,9 +186,12 @@
     if (!Spectrum3D.initialized) return;
     const container = document.getElementById('spectrum-container');
     if (!container) return;
-    const w = container.clientWidth;
-    const h = container.clientHeight;
-    Spectrum3D.renderer.setSize(w, h);
+    const w = container.clientWidth || 360;
+    const h = container.clientHeight || 80;
+    // Renderer managed by RendererManager — only update camera aspect
+    if (Spectrum3D.renderer) {
+      Spectrum3D.renderer.setSize(w, h);
+    }
     Spectrum3D.camera.aspect = w / Math.max(h, 1);
     Spectrum3D.camera.updateProjectionMatrix();
   }
@@ -184,6 +201,7 @@
   Spectrum3D.render = render;
   Spectrum3D.resize = resize;
 
+  if (typeof __FM !== 'undefined') __FM.register('spectrum3d', [], function () { return Spectrum3D; }, { priority: 6 });
   window.Spectrum3D = Spectrum3D;
   window.addEventListener('resize', resize);
   console.log('FluidMusic Spectrum 3D loaded');

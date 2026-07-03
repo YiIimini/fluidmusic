@@ -218,13 +218,7 @@ export class ParticleCover {
 
   _registered = false;
 
-  // Dynamic LOD (level-of-detail) based on performance
-  private currentResolution: number = 160;
-  private minResolution = 80;
-  private maxResolution = 160;
-  private resolutionStep = 20;
-
-  // Cached source image for LOD rebuilds
+  // Cached source image for rebuilds
   private _sourceImage: HTMLImageElement | null = null;
 
   /**
@@ -376,10 +370,6 @@ export class ParticleCover {
 
     this.time += dt || 0.016;
 
-    // Dynamic LOD: adjust particle resolution based on current FPS
-    const fps = dt && dt > 0 ? 1 / dt : 60;
-    this.adjustQuality(fps);
-
     // Smooth transition
     this.transition += (this.targetTransition - this.transition) * (this.transitionSpeed || 0.8);
     this.material.uniforms.uTime.value = this.time;
@@ -485,31 +475,6 @@ export class ParticleCover {
       console.warn('[ParticleCover] Failed to load image:', url.substring(0, 80));
     };
     img.src = url;
-  }
-
-  /**
-   * Adjust particle grid resolution based on current FPS.
-   * Called each tick — scales down when GPU struggles, scales up when smooth.
-   */
-  adjustQuality(fps: number): void {
-    if (fps < 40 && this.currentResolution > this.minResolution) {
-      this.currentResolution = Math.max(this.minResolution, this.currentResolution - this.resolutionStep);
-      this.rebuildParticles();
-    } else if (fps > 55 && this.currentResolution < this.maxResolution) {
-      this.currentResolution = Math.min(this.maxResolution, this.currentResolution + this.resolutionStep);
-      this.rebuildParticles();
-    }
-  }
-
-  /**
-   * Rebuild particle geometry at the current LOD resolution.
-   * Uses the cached source image and preserves the existing texture.
-   */
-  rebuildParticles(): void {
-    if (!this._sourceImage || !this.particleSystem) return;
-    if (this.geometry) this.geometry.dispose();
-    this.geometry = buildCoverParticleGeometry(this._sourceImage, this.currentResolution);
-    this.particleSystem.geometry = this.geometry;
   }
 
   /**

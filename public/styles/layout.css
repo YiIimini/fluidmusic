@@ -1,0 +1,248 @@
+/* ── Layer structure ── */
+#layer-bg {
+  position: fixed; inset: 0; z-index: 0;
+  pointer-events: none;
+}
+#layer-bg canvas {
+  width: 100%; height: 100%;
+  opacity: 0.4;
+  will-change: opacity;
+}
+/* ── Wallpaper Layer ── */
+#wallpaper-layer {
+  --wp-opacity: 0.5;
+  --wp-ripple-speed: 1s;
+  position: fixed; inset: 0; z-index: -1;
+  pointer-events: none;
+  background-color: #0a0a14;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  opacity: 0;
+
+  transition: opacity 0.8s var(--ease-fluid);
+}
+#wallpaper-layer.loaded { opacity: var(--wp-opacity, 0.5); }
+
+
+#layer-passthrough {
+  position: fixed; inset: 0; z-index: 1;
+  pointer-events: none;
+}
+
+/* ── Center Core Layout ── */
+#center-core {
+  position: fixed;
+  width: 380px; height: 580px;
+  left: 50%; top: 50%;
+  transform: translate(-50%, -48%);
+  z-index: 5;
+  pointer-events: auto;
+  -webkit-app-region: no-drag;
+  animation: float-subtle 8s var(--ease-fluid) infinite;
+}
+
+#center-core-inner {
+  position: relative;
+  width: 100%; height: 100%;
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 20px;
+  background: rgba(10,10,20,0.05);
+  backdrop-filter: blur(20px) saturate(1.5) brightness(1.1);
+  -webkit-backdrop-filter: blur(20px) saturate(1.5) brightness(1.1);
+  padding: 20px 24px 24px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.04),
+    0 0 30px rgba(130,180,255,0.08),
+    0 8px 32px rgba(0,0,0,0.15);
+  animation:
+    glow-pulse 4s var(--ease-fluid) infinite,
+    chromatic-drift 12s var(--ease-fluid) infinite;
+  transition:
+    border-color 0.6s var(--ease-fluid),
+    box-shadow 0.6s var(--ease-fluid),
+    transform 0.4s var(--ease-fluid);
+}
+#center-core-inner:hover {
+  border-color: rgba(130,180,255,0.18);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.06),
+    0 0 50px rgba(130,180,255,0.15),
+    0 8px 40px rgba(0,0,0,0.2);
+}
+
+/* ── Edge Trigger Zones (inside #center-core, absolute-positioned) ── */
+.edge-trigger {
+  position: absolute; z-index: 3;
+  pointer-events: auto;
+  cursor: pointer;
+  background: transparent;
+}
+#edge-left {
+  left: -120px; top: 0; width: 120px; height: 100%;
+}
+#edge-right {
+  right: -120px; top: 0; width: 120px; height: 100%;
+}
+#edge-top {
+  top: -140px; left: 0; width: 100%; height: 140px;
+}
+#edge-bottom {
+  bottom: -100px; left: 0; width: 100%; height: 100px;
+}
+
+/* ── Bubble Chambers ── */
+.bubble-chamber {
+  position: fixed;
+  z-index: 4;
+  pointer-events: auto;
+  border: 1px solid rgba(255,255,255,0.05);
+  border-radius: 18px;
+  background: rgba(10,10,24,0.12);
+  backdrop-filter: blur(24px) saturate(1.4);
+  -webkit-backdrop-filter: blur(24px) saturate(1.4);
+  box-shadow:
+    0 4px 24px rgba(0,0,0,0.12),
+    inset 0 1px 0 rgba(255,255,255,0.03);
+  opacity: 0;
+
+  transform: scale(0.88);
+  transition: opacity 0.5s var(--spring-overshoot), transform 0.5s var(--spring-overshoot);
+}
+.bubble-chamber.visible {
+  opacity: 1 !important;
+  transform: scale(1);
+  pointer-events: auto !important;
+}
+.bubble-chamber.pinned {
+  opacity: 1 !important;
+  pointer-events: auto !important;
+  border-color: rgba(255,255,255,0.18);
+  box-shadow:
+    0 4px 28px rgba(0,0,0,0.16),
+    inset 0 1px 0 rgba(255,255,255,0.05),
+    0 0 20px rgba(130,180,255,0.08);
+  animation: border-shimmer 6s var(--ease-fluid) infinite;
+}
+.bubble-chamber.hiding {
+  opacity: 0;
+
+  transform: scale(0.9);
+  transition: opacity 0.3s var(--spring-collapse), transform 0.3s var(--spring-collapse);
+}
+
+/* ── Chamber micro-interaction: chromatic aberration on hover ── */
+.bubble-chamber:hover {
+  border-color: rgba(255,255,255,0.10);
+}
+
+/* ── Left Chamber: Playlist ── */
+#chamber-left {
+  left: 12px; top: 60%;
+  transform: translate(-30px, -50%) scale(0.88);
+  width: 380px; max-height: calc(100vh - 120px);
+  padding: 16px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  direction: rtl;
+}
+#chamber-left > * { direction: ltr; }
+#chamber-left.visible {
+  transform: translate(0, -50%) scale(1);
+}
+
+/* ── Right Chamber: Lyrics ── */
+#chamber-right {
+  right: 12px; top: 60%;
+  transform: translate(30px, -50%) scale(0.88);
+  width: 380px; max-height: calc(100vh - 120px);
+  padding: 16px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  direction: rtl;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  background: rgba(10,10,24,0.65) !important;
+}
+#chamber-right > * { direction: ltr; }
+#chamber-right.visible {
+  transform: translate(0, -50%) scale(1);
+}
+
+/* ── Top Chamber: Account + 3D Queue ── */
+#chamber-top {
+  top: 48px; left: 50%; z-index: 6;
+  transform: translate(-50%, -14px) scale(0.88);
+  width: 550px; min-height: 42px;
+  padding: 5px 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+#chamber-top {
+  flex-direction: column; align-items: center; gap: 4px;
+}
+#chamber-top.visible {
+  transform: translate(-50%, 0) scale(1);
+}
+
+/* ── Bottom Controller (deepened) ── */
+#chamber-bottom {
+  bottom: 12px; left: 50%;
+  transform: translate(-50%, 20px) scale(0.88);
+  width: 960px; height: 64px;
+  padding: 8px 14px;
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  z-index: 6;
+  backdrop-filter: blur(18px) saturate(1.3);
+  -webkit-backdrop-filter: blur(18px) saturate(1.3);
+  background: var(--chamber-bg-deep);
+  border: 1px solid rgba(255,255,255,0.06);
+  box-shadow:
+    0 4px 20px rgba(0,0,0,0.15),
+    inset 0 1px 0 rgba(255,255,255,0.04);
+  overflow: visible;
+}
+#chamber-bottom.visible {
+  transform: translate(-50%, 0) scale(1);
+}
+
+/* ── Foam Equalizer Container (replaces old spectrum) ── */
+#foam-equalizer-container {
+  position: fixed;
+  bottom: 0; left: 50%;
+  transform: translate(-50%, 0);
+  width: 600px; height: 100px;
+  z-index: 3;
+  pointer-events: auto;
+  cursor: default;
+  border-radius: 20px 20px 0 0;
+  border: 1px solid rgba(255,255,255,0.04);
+  border-bottom: none;
+  background: rgba(10,10,24,0.06);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 -4px 20px rgba(0,0,0,0.08);
+  transition: box-shadow 0.5s var(--ease-fluid), border-color 0.5s var(--ease-fluid);
+  overflow: visible;
+}
+#foam-equalizer-container:hover {
+  border-color: rgba(255,255,255,0.10);
+  box-shadow: 0 -4px 28px rgba(130,180,255,0.08);
+}
+#foam-equalizer-container canvas {
+  width: 100%; height: 100%;
+}
+
+.controller-center {
+  display: flex; align-items: center; gap: 10px; flex: 1; justify-content: center;
+}
+#controller-order span[data-btn] { display: inline-flex; }
+.controller-right {
+  display: flex; align-items: center; gap: 10px; flex-shrink: 0;
+}

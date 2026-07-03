@@ -106,6 +106,7 @@
   Favorites.getAll = getAll;
   Favorites.count = count;
 
+  if (typeof __FM !== 'undefined') __FM.register('favorites', [], function () { return Favorites; }, { priority: 9 });
   window.Favorites = Favorites;
   console.log('FluidMusic Favorites loaded');
 })();

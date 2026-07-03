@@ -72,8 +72,9 @@ contextBridge.exposeInMainWorld('fluidmusic', {
   // Local file import
   importLocalFiles: () => ipcRenderer.invoke('fluidmusic-import-local-files'),
 
-  // Wallpaper
+  // Wallpaper & video background
   pickWallpaper: () => ipcRenderer.invoke('fluidmusic-pick-wallpaper'),
+  pickBgVideo: () => ipcRenderer.invoke('fluidmusic-pick-bg-video'),
 
   // Settings persistence
   saveSettings: (settings) => ipcRenderer.invoke('fluidmusic-save-settings', settings),

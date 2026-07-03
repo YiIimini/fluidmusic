@@ -51,14 +51,26 @@
       hide();
     } else {
       show();
+      if (typeof fluidmusic !== 'undefined' && fluidmusic.setOverlayOpen) {
+        fluidmusic.setOverlayOpen(true);
+      }
     }
   }
 
   function show() {
     if (!UserPanel.overlay) return;
-    render();
     UserPanel.overlay.classList.add('open');
+    switchTab(UserPanel.activeTab);
   }
+
+  function hide() {
+    if (!UserPanel.overlay) return;
+    UserPanel.overlay.classList.remove('open');
+    if (typeof fluidmusic !== 'undefined' && fluidmusic.setOverlayOpen) {
+      fluidmusic.setOverlayOpen(false);
+    }
+  }
+  // (toggle function above replaces both show/hide dispatch)
 
   function hide() {
     if (!UserPanel.overlay) return;
@@ -233,7 +245,7 @@
           if (!isNaN(d.getTime())) dateStr = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
         }
         // Cover HTML
-        let coverHtml = '';
+        let coverHtml = '<span class="playlist-item-cover" style="display:flex;align-items:center;justify-content:center;background:rgba(238,102,68,0.12);border:1px solid rgba(238,102,68,0.2);font-size:18px;width:36px;height:36px;border-radius:6px;flex-shrink:0;">❤️</span>';
         if (pl.coverUrl) {
           coverHtml = '<img class="playlist-item-cover" src="' + escHtml(pl.coverUrl) + '" alt="" onerror="this.style.display=\'none\'" style="width:36px;height:36px;border-radius:6px;object-fit:cover;flex-shrink:0;">';
         }
@@ -252,40 +264,42 @@
 
       // Wire checkboxes
       container.querySelectorAll('.user-pl-check').forEach(cb => {
-        cb.addEventListener('change', () => {
+        cb.addEventListener('change', async () => {
           const pid = cb.dataset.pid;
           const pplatform = cb.dataset.platform;
           if (!syncedIds[pplatform]) syncedIds[pplatform] = {};
+          const statusEl = cb.closest('.user-playlist-item').querySelector('span:last-child');
+
           if (cb.checked) {
+            // 1. Mark as synced
             syncedIds[pplatform][pid] = true;
-            // Re-fetch and cache songs for this playlist
             localStorage.setItem('fluidmusic_synced_playlists', JSON.stringify(syncedIds));
-            if (typeof DataCache !== 'undefined') {
-              // Background re-fetch
-              const pl = { id: pid, platform: pplatform, name: cb.closest('.user-playlist-item').querySelector('.user-pl-name')?.textContent || '' };
-              if (typeof BubbleChamber !== 'undefined' && BubbleChamber.loadPlaylistSongs) {
-                // Trigger re-fetch through loadPlaylistSongs — will fetch and cache
-                console.log('[UserPanel] Re-checked playlist ' + pid + ', triggering re-fetch');
-              }
+            if (statusEl) { statusEl.textContent = '加载中…'; statusEl.style.color = 'var(--text-dim)'; }
+            // 2. Fetch and cache songs for this playlist
+            const plName = cb.closest('.user-playlist-item').querySelector('.user-pl-name')?.textContent || '';
+            const pl = { id: pid, platform: pplatform, name: plName, coverUrl: '' };
+            if (typeof BubbleChamber !== 'undefined' && BubbleChamber.fetchAndCachePlaylistSongs) {
+              await BubbleChamber.fetchAndCachePlaylistSongs(pl);
+              console.log('[UserPanel] Cached songs for playlist: ' + plName);
             }
+            if (statusEl) { statusEl.textContent = '显示'; statusEl.style.color = ''; }
+            if (typeof showToast !== 'undefined') showToast('✅ 已缓存: ' + plName.substring(0, 20));
           } else {
+            // 1. Remove from synced
             delete syncedIds[pplatform][pid];
             localStorage.setItem('fluidmusic_synced_playlists', JSON.stringify(syncedIds));
-            // Clear this playlist's song cache
+            // 2. Clear this playlist's song cache
             if (typeof DataCache !== 'undefined') {
               DataCache.remove('plsongs_' + pplatform + '_' + pid);
               console.log('[UserPanel] Cleared cache for playlist ' + pid);
             }
+            if (statusEl) { statusEl.textContent = '隐藏'; statusEl.style.color = ''; }
+            if (typeof showToast !== 'undefined') showToast('🗑 已清除缓存');
           }
-          // Update status text
-          const statusEl = cb.closest('.user-playlist-item').querySelector('span:last-child');
-          if (statusEl) statusEl.textContent = cb.checked ? '显示' : '隐藏';
-          // Refresh main playlist list
-          if (typeof FluidMusicApp !== 'undefined' && FluidMusicApp.syncPlaylists) {
-            FluidMusicApp.syncPlaylists();
-          if (typeof BubbleChamber !== 'undefined' && BubbleChamber.refreshPlaylistList) {
-            setTimeout(() => BubbleChamber.refreshPlaylistList(), 300);
-          }
+
+          // Refresh sidebar from cache only (no API call)
+          if (typeof BubbleChamber !== 'undefined' && BubbleChamber.refreshPlaylistListFromCache) {
+            BubbleChamber.refreshPlaylistListFromCache();
           }
         });
       });
@@ -358,6 +372,7 @@
   UserPanel.hide = hide;
   UserPanel.renderTabContent = renderTabContent;
 
+  if (typeof __FM !== 'undefined') __FM.register('userPanel', [], function () { return UserPanel; }, { priority: 5 });
   window.UserPanel = UserPanel;
   console.log('FluidMusic User Panel loaded');
 })();

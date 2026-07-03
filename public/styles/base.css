@@ -1,0 +1,43 @@
+/* ── CSS Reset & Variables ── */
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+  width: 100%; height: 100%;
+  overflow: visible;
+  background: transparent;
+  font-family: var(--font-main);
+  font-weight: var(--font-weight-body);
+  letter-spacing: var(--letter-spacing-body);
+  color: var(--text-primary);
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-app-region: no-drag;
+}
+
+body.no-transition *, body.no-transition *::before, body.no-transition *::after {
+  transition: none !important;
+}
+
+/* ── Adaptive text (controlled by JS) ── */
+.text-adapt-light { color: var(--text-primary) !important; }
+.text-adapt-dark { color: var(--text-dark) !important; }
+.text-adapt-light .text-secondary { color: var(--text-secondary) !important; }
+.text-adapt-dark .text-secondary { color: var(--text-dark-secondary) !important; }
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.08);
+  border-radius: 2px;
+}
+
+/* ── Language-specific adjustments ── */
+:lang(en-US) body {
+  font-weight: 350;
+  letter-spacing: -0.01em;
+}
+:lang(en-US) #song-title {
+  font-weight: 600;
+  letter-spacing: -0.005em;
+}

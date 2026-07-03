@@ -1,0 +1,88 @@
+# ============================================================
+# FluidMusic — CI/CD Pipeline
+# Runs on push/PR: lint, test, build macOS dmg
+# ============================================================
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+
+jobs:
+  # ── Static analysis ──
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+      - run: npm ci
+      - name: Lint JS files
+        run: npx eslint public/js/ --ext .js --max-warnings 50
+
+  # ── Unit tests ──
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+      - run: npm ci
+      - name: Run unit tests
+        run: npx vitest run --reporter=verbose
+
+  # ── Vite build (renderer) ──
+  build-renderer:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+      - run: npm ci
+      - name: Build renderer with Vite
+        run: npx vite build
+      - name: Upload renderer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: renderer-dist
+          path: dist-renderer/
+
+  # ── macOS .app build (requires macOS runner) ──
+  build-mac:
+    needs: [lint, test, build-renderer]
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+      - run: npm ci
+
+      - name: Download renderer dist
+        uses: actions/download-artifact@v4
+        with:
+          name: renderer-dist
+          path: dist-renderer/
+
+      - name: Build macOS DMG
+        run: npx electron-builder --mac dmg zip --publish never
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload DMG artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: FluidMusic-macOS
+          path: |
+            dist/*.dmg
+            dist/*.zip
+          retention-days: 7
