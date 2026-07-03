@@ -6,7 +6,7 @@
 (function () {
   const DIYSettings = {
     open: false,
-    activeTab: 'visual',
+    activeTab: 'particle',
     settings: {
       // Particle Cover
       particleResolution: 160,
@@ -67,8 +67,6 @@
       // Visual effect toggles (matched to VISUAL_DEFAULTS in app.js)
       enableFluidBg: true,
       enableParticleCover: true,
-      enableSpectrum3D: true,
-
       // Wallpaper
       wallpaperOpacity: 0.3,
       wallpaperRippleSpeed: 1.0,
@@ -79,6 +77,9 @@
       uiFontSize: 13,
       uiAccentColor: '#f0c060',
       uiFontWeight: 500,
+      globalFontFamily: 'inherit',
+      lyricsFontFamily: 'inherit',
+      chamberOpacity: 0.12,
       controllerOrder: 'like,volume,prev,play,next,playmode',
     },
 
@@ -97,6 +98,8 @@
           { type: 'section', label: '━━ 时间显示 ━━' },
           { key: 'timeColor', label: '时间颜色', type: 'color', help: '播放时间的字体颜色' },
           { key: 'timeFontSize', label: '时间字号', type: 'range', min: 8, max: 16, step: 1, help: '播放时间的字体大小。默认10px' },
+          { type: 'section', label: '━━ 悬浮仓 ━━' },
+          { key: 'chamberOpacity', label: '仓透明度', type: 'range', min: 0.05, max: 0.5, step: 0.01, help: '四个悬浮仓的背景透明度' },
         ],
       },
       particle: {
@@ -108,13 +111,6 @@
           { key: 'particleScatterStrength', label: '散落强度', type: 'range', min: 0, max: 1, step: 0.05, help: '切歌时粒子散开的力度' },
           { key: 'particleSensitivity', label: '律动灵敏度', type: 'range', min: 0, max: 1, step: 0.05, help: '粒子对音频节奏的响应程度' },
           { key: 'particleRotationSpeed', label: '旋转速度', type: 'range', min: 0, max: 2, step: 0.1, help: '鼠标拖拽松手后的自动旋转速度' },
-        ],
-      },
-      spectrum: {
-        title: '📊 频谱',
-        fields: [
-          { type: 'section', label: '━━ 3D频谱环 ━━' },
-          { key: 'enableSpectrum3D', label: '启用3D频谱环', type: 'toggle', help: '中心核心区的3D环状频谱' },
         ],
       },
       lyricsTab: {
@@ -175,7 +171,10 @@
             'prev,play,next,like,playmode,volume': '经典布局',
             'like,prev,play,next,playmode,volume': '简洁布局',
             'volume,like,prev,play,next,playmode': '音量前置',
-          }, help: '控制器按钮从左到右的排列顺序。选择预设即时生效' },
+          }, help: '控制器按钮从左到右的排列顺序' },
+          { type: 'section', label: '━━ 字体 ━━' },
+          { key: 'globalFontFamily', label: '全局字体', type: 'select', options: { 'inherit': '系统默认', 'PingFang SC': '苹方', 'SF Pro Text': 'SF Pro', 'Helvetica Neue': 'Helvetica', 'Microsoft YaHei': '微软雅黑' }, help: '除歌词外的全局字体' },
+          { key: 'lyricsFontFamily', label: '歌词字体', type: 'select', options: { 'inherit': '系统默认', 'PingFang SC': '苹方', 'KaiTi': '楷体', 'Songti SC': '宋体', 'Heiti SC': '黑体' }, help: '歌词仓独立字体' },
           { type: 'section', label: '━━ 背景 ━━' },
           { key: 'wallpaperBlur', label: '背景模糊', type: 'range', min: 0, max: 40, step: 1, help: '背景图片/视频的高斯模糊程度（像素）。0=清晰原图' },
         ],
@@ -209,8 +208,8 @@
   function applySettings() {
     const s = DIYSettings.settings;
     // ── Visual effect toggles ──
-    const visKeys = ['enableFluidBg','enableParticleCover','enableFoamSystem','enableFoamEqualizer','enableSpectrum3D'];
-    const visMap = { enableFluidBg:'fluidBg', enableParticleCover:'particleCover', enableFoamSystem:'foamSystem', enableFoamEqualizer:'foamEqualizer', enableSpectrum3D:'spectrum3D' };
+    const visKeys = ['enableFluidBg','enableParticleCover','enableFoamSystem','enableFoamEqualizer'];
+    const visMap = { enableFluidBg:'fluidBg', enableParticleCover:'particleCover', enableFoamSystem:'foamSystem', enableFoamEqualizer:'foamEqualizer' };
     let visChanged = false;
     visKeys.forEach(k => {
       if (s[k] != null && window._fluidVisualEnabled) {
@@ -419,13 +418,36 @@
     if (s.wallpaperBlur != null) {
       document.documentElement.style.setProperty('--wallpaper-blur', s.wallpaperBlur + 'px');
     }
+    // Chamber opacity — unified across all 4 chambers
+    if (s.chamberOpacity != null) {
+      document.documentElement.style.setProperty('--chamber-alpha', s.chamberOpacity);
+      var bg = 'rgba(10,10,24,' + s.chamberOpacity + ')';
+      document.querySelectorAll('#chamber-left, #chamber-right, #chamber-top, #chamber-bottom').forEach(function(el) {
+        el.style.background = bg;
+      });
+      // Also set on the base class
+      document.documentElement.style.setProperty('--chamber-bg', bg);
+    }
+    // Font families
+    if (s.globalFontFamily && s.globalFontFamily !== 'inherit') {
+      document.body.style.fontFamily = s.globalFontFamily + ', sans-serif';
+    } else if (s.globalFontFamily === 'inherit') {
+      document.body.style.fontFamily = '';
+    }
+    if (s.lyricsFontFamily && s.lyricsFontFamily !== 'inherit') {
+      document.documentElement.style.setProperty('--lyric-font-family', s.lyricsFontFamily);
+      document.querySelectorAll('.lyric-line').forEach(function(l) { l.style.fontFamily = s.lyricsFontFamily; });
+    } else if (s.lyricsFontFamily === 'inherit') {
+      document.documentElement.style.setProperty('--lyric-font-family', 'inherit');
+      document.querySelectorAll('.lyric-line').forEach(function(l) { l.style.fontFamily = ''; });
+    }
   }
 
   // Default settings snapshot for reset
   const DEFAULT_SETTINGS = {
     particleResolution: 160, particleScatterStrength: 0.8, particleSensitivity: 0.8,
     particleRotationSpeed: 0.5, particleColor: '#ffffff',
-    enableParticleCover: true, enableFluidBg: true, enableSpectrum3D: true,
+    enableParticleCover: true, enableFluidBg: true,
     foamCount: 80, foamSize: 1.5, foamIridescence: 0.6, foamFloatAmplitude: 0.7, foamColorScheme: 0,
     lyricsLines: 0, lyricsFontSize: 13, lyricsColor: '#ffffff', lyricsHighlightColor: '#5588ee', lyricsFadeStrength: 0.5,
     lyricsVisibleLines: 0, lyricsEffect: 'fade', inlineLyricColor: '#f0c060', inlineLyricFontSize: 15,
@@ -495,8 +517,8 @@
 
     container.innerHTML = html;
 
-    // System tab: Background (image/video) + Restore Defaults + Clear Cache
-    if (tabId === 'system') {
+    // Background tab: Image/video picker + Restore Defaults + Clear Cache (also in system tab)
+    if (tabId === 'background' || tabId === 'system') {
       var wpRow = document.createElement('div');
       wpRow.className = 'diy-setting-row';
       wpRow.style.flexDirection = 'column';

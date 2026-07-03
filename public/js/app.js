@@ -13,7 +13,6 @@
   const VISUAL_DEFAULTS = {
     fluidBg: true,        // Fluid background (low GPU)
     particleCover: true,  // 3D particle album cover
-    spectrum3D: true,     // 3D spectrum rings (low GPU)
   };
 
   let _visualEnabled = { ...VISUAL_DEFAULTS };
@@ -752,33 +751,16 @@
         return ratio;
       };
 
-      const spawnParticle = (clientX, clientY) => {
-        if (!progressParticles) return;
-        const rect = progressBar.getBoundingClientRect();
-        const particle = document.createElement('div');
-        particle.className = 'progress-particle';
-        const px = (Math.random() - 0.5) * 60;
-        const py = (Math.random() - 0.5) * 40 - 20;
-        particle.style.setProperty('--px', px + 'px');
-        particle.style.setProperty('--py', py + 'px');
-        particle.style.left = (clientX - rect.left) + 'px';
-        particle.style.top = (rect.height / 2) + 'px';
-        progressParticles.appendChild(particle);
-        setTimeout(() => particle.remove(), 600);
-      };
-
       progressBar.addEventListener('mousedown', (e) => {
         isDraggingProgress = true;
         progressBar.classList.add('dragging');
         progressBar.setPointerCapture(e.pointerId || 1);
-        const ratio = seekTo(e.clientX);
-        spawnParticle(e.clientX, e.clientY);
+        seekTo(e.clientX);
       });
 
       progressBar.addEventListener('pointermove', (e) => {
         if (!isDraggingProgress) return;
         seekTo(e.clientX);
-        if (Math.random() < 0.3) spawnParticle(e.clientX, e.clientY);
       });
 
       progressBar.addEventListener('pointerup', () => {
@@ -1222,9 +1204,6 @@
       if (V.particleCover && typeof ParticleCover !== 'undefined' && ParticleCover.initialized) {
         ParticleCover.tick(dt);
       }
-      if (V.spectrum3D && typeof Spectrum3D !== 'undefined' && Spectrum3D.initialized) {
-        Spectrum3D.tick(dt);
-      }
       // Single render call composites all layers
       RendererManager.render();
     } else {
@@ -1242,14 +1221,6 @@
     // Audio-reactive lyric animation
     if (typeof BubbleChamber !== 'undefined' && BubbleChamber.animateLyrics) {
       BubbleChamber.animateLyrics();
-    }
-
-    if (V.spectrum3D && typeof Spectrum3D !== 'undefined' && Spectrum3D.initialized) {
-      // If RendererManager handles Spectrum3D, skip standalone tick/render
-      if (!RendererManager || !RendererManager.initialized) {
-        Spectrum3D.tick(dt);
-        Spectrum3D.render();
-      }
     }
 
     // ── Progress bar + time display update (throttled to 250ms) ──
@@ -1324,12 +1295,6 @@
       }
     } else {
       console.log('[init] ParticleCover disabled (toggle in DIY settings)');
-    }
-
-    // 4. Init spectrum
-    if (_visualEnabled.spectrum3D && typeof Spectrum3D !== 'undefined') {
-      const s3dOk = Spectrum3D.init();
-      console.log('[init] Spectrum3D init ' + (s3dOk ? 'OK' : 'FAILED'));
     }
 
     // 6. Init bubble chambers
