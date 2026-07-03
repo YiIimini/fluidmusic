@@ -50,76 +50,6 @@
     }
   }
 
-  // ── Background brightness detection for auto text contrast ──
-  // Uses a small offscreen 2D canvas to sample what's actually rendered behind the element
-  let _brightnessSampleCanvas = null;
-
-  function detectBackgroundBrightness(element) {
-    if (!element) return 0.5;
-    const rect = element.getBoundingClientRect();
-    // eslint-disable-next-line no-unused-vars
-    const cx = rect.left + rect.width / 2;
-    const cy = rect.top + rect.height / 2;
-
-    // Method 1: Sample wallpaper layer brightness (if wallpaper is loaded)
-    const wpLayer = document.getElementById('wallpaper-layer');
-    if (wpLayer && wpLayer.classList.contains('loaded')) {
-      const wpOpacity = parseFloat(wpLayer.style.opacity || 0.5);
-      if (wpOpacity > 0.2) {
-        // Wallpaper is visible — sample its average brightness
-        try {
-          if (!_brightnessSampleCanvas) {
-            _brightnessSampleCanvas = document.createElement('canvas');
-            _brightnessSampleCanvas.width = 10;
-            _brightnessSampleCanvas.height = 10;
-          }
-          // eslint-disable-next-line no-unused-vars
-          const ctx = _brightnessSampleCanvas.getContext('2d');
-          // Sample from the wallpaper layer's background image
-          const bgImage = wpLayer.style.backgroundImage;
-          if (bgImage && bgImage.startsWith('url(')) {
-            // Approximate: wallpaper is set via data URL, sample a few points
-            // Since we can't directly read the background-image pixels, use statistical heuristic
-            // Wallpaper visible → background is lighter than fluid bg alone
-            return 0.45 + wpOpacity * 0.25;
-          }
-        } catch (_) {}
-      }
-    }
-
-    // Method 2: Use element position heuristic (reliable, no DOM overhead)
-    // Fluid background is always dark (#0d0d1a), so areas over fluid bg are dark
-    // Top area (chamber-top) has more light from queue covers
-    // Side chambers are over the dark fluid bg
-    const _sampleY = cy / window.innerHeight;
-    if (_sampleY < 0.15) return 0.5;  // Top strip (chamber-top)
-    if (_sampleY > 0.85) return 0.3;  // Bottom (controller)
-    return 0.25; // Left/right chambers over dark fluid bg
-  }
-
-  function applyTextContrast() {
-    // Check key text areas
-    const areas = [
-      { el: document.getElementById('chamber-left'), selector: '#chamber-left' },
-      { el: document.getElementById('chamber-right'), selector: '#chamber-right' },
-      { el: document.getElementById('chamber-top'), selector: '#chamber-top' },
-      { el: document.getElementById('song-info'), selector: null },
-    ];
-
-    areas.forEach(({ el }) => {
-      if (!el) return;
-      const brightness = detectBackgroundBrightness(el);
-      if (brightness < 0.45) {
-        el.classList.add('text-adapt-light');
-        el.classList.remove('text-adapt-dark');
-      } else {
-        el.classList.add('text-adapt-dark');
-        el.classList.remove('text-adapt-light');
-      }
-    });
-  }
-
-
 
   // ── Audio callbacks ──
   function setupAudioCallbacks() {
@@ -408,16 +338,6 @@
     }
   }
 
-  // ── Auto contrast polling ──
-  let contrastTimer = null;
-  function startContrastPolling() {
-    applyTextContrast();
-    contrastTimer = setInterval(applyTextContrast, 5000);
-    window.addEventListener('resize', () => {
-      clearTimeout(contrastTimer);
-      contrastTimer = setTimeout(applyTextContrast, 500);
-    });
-  }
 
 
   // ── Wallpaper loader ──
@@ -935,7 +855,7 @@
     }
 
     // 13. Start auto contrast detection
-    startContrastPolling();
+    if (typeof VisualContrast !== "undefined") VisualContrast.startContrastPolling();
 
     appReady = true;
     console.log('FluidMusic ready!');

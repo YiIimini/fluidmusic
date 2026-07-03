@@ -64,7 +64,8 @@
     "_updateMiniPlayer": "readonly",
     "_updateInlineLyricVisibility": "readonly",
     "applyWallpaper": "readonly",
-    "queueMode": "readonly"
+    "queueMode": "readonly",
+    "VisualContrast": "readonly"
   },
   "ignorePatterns": [
     "public/vendor/**",
