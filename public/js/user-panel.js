@@ -30,12 +30,18 @@
       if (e.key === 'Escape' && UserPanel.overlay.classList.contains('open')) hide();
     });
 
-    // Wire TABs
+    // Wire TABs — re-fetch profile on each click to get latest data
     const tabs = document.querySelectorAll('#user-tabs .user-tab');
     tabs.forEach((tab) => {
       tab.addEventListener('click', () => {
         const platform = tab.dataset.tab;
-        switchTab(platform);
+        if (platform === 'netease' && typeof ApiBridge !== 'undefined' && ApiBridge.neteaseLoggedIn) {
+          ApiBridge.fetchNeteaseUserDetail().then(() => switchTab(platform));
+        } else if (platform === 'qq' && typeof ApiBridge !== 'undefined' && ApiBridge.qqLoggedIn) {
+          ApiBridge.fetchQQUserDetail().then(() => switchTab(platform));
+        } else {
+          switchTab(platform);
+        }
       });
     });
 

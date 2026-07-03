@@ -45,8 +45,9 @@
     const query = new URLSearchParams(params).toString();
     const url = base + endpoint + (query ? '?' + query : '');
 
-    // ── Cache-aside for GET requests ──
-    const cacheKey = (method === 'GET') ? ('api:' + endpoint + ':' + JSON.stringify(params)) : null;
+    // ── Cache-aside for GET requests (skip for user detail — always fresh) ──
+    const isUserEndpoint = endpoint.includes('/user/detail') || endpoint.includes('/account');
+    const cacheKey = (method === 'GET' && !isUserEndpoint) ? ('api:' + endpoint + ':' + JSON.stringify(params)) : null;
     if (cacheKey) {
       try {
         const cached = await _cacheGet(cacheKey);
@@ -292,6 +293,10 @@
         ApiBridge.qqUser.followers = creator.fanscnt || creator.followers || 0;
         ApiBridge.qqUser.followings = creator.followcnt || creator.followings || 0;
         ApiBridge.qqUser.playlistCount = creator.dissnum || creator.playlistCount || 0;
+      }
+      // Re-render user panel if open
+      if (typeof UserPanel !== 'undefined' && UserPanel.activeTab === 'qq') {
+        try { UserPanel.renderTabContent('qq'); } catch(_) {}
       }
       return ApiBridge.qqUser;
     } catch (e) {

@@ -38,10 +38,11 @@ function savePersistentCookie(platform, cookie) {
 
 
 const app = express();
+app.disable('etag');
 const PORT = process.env.PORT || 3000;
 
 // Serve static files from public/
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, 'public'), { setHeaders: (res) => { res.set('Cache-Control', 'no-store'); }}));
 app.use(express.json());
 
 // ── Background video serving ──
@@ -422,15 +423,26 @@ app.get('/api/qq/song/url', (req, res) => {
   proxyRequest(url, res, { cookie, referer: 'https://y.qq.com' });
 });
 
+// Compute QQ Music g_tk from p_skey
+function getGTK(skey) {
+  let hash = 5381;
+  for (let i = 0; i < (skey || '').length; i++) {
+    hash += (hash << 5) + skey.charCodeAt(i);
+  }
+  return hash & 0x7fffffff;
+}
+
 app.get("/api/qq/user/detail", (req, res) => {
   let cookie = req.headers["x-cookie"] || "";
   if (!cookie) cookie = persistentCookies.qq || "";
   const uin = extractUinFromCookies(cookie);
-  console.log('[QQ UserDetail] UIN from cookies:', uin, '| cookie present:', !!cookie);
+  const skey = parseCookieString(cookie).p_skey || '';
+  const gtk = getGTK(skey);
+  console.log('[QQ UserDetail] UIN:', uin, '| skey:', !!skey, '| gtk:', gtk);
   if (!uin) {
     return res.json({ code: -1, error: 'No UIN in cookies' });
   }
-  const url = `https://c.y.qq.com/rsc/fcgi-bin/fcg_get_profile_homepage.fcg?cid=205360838&userid=${uin}&reqfrom=1&g_tk=5381&loginUin=${uin}&hostUin=0&format=json&inCharset=utf8&outCharset=utf-8&notice=0&platform=yqq.json&needNewCode=0`;
+  const url = `https://c.y.qq.com/rsc/fcgi-bin/fcg_get_profile_homepage.fcg?cid=205360838&userid=${uin}&reqfrom=1&g_tk=${gtk}&loginUin=${uin}&hostUin=0&format=json&inCharset=utf8&outCharset=utf-8&notice=0&platform=yqq.json&needNewCode=0`;
   proxyRequest(url, res, { cookie, referer: 'https://y.qq.com/' });
 });
 
@@ -438,13 +450,14 @@ app.get("/api/qq/user/playlist", async (req, res) => {
   let cookie = req.headers["x-cookie"] || "";
   if (!cookie) cookie = persistentCookies.qq || "";
   const uin = extractUinFromCookies(cookie);
-  console.log('[QQ Playlist] UIN from cookies:', uin, '| cookie present:', !!cookie);
+  const skey = parseCookieString(cookie).p_skey || '';
+  const gtk = getGTK(skey);
+  console.log('[QQ Playlist] UIN:', uin, '| skey:', !!skey, '| gtk:', gtk);
   if (!uin) {
     return res.json({ code: -1, error: 'No UIN in cookies' });
   }
   try {
-    // Fetch both created AND collected playlists (mirrors Mineradio-MacOS)
-    const createdUrl = `https://c.y.qq.com/rsc/fcgi-bin/fcg_user_created_diss?hostUin=0&hostuin=${uin}&sin=0&size=200&g_tk=5381&loginUin=${uin}&format=json&inCharset=utf8&outCharset=utf-8&notice=0&platform=yqq.json&needNewCode=0`;
+    const createdUrl = `https://c.y.qq.com/rsc/fcgi-bin/fcg_user_created_diss?hostUin=0&hostuin=${uin}&sin=0&size=200&g_tk=${gtk}&loginUin=${uin}&format=json&inCharset=utf8&outCharset=utf-8&notice=0&platform=yqq.json&needNewCode=0`;
     const collectUrl = `https://c.y.qq.com/fav/fcgi-bin/fcg_get_profile_order_asset.fcg?ct=20&cid=205360956&userid=${uin}&reqtype=3&sin=0&ein=80`;
 
     const [createdData, collectData] = await Promise.allSettled([
@@ -474,12 +487,12 @@ app.get("/api/qq/user/playlist", async (req, res) => {
   }
 });
 app.get("/api/qq/liked/songs", (req, res) => {
-  const cookie = req.headers["x-cookie"] || "";
+  let cookie = req.headers["x-cookie"] || "";
+  if (!cookie) cookie = persistentCookies.qq || "";
   const uin = extractUinFromCookies(cookie);
   if (!uin) {
     return res.json({ code: -1, error: 'No UIN in cookies' });
   }
-  // QQ 我喜欢 — use collected favorites API
   const url = `https://c.y.qq.com/fav/fcgi-bin/fcg_get_profile_order_asset.fcg?ct=20&cid=205360956&userid=${uin}&reqtype=3&sin=0&ein=80`;
   proxyRequest(url, res, { cookie, referer: 'https://y.qq.com/portal/profile.html' });
 });
