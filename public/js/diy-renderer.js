@@ -241,6 +241,7 @@
       var sysRow = document.createElement('div');
       sysRow.className = 'diy-setting-row';
       sysRow.style.borderBottom = 'none';
+      sysRow.style.display = 'flex';
       sysRow.style.justifyContent = 'flex-end';
       sysRow.style.padding = '16px 0 4px 0';
 
