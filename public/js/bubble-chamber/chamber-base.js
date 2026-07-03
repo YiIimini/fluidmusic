@@ -152,6 +152,8 @@
 
         queueArea.addEventListener('mousemove', (e) => {
           scheduleDockUpdate(e);
+          // Pause carousel when hovering a queue item
+          if (e.target.closest('.queue-item')) return;
           // Edge-triggered carousel scroll
           var rect = queueArea.getBoundingClientRect();
           var edgePct = 0.15; // 15% from edges triggers scroll

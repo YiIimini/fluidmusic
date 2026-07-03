@@ -33,12 +33,17 @@
       textRippleIntensity: 0.3,
       timeColor: '#f0c060',
       timeFontSize: 10,
+      clickRipple: false,
+      clickRippleSize: 120,
+      clickRippleSpeed: 0.8,
 
       // Playlist
       playlistStyle: 'default',
       playlistFontSize: 13,
       playlistTransparency: 0.15,
       playlistTextColor: '#e0d8c0',
+      activeLyricFontSize: 18,
+      inlineLyricMode: 'auto',  // auto | show
 
       // Controller
       volume: 0.7,
@@ -95,9 +100,12 @@
           { key: 'progressHeight', label: '进度条高度', type: 'range', min: 2, max: 8, step: 1, help: '进度条粗细。默认4px' },
           { key: 'progressRipple', label: '进度条水波纹', type: 'toggle', help: '进度条填充区域的光泽流动动效' },
           { key: 'progressRippleIntensity', label: '波纹强度', type: 'range', min: 0.1, max: 1, step: 0.1, help: '水波纹的明显程度' },
-          { type: 'section', label: '━━ 时间显示 ━━' },
-          { key: 'timeColor', label: '时间颜色', type: 'color', help: '播放时间的字体颜色' },
-          { key: 'timeFontSize', label: '时间字号', type: 'range', min: 8, max: 16, step: 1, help: '播放时间的字体大小。默认10px' },
+          { key: 'timeColor', label: '时间颜色', type: 'color', help: '播放时间字体颜色' },
+          { key: 'timeFontSize', label: '时间字号', type: 'range', min: 8, max: 16, step: 1, help: '播放时间字体大小' },
+          { type: 'section', label: '━━ 鼠标特效 ━━' },
+          { key: 'clickRipple', label: '点击水波纹', type: 'toggle', help: '鼠标点击触发水波纹扩散效果' },
+          { key: 'clickRippleSize', label: '波纹大小', type: 'range', min: 60, max: 300, step: 10, help: '水波纹扩散的最大直径(px)' },
+          { key: 'clickRippleSpeed', label: '涟漪速度', type: 'range', min: 0.3, max: 2.0, step: 0.1, help: '水波纹扩散速度(秒)' },
           { type: 'section', label: '━━ 悬浮仓 ━━' },
           { key: 'chamberOpacity', label: '仓透明度', type: 'range', min: 0.05, max: 0.5, step: 0.01, help: '四个悬浮仓的背景透明度' },
         ],
@@ -118,12 +126,14 @@
         fields: [
           { type: 'section', label: '━━ 歌词显示 ━━' },
           { key: 'lyricsVisibleLines', label: '显示行数', type: 'range', min: 0, max: 40, step: 1, help: '右侧歌词仓最大显示行数' },
-          { key: 'lyricsFontSize', label: '歌词字号', type: 'range', min: 10, max: 24, step: 1, help: '歌词字体大小' },
+          { key: 'lyricsFontSize', label: '歌词字号', type: 'range', min: 10, max: 24, step: 1, help: '未播放行歌词字体大小' },
+          { key: 'activeLyricFontSize', label: '当前歌词字号', type: 'range', min: 12, max: 30, step: 1, help: '当前播放句独立字号，默认比普通歌词大' },
           { key: 'lyricsColor', label: '歌词颜色', type: 'color', help: '歌词文字颜色' },
           { key: 'lyricsHighlightColor', label: '高亮颜色', type: 'color', help: '当前播放句高亮色' },
           { key: 'lyricsFadeStrength', label: '歌词淡化', type: 'range', min: 0, max: 1, step: 0.05, help: '淡化强度' },
           { key: 'lyricsEffect', label: '动态效果', type: 'select', options: { fade: '渐隐渐显', glow: '发光脉冲', typewriter: '逐字显现', none: '无效果' }, help: '歌词行切换过渡动画' },
           { type: 'section', label: '━━ 行内歌词 ━━' },
+          { key: 'inlineLyricMode', label: '显示模式', type: 'select', options: { auto: '自动（右仓关闭时显示）', show: '始终显示' }, help: '自动=右仓隐藏时显示行内歌词；始终=一直显示' },
           { key: 'inlineLyricColor', label: '行内歌词颜色', type: 'color', help: '中心核心区单行歌词颜色' },
           { key: 'inlineLyricFontSize', label: '行内歌词字号', type: 'range', min: 12, max: 22, step: 1, help: '行内歌词字号' },
         ],
@@ -262,17 +272,30 @@
       });
     }
     // Apply lyrics settings
-    // Playlist text color
+    // Playlist text color — also set CSS variable for new elements
     if (s.playlistTextColor) {
       document.documentElement.style.setProperty('--playlist-text-color', s.playlistTextColor);
-      document.querySelectorAll('.playlist-item-row, .pli-title, .pli-artist').forEach(function(el) {
-        el.style.color = s.playlistTextColor;
-      });
     }
     if (s.lyricsFontSize != null) {
       document.documentElement.style.setProperty('--lyric-font-size', s.lyricsFontSize + 'px');
-      var lines = document.querySelectorAll('.lyric-line');
+      var lines = document.querySelectorAll('.lyric-line:not(.active)');
       lines.forEach(function(l) { l.style.fontSize = s.lyricsFontSize + 'px'; });
+    }
+    if (s.activeLyricFontSize != null) {
+      document.documentElement.style.setProperty('--active-lyric-font-size', s.activeLyricFontSize + 'px');
+    }
+    // Inline lyric mode
+    if (s.inlineLyricMode) {
+      var il = document.getElementById('inline-lyric');
+      if (il) {
+        if (s.inlineLyricMode === 'show') {
+          il.style.display = '';
+          il.dataset.mode = 'show';
+        } else {
+          il.dataset.mode = 'auto';
+          // Auto mode: shown/hidden by bubble chamber logic
+        }
+      }
     }
     if (s.lyricsFadeStrength != null) {
       document.documentElement.style.setProperty('--lyric-fade', s.lyricsFadeStrength);
@@ -430,6 +453,22 @@
       document.body.style.fontFamily = s.globalFontFamily + ', sans-serif';
     } else if (s.globalFontFamily === 'inherit') {
       document.body.style.fontFamily = '';
+    }
+    // Click/Hover/Audio ripple
+    if (typeof s.clickRipple === 'boolean') {
+      if (typeof window._rippleSetEnabled === 'function') {
+        window._rippleSetEnabled(s.clickRipple);
+      } else if (s.clickRipple) {
+        document.addEventListener('click', window._clickRippleHandler);
+      } else {
+        document.removeEventListener('click', window._clickRippleHandler);
+      }
+    }
+    if (s.clickRippleSize != null) {
+      document.documentElement.style.setProperty('--ripple-size', s.clickRippleSize + 'px');
+    }
+    if (s.clickRippleSpeed != null) {
+      document.documentElement.style.setProperty('--ripple-speed', s.clickRippleSpeed + 's');
     }
     if (s.lyricsFontFamily && s.lyricsFontFamily !== 'inherit') {
       document.documentElement.style.setProperty('--lyric-font-family', s.lyricsFontFamily);
@@ -641,6 +680,10 @@
       document.getElementById('btn-clear-wallpaper').addEventListener('click', function() {
         localStorage.removeItem('fluidmusic-wallpaper');
         localStorage.removeItem('fluidmusic-has-bg-video');
+        // Also tell main process to delete the video file
+        if (typeof fluidmusic !== 'undefined' && typeof fluidmusic.clearBgVideo === 'function') {
+          fluidmusic.clearBgVideo();
+        }
         applyWallpaper(null);
         var wpLayer = document.getElementById('wallpaper-layer');
         if (wpLayer) { wpLayer.innerHTML = ''; wpLayer.classList.remove('loaded'); }

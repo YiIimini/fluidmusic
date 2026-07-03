@@ -75,6 +75,7 @@ contextBridge.exposeInMainWorld('fluidmusic', {
   // Wallpaper & video background
   pickWallpaper: () => ipcRenderer.invoke('fluidmusic-pick-wallpaper'),
   pickBgVideo: () => ipcRenderer.invoke('fluidmusic-pick-bg-video'),
+  clearBgVideo: () => ipcRenderer.invoke('fluidmusic-clear-bg-video'),
 
   // Settings persistence
   saveSettings: (settings) => ipcRenderer.invoke('fluidmusic-save-settings', settings),
