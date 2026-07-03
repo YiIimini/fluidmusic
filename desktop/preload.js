@@ -85,7 +85,7 @@ contextBridge.exposeInMainWorld('fluidmusic', {
 
 
   // Settings export/import
-  exportSettings: () => ipcRenderer.invoke('fluidmusic-export-settings', data),
+  exportSettings: () => ipcRenderer.invoke('fluidmusic-export-settings'),
   importSettings: () => ipcRenderer.invoke('fluidmusic-import-settings'),
   writeFile: (filePath, content) => ipcRenderer.invoke('fluidmusic-write-file', filePath, content),
 

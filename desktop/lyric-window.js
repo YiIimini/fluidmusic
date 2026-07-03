@@ -1,9 +1,9 @@
-import { BrowserWindow, screen } from 'electron';
-import path from 'path';
+const { BrowserWindow, screen } = require('electron');
+const path = require('path');
 
-let lyricWindow: BrowserWindow | null = null;
+let lyricWindow = null;
 
-export function createLyricWindow(parent: BrowserWindow): BrowserWindow {
+function createLyricWindow(parent) {
   if (lyricWindow && !lyricWindow.isDestroyed()) {
     lyricWindow.focus();
     return lyricWindow;
@@ -34,24 +34,26 @@ export function createLyricWindow(parent: BrowserWindow): BrowserWindow {
   lyricWindow.loadFile(path.join(__dirname, '../public/lyric.html'));
   lyricWindow.setVisibleOnAllWorkspaces(true);
 
-  lyricWindow.on('closed', () => { lyricWindow = null; });
+  lyricWindow.on('closed', function () { lyricWindow = null; });
 
   return lyricWindow;
 }
 
-export function sendLyricUpdate(text: string, nextText: string): void {
+function sendLyricUpdate(text, nextText) {
   if (lyricWindow && !lyricWindow.isDestroyed()) {
     lyricWindow.webContents.send('lyric-update', { text, nextText });
   }
 }
 
-export function closeLyricWindow(): void {
+function closeLyricWindow() {
   if (lyricWindow && !lyricWindow.isDestroyed()) {
     lyricWindow.close();
     lyricWindow = null;
   }
 }
 
-export function getLyricWindow(): BrowserWindow | null {
+function getLyricWindow() {
   return lyricWindow;
 }
+
+module.exports = { createLyricWindow, sendLyricUpdate, closeLyricWindow, getLyricWindow };

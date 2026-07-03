@@ -871,8 +871,6 @@ ipcMain.handle('fluidmusic-load-settings', async () => {
 // ── Settings Export / Import ──
 ipcMain.handle('fluidmusic-export-settings', async () => {
   const { dialog } = require('electron');
-  const fs = require('fs');
-  const path = require('path');
 
   const result = await dialog.showSaveDialog({
     title: '导出 FluidMusic 配置',
@@ -881,25 +879,7 @@ ipcMain.handle('fluidmusic-export-settings', async () => {
   });
 
   if (result.canceled || !result.filePath) return { ok: false, cancelled: true };
-
-  try {
-    // Gather all settings from localStorage-style data
-    const config = {
-      version: '1.0',
-      exportedAt: new Date().toISOString(),
-      settings: {},
-      wallpaper: null,
-      favorites: [],
-      customPlaylists: [],
-      syncedPlaylists: {},
-    };
-
-    // The renderer will send the actual data — this just creates the file
-    // For now, we return the path so the renderer can write to it
-    return { ok: true, filePath: result.filePath, write: true };
-  } catch (e) {
-    return { ok: false, error: e.message };
-  }
+  return { ok: true, filePath: result.filePath }
 });
 
 ipcMain.handle('fluidmusic-import-settings', async () => {
