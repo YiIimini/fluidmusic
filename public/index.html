@@ -81,15 +81,11 @@
       <div id="song-title">FluidMusic</div>
       <div id="song-artist">流体动态音乐播放器</div>
     </div>
-    <div id="spectrum-container" style="width:260px;height:56px;margin-top:2px;position:relative;overflow:visible;">
-      <canvas id="spectrum-canvas" style="width:100%;height:100%;"></canvas>
-    </div>
     <div style="display:flex;align-items:center;gap:6px;width:260px;margin-top:2px;">
       <span id="time-current" style="font-size:10px;color:var(--text-dim);font-variant-numeric:tabular-nums;min-width:32px;text-align:right;">0:00</span>
       <div id="progress-bar-container" style="flex:1;height:3px;">
         <div id="progress-bar-fill"></div>
         <div id="progress-bar-thumb"></div>
-        <div id="progress-bar-particles"></div>
       </div>
       <span id="time-duration" style="font-size:10px;color:var(--text-dim);font-variant-numeric:tabular-nums;min-width:32px;">0:00</span>
     </div>
@@ -260,13 +256,12 @@
   <div id="diy-panel">
     <div style="position:relative; display:flex; align-items:center; padding:0 20px;">
       <div id="diy-tabs">
-        <button class="diy-tab active" data-tab="visual">🎨 UI特效</button>
-        <button class="diy-tab" data-tab="system">⚙️ 系统</button>
-        <button class="diy-tab" data-tab="particle">🔮 粒子</button>
-        <button class="diy-tab" data-tab="spectrum">📊 频谱</button>
-        <button class="diy-tab" data-tab="lyricsTab">🎵 歌词</button>
+        <button class="diy-tab active" data-tab="particle">🔮 粒子</button>
+        <button class="diy-tab" data-tab="visual">🎨 特效</button>
         <button class="diy-tab" data-tab="playlist">📋 歌单</button>
+        <button class="diy-tab" data-tab="lyricsTab">🎵 歌词</button>
         <button class="diy-tab" data-tab="background">🖼 背景</button>
+        <button class="diy-tab" data-tab="system">⚙️ 系统</button>
       </div>
       <button id="diy-close">✕</button>
     </div>
@@ -324,7 +319,6 @@ window.onerror = function(msg, url, line) {
 <script src="js/renderer-manager.js"></script>
 <script src="js/fluid-bg.js"></script>
 <script src="js/particle-cover.js"></script>
-<script src="js/spectrum-3d.js"></script>
 <script src="js/bubble-chamber/chamber-base.js"></script>
 <script src="js/bubble-chamber/playlist-chamber.js"></script>
 <script src="js/bubble-chamber/lyric-chamber.js"></script>
