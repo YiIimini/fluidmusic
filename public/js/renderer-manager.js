@@ -19,6 +19,18 @@
     initialized: false,
   };
 
+  // Shader material cache — avoid recompilation
+  RendererManager._shaderCache = {};
+
+  RendererManager.getCachedMaterial = function(key, createFn) {
+    if (RendererManager._shaderCache[key]) {
+      return RendererManager._shaderCache[key];
+    }
+    var mat = createFn();
+    RendererManager._shaderCache[key] = mat;
+    return mat;
+  };
+
   function init() {
     if (RendererManager.initialized) return true;
     try {
