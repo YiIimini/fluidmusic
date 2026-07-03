@@ -405,13 +405,8 @@
 
   // ── Main render loop ──
   let _lowPowerMode = false;
-  // eslint-disable-next-line no-unused-vars
-  let _lastLowPowerRender = 0;
   let _lastUIUpdate = 0;
   
-  // LOW_POWER_FPS kept for future adaptive rendering
-// eslint-disable-next-line no-unused-vars
-  const LOW_POWER_FPS = 2;       // Render at 2fps when idle
   
 
   function isIdle() {
@@ -435,9 +430,7 @@
     if (!_lowPowerMode && wasLow) {
       lastTime = performance.now(); // reset dt to avoid jump
     }
-    if (_lowPowerMode && !wasLow) {
-      _lastLowPowerRender = performance.now(); // allow one immediate low-power frame
-    }
+
   }
 
   // Visibility changes (window hide/show)

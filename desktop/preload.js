@@ -83,6 +83,12 @@ contextBridge.exposeInMainWorld('fluidmusic', {
   sendLyrics: (text, nextText) => ipcRenderer.invoke('fluidmusic-send-lyrics', text, nextText),
   closeLyrics: () => ipcRenderer.invoke('fluidmusic-close-lyrics'),
 
+
+  // Settings export/import
+  exportSettings: () => ipcRenderer.invoke('fluidmusic-export-settings', data),
+  importSettings: () => ipcRenderer.invoke('fluidmusic-import-settings'),
+  writeFile: (filePath, content) => ipcRenderer.invoke('fluidmusic-write-file', filePath, content),
+
   // Settings persistence
   saveSettings: (settings) => ipcRenderer.invoke('fluidmusic-save-settings', settings),
   loadSettings: () => ipcRenderer.invoke('fluidmusic-load-settings'),
