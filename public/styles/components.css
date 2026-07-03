@@ -657,7 +657,7 @@
   background: linear-gradient(90deg, #d4a040, #f0c060);
   border-radius: 2px;
   box-shadow: 0 0 8px rgba(240,192,96,0.4);
-  transition: width 0.1s linear;
+  transition: width 0.15s ease-out;
 }
 #progress-bar-thumb {
   width: 12px; height: 12px;
@@ -716,7 +716,7 @@
     rgba(130,180,255,0.7) 40%,
     rgba(130,180,255,0.4) 100%);
   border-radius: 2px;
-  transition: width 0.1s linear;
+  transition: width 0.15s ease-out;
   position: relative;
 }
 #progress-bar-thumb {
@@ -1242,3 +1242,19 @@
   max-width: 300px; text-align: center;
   line-height: 1.5;
 }
+
+/* ── Toast Notifications ── */
+.toast-container {
+  position: fixed; top: 12px; left: 50%; transform: translateX(-50%);
+  z-index: 200; display: flex; flex-direction: column; gap: 6px;
+  pointer-events: none;
+}
+.toast {
+  padding: 8px 16px; border-radius: 10px; font-size: 13px;
+  background: rgba(10,10,24,0.9); color: #fff;
+  border: 1px solid rgba(255,255,255,0.1);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+  animation: toast-in 0.3s ease-out;
+  white-space: nowrap;
+}
+@keyframes toast-in { from { opacity:0; transform:translateY(-10px); } to { opacity:1; transform:translateY(0); } }
