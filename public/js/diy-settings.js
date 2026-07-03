@@ -36,6 +36,10 @@
       clickRipple: false,
       clickRippleSize: 120,
       clickRippleSpeed: 0.8,
+      songTitleColor: '#f0c060',
+      songTitleFontSize: 24,
+      songArtistColor: '#e0b050',
+      songArtistFontSize: 15,
 
       // Playlist
       playlistStyle: 'default',
@@ -92,16 +96,6 @@
       visual: {
         title: '🎨 UI特效',
         fields: [
-          { type: 'section', label: '━━ 文字水波纹 ━━' },
-          { key: 'textRipple', label: '文字水波纹', type: 'toggle', help: '歌名、作者、单行歌词的光泽流动效果' },
-          { key: 'textRippleIntensity', label: '文字波纹强度', type: 'range', min: 0.1, max: 1, step: 0.1, help: '文字水波纹的明显程度' },
-          { type: 'section', label: '━━ 进度条 ━━' },
-          { key: 'progressColor', label: '进度条颜色', type: 'color', help: '进度条填充和拖拽圆点的颜色' },
-          { key: 'progressHeight', label: '进度条高度', type: 'range', min: 2, max: 8, step: 1, help: '进度条粗细。默认4px' },
-          { key: 'progressRipple', label: '进度条水波纹', type: 'toggle', help: '进度条填充区域的光泽流动动效' },
-          { key: 'progressRippleIntensity', label: '波纹强度', type: 'range', min: 0.1, max: 1, step: 0.1, help: '水波纹的明显程度' },
-          { key: 'timeColor', label: '时间颜色', type: 'color', help: '播放时间字体颜色' },
-          { key: 'timeFontSize', label: '时间字号', type: 'range', min: 8, max: 16, step: 1, help: '播放时间字体大小' },
           { type: 'section', label: '━━ 鼠标特效 ━━' },
           { key: 'clickRipple', label: '点击水波纹', type: 'toggle', help: '鼠标点击触发水波纹扩散效果' },
           { key: 'clickRippleSize', label: '波纹大小', type: 'range', min: 60, max: 300, step: 10, help: '水波纹扩散的最大直径(px)' },
@@ -111,7 +105,7 @@
         ],
       },
       particle: {
-        title: '🔮 粒子封面',
+        title: '🎵 封面',
         fields: [
           { type: 'section', label: '━━ 粒子封面 ━━' },
           { key: 'enableParticleCover', label: '启用粒子封面', type: 'toggle', help: '3D粒子化专辑封面，关闭后显示静态缩略图' },
@@ -119,6 +113,21 @@
           { key: 'particleScatterStrength', label: '散落强度', type: 'range', min: 0, max: 1, step: 0.05, help: '切歌时粒子散开的力度' },
           { key: 'particleSensitivity', label: '律动灵敏度', type: 'range', min: 0, max: 1, step: 0.05, help: '粒子对音频节奏的响应程度' },
           { key: 'particleRotationSpeed', label: '旋转速度', type: 'range', min: 0, max: 2, step: 0.1, help: '鼠标拖拽松手后的自动旋转速度' },
+          { type: 'section', label: '━━ 歌曲信息 ━━' },
+          { key: 'songTitleColor', label: '歌名颜色', type: 'color', help: '歌曲名称字体颜色' },
+          { key: 'songTitleFontSize', label: '歌名字号', type: 'range', min: 16, max: 36, step: 1, help: '歌曲名称字体大小' },
+          { key: 'songArtistColor', label: '歌手颜色', type: 'color', help: '歌手名称字体颜色' },
+          { key: 'songArtistFontSize', label: '歌手字号', type: 'range', min: 11, max: 22, step: 1, help: '歌手名称字体大小' },
+          { type: 'section', label: '━━ 进度条 ━━' },
+          { key: 'progressColor', label: '进度条颜色', type: 'color', help: '进度条填充和拖拽圆点的颜色' },
+          { key: 'progressHeight', label: '进度条高度', type: 'range', min: 2, max: 8, step: 1, help: '进度条粗细' },
+          { key: 'progressRipple', label: '进度条水波纹', type: 'toggle', help: '进度条光泽流动动效' },
+          { key: 'progressRippleIntensity', label: '波纹强度', type: 'range', min: 0.1, max: 1, step: 0.1, help: '水波纹明显程度' },
+          { key: 'timeColor', label: '时间颜色', type: 'color', help: '播放时间字体颜色' },
+          { key: 'timeFontSize', label: '时间字号', type: 'range', min: 8, max: 16, step: 1, help: '播放时间字体大小' },
+          { type: 'section', label: '━━ 文字水波纹 ━━' },
+          { key: 'textRipple', label: '文字水波纹', type: 'toggle', help: '歌名、作者、单行歌词的光泽流动效果' },
+          { key: 'textRippleIntensity', label: '文字波纹强度', type: 'range', min: 0.1, max: 1, step: 0.1, help: '文字水波纹的明显程度' },
         ],
       },
       lyricsTab: {
@@ -144,6 +153,9 @@
           { type: 'section', label: '━━ 歌单列表 ━━' },
           { key: 'playlistTextColor', label: '文字颜色', type: 'color', help: '左侧歌单列表文字颜色' },
           { key: 'playlistFontSize', label: '字号', type: 'range', min: 12, max: 18, step: 1, help: '列表字体大小' },
+          { type: 'section', label: '━━ 音频 ━━' },
+          { key: 'volume', label: '音乐音量', type: 'range', min: 0, max: 1, step: 0.05, help: '应用全局音量' },
+          { key: 'playMode', label: '播放模式', type: 'select', options: { sequential: '顺序播放', random: '随机播放', single: '单曲循环' }, help: '默认播放模式' },
         ],
       },
       background: {
@@ -157,6 +169,7 @@
           { type: 'section', label: '━━ 背景图片/视频 ━━' },
           { key: 'wallpaperOpacity', label: '背景透明度', type: 'range', min: 0, max: 1, step: 0.05, help: '背景的显示透明度' },
           { key: 'wallpaperRippleSpeed', label: '水波纹速度', type: 'range', min: 0.2, max: 2, step: 0.1, help: '背景上叠加的水波纹速度' },
+          { key: 'wallpaperBlur', label: '背景模糊', type: 'range', min: 0, max: 40, step: 1, help: '背景图片/视频的高斯模糊程度（像素）。0=清晰原图' },
         ],
       },
       system: {
@@ -182,8 +195,6 @@
           { type: 'section', label: '━━ 字体 ━━' },
           { key: 'globalFontFamily', label: '全局字体', type: 'select', options: { 'inherit': '系统默认', 'PingFang SC': '苹方', 'SF Pro Text': 'SF Pro', 'Helvetica Neue': 'Helvetica', 'Microsoft YaHei': '微软雅黑' }, help: '除歌词外的全局字体' },
           { key: 'lyricsFontFamily', label: '歌词字体', type: 'select', options: { 'inherit': '系统默认', 'PingFang SC': '苹方', 'KaiTi': '楷体', 'Songti SC': '宋体', 'Heiti SC': '黑体' }, help: '歌词仓独立字体' },
-          { type: 'section', label: '━━ 背景 ━━' },
-          { key: 'wallpaperBlur', label: '背景模糊', type: 'range', min: 0, max: 40, step: 1, help: '背景图片/视频的高斯模糊程度（像素）。0=清晰原图' },
         ],
       },
     },
@@ -235,6 +246,14 @@
     if (typeof FluidBackground !== 'undefined') {
       if (s.bgIntensity != null) FluidBackground.setIntensity(s.bgIntensity);
       if (s.bgSpeed != null) FluidBackground.setSpeed(s.bgSpeed);
+    }
+    // Toggle fluid background layer visibility
+    if (typeof s.enableFluidBg === 'boolean') {
+      var lbg = document.getElementById('layer-bg');
+      if (lbg) {
+        if (s.enableFluidBg) lbg.classList.add('fluid-active');
+        else lbg.classList.remove('fluid-active');
+      }
     }
     // Background quality
     if (typeof FluidBackground !== 'undefined' && s.bgNoiseScale != null) {
@@ -382,6 +401,23 @@
       if (tc) tc.style.fontSize = s.timeFontSize + 'px';
       if (td) td.style.fontSize = s.timeFontSize + 'px';
     }
+    // Song title/artist customization
+    if (s.songTitleColor) {
+      var st = document.getElementById('song-title');
+      if (st) st.style.color = s.songTitleColor;
+    }
+    if (s.songTitleFontSize != null) {
+      var st = document.getElementById('song-title');
+      if (st) st.style.fontSize = s.songTitleFontSize + 'px';
+    }
+    if (s.songArtistColor) {
+      var sa = document.getElementById('song-artist');
+      if (sa) sa.style.color = s.songArtistColor;
+    }
+    if (s.songArtistFontSize != null) {
+      var sa = document.getElementById('song-artist');
+      if (sa) sa.style.fontSize = s.songArtistFontSize + 'px';
+    }
     // Text water ripple
     if (typeof s.textRipple === 'boolean') {
       document.documentElement.style.setProperty('--text-ripple-opacity', s.textRippleIntensity || 0.3);
@@ -495,7 +531,7 @@
     progressRipple: false, progressRippleIntensity: 0.5, timeColor: '#f0c060', timeFontSize: 10,
   };
 
-  function renderTab(tabId) {
+  function renderTab(tabId) { console.log("[renderTab] tabId:", tabId, "config:", DIYSettings.tabConfigs[tabId] ? DIYSettings.tabConfigs[tabId].title : "NOT FOUND");
     const container = document.getElementById('diy-content');
     const config = DIYSettings.tabConfigs[tabId];
     if (!container || !config) return;
@@ -678,60 +714,66 @@
       document.getElementById('btn-clear-wallpaper').addEventListener('click', function() {
         localStorage.removeItem('fluidmusic-wallpaper');
         localStorage.removeItem('fluidmusic-has-bg-video');
-        // Also tell main process to delete the video file
         if (typeof fluidmusic !== 'undefined' && typeof fluidmusic.clearBgVideo === 'function') {
           fluidmusic.clearBgVideo();
         }
+        // Reset wallpaper layer to pristine first-launch state
         applyWallpaper(null);
         var wpLayer = document.getElementById('wallpaper-layer');
-        if (wpLayer) { wpLayer.innerHTML = ''; wpLayer.classList.remove('loaded'); }
-        if (typeof showToast !== 'undefined') showToast('🗑 背景已清除');
+        if (wpLayer) {
+          wpLayer.innerHTML = '';
+          wpLayer.classList.remove('loaded');
+          wpLayer.style.opacity = '0';
+          wpLayer.style.backgroundImage = '';
+          wpLayer.style.backgroundColor = '';
+        }
+        // Reset wallpaper settings to defaults
+        DIYSettings.settings.wallpaperOpacity = 0.3;
+        DIYSettings.settings.wallpaperBlur = 20;
+        DIYSettings.settings.wallpaperRippleSpeed = 1.0;
+        document.documentElement.style.setProperty('--wallpaper-opacity', '0.3');
+        document.documentElement.style.setProperty('--wallpaper-blur', '20px');
+        saveSettings();
+        applySettings();
+        if (typeof showToast !== 'undefined') showToast('🗑 背景已清除，恢复默认');
         updateThumb();
       });
 
-      const sysRow = document.createElement('div');
+    }
+
+    // System tab: restore defaults button at bottom
+    if (tabId === 'system') {
+      var sysRow = document.createElement('div');
       sysRow.className = 'diy-setting-row';
       sysRow.style.borderBottom = 'none';
-      sysRow.style.gap = '8px';
       sysRow.style.justifyContent = 'flex-end';
+      sysRow.style.padding = '16px 0 4px 0';
 
-      const restoreBtn = document.createElement('button');
+      var restoreBtn = document.createElement('button');
       restoreBtn.className = 'user-panel-btn';
       restoreBtn.textContent = '↺ 恢复默认';
       restoreBtn.title = '将所有设置恢复为默认值';
-      restoreBtn.addEventListener('click', () => {
-        showCustomDialog('恢复默认设置', '确定将所有设置恢复为默认值？此操作不可撤销。', [
-          { text: '取消', style: 'secondary' },
-          { text: '恢复默认', style: 'danger', action: () => {
-            Object.assign(DIYSettings.settings, JSON.parse(JSON.stringify(DEFAULT_SETTINGS)));
-            saveSettings();
-            applySettings();
-            renderTab('system');
-            showToast('✅ 已恢复默认设置');
-          }}
-        ]);
-      });
-
-      const cacheBtn = document.createElement('button');
-      cacheBtn.className = 'user-panel-btn logout';
-      cacheBtn.textContent = '🗑 清理缓存';
-      cacheBtn.title = '清除登录状态和所有本地数据';
-      cacheBtn.addEventListener('click', () => {
-        if (confirm('确定清理所有缓存？将清除登录状态和本地设置。')) {
-          if (typeof Favorites !== 'undefined') Favorites.clear();
-          localStorage.clear();
-          if (typeof fluidmusic !== 'undefined') {
-            fluidmusic.logoutPlatform('netease').catch(() => {});
-            fluidmusic.logoutPlatform('qq').catch(() => {});
-
-          }
-          alert('缓存已清理，请重启应用。');
+      restoreBtn.addEventListener('click', function() {
+        if (typeof showCustomDialog === 'function') {
+          showCustomDialog('恢复默认设置', '确定将所有设置恢复为默认值？此操作不可撤销。', [
+            { text: '取消', style: 'secondary' },
+            { text: '恢复默认', style: 'danger', action: function() {
+              Object.assign(DIYSettings.settings, JSON.parse(JSON.stringify(DEFAULT_SETTINGS)));
+              saveSettings();
+              applySettings();
+              renderTab('system');
+              if (typeof showToast !== 'undefined') showToast('✅ 已恢复默认设置');
+            }}
+          ]);
+        } else if (confirm('确定将所有设置恢复为默认值？')) {
+          Object.assign(DIYSettings.settings, JSON.parse(JSON.stringify(DEFAULT_SETTINGS)));
+          saveSettings();
+          applySettings();
+          renderTab('system');
+          if (typeof showToast !== 'undefined') showToast('✅ 已恢复默认设置');
         }
       });
-
       sysRow.appendChild(restoreBtn);
-      // Cache button hidden per user request
-      // sysRow.appendChild(cacheBtn);
       container.appendChild(sysRow);
     }
 

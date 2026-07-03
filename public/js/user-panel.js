@@ -88,7 +88,7 @@
     switchTab(UserPanel.activeTab);
   }
 
-  function renderTabContent(platform) {
+  function renderTabContent(platform) { console.log("[UserPanel] renderTabContent platform:", platform, "loggedIn:", typeof ApiBridge !== "undefined" ? ApiBridge[platform + "LoggedIn"] : "ApiBridge未定义", "user:", typeof ApiBridge !== "undefined" ? JSON.stringify(ApiBridge[platform + "User"]) : "N/A");
     const content = document.getElementById('user-content');
     if (!content) return;
 
@@ -119,10 +119,10 @@
       }
 
       content.innerHTML = `
-        <div class="user-panel-row ${cssClass}">
+        <div class="user-panel-row ${cssClass}" style="color:#fff !important">
           ${avatarHtml}
           <div class="user-panel-info">
-            <span class="user-panel-nick">${escHtml(nickname)}</span>
+            <span class="user-panel-nick" style="color:#fff !important;font-size:16px;">${escHtml(nickname)}</span>
             <span class="user-panel-meta">
               <span class="user-panel-platform-tag ${cssClass}">${icons[platform]} ${names[platform]}</span>
               ${vipBadge}

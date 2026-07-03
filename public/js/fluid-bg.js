@@ -61,13 +61,13 @@
 
       // Precompute noise lookup table — replaces 5-octave realtime FBM
       var noiseCanvas = document.createElement('canvas');
-      noiseCanvas.width = 256;
-      noiseCanvas.height = 256;
+      noiseCanvas.width = 512;
+      noiseCanvas.height = 512;
       var nctx = noiseCanvas.getContext('2d');
-      var noiseData = nctx.createImageData(256, 256);
-      for (var y = 0; y < 256; y++) {
-        for (var x = 0; x < 256; x++) {
-          var idx = (y * 256 + x) * 4;
+      var noiseData = nctx.createImageData(512, 512);
+      for (var y = 0; y < 512; y++) {
+        for (var x = 0; x < 512; x++) {
+          var idx = (y * 512 + x) * 4;
           // Simple hash-based noise (faster than sin/cos in JS)
           var nx = (x * 0.01 + y * 0.007);
           var ny = (y * 0.01 - x * 0.007);
@@ -103,7 +103,7 @@
         'varying vec2 vUv;',
         'float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}',
         'float noise(vec2 p){vec2 i=floor(p);vec2 f=fract(p);f=f*f*(3.0-2.0*f);float a=hash(i);float b=hash(i+vec2(1.0,0.0));float c=hash(i+vec2(0.0,1.0));float d=hash(i+vec2(1.0,1.0));return mix(mix(a,b,f.x),mix(c,d,f.x),f.y);}',
-        'float fbm(vec2 p){return texture2D(uNoiseTex,p*0.3).r;}',
+        'float fbm(vec2 p){float n=0.0;n+=texture2D(uNoiseTex,p*0.3).r*0.5;n+=texture2D(uNoiseTex,p*0.7+0.3).r*0.3;n+=texture2D(uNoiseTex,p*1.5+0.7).r*0.15;n+=texture2D(uNoiseTex,p*3.0+1.1).r*0.05;return n;}',
         'void main(){',
         'vec2 uv=gl_FragCoord.xy/uResolution;vec2 c=uv-vec2(0.5);float ar=uResolution.x/uResolution.y;vec2 uva=vec2(c.x*ar,c.y);float d=length(uva);',
         'float r1=sin(d*15.0-uTime*uSpeed*0.6)*0.5+0.5;r1*=smoothstep(1.0,0.0,d)*0.3;',

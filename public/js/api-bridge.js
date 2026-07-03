@@ -58,8 +58,9 @@
     }
 
     const headers = {};
-    if (platform && cookieStore[platform]) {
-      headers['x-cookie'] = cookieStore[platform];
+    // Always send platform — server falls back to persistent cookies
+    if (platform) {
+      headers['x-cookie'] = cookieStore[platform] || '';
       headers['x-platform'] = platform;
     }
 
@@ -96,13 +97,21 @@
         if (status.qq) {
           ApiBridge.qqLoggedIn = status.qq.loggedIn || false;
           cookieStore.qq = status.qq.cookie || '';
+          if (!cookieStore.qq && typeof fluidmusic !== 'undefined' && fluidmusic.getCookies) {
+            try {
+              const cookies = await fluidmusic.getCookies();
+              if (cookies && cookies.qq) cookieStore.qq = cookies.qq;
+            } catch(e) {}
+          }
+          if (ApiBridge.qqLoggedIn) {
+            ApiBridge.qqUser = { avatarUrl: '', nickname: 'QQ用户', vipLevel: 0, followers: 0, followings: 0, playlistCount: 0 };
+          }
         }
 
-        console.log('Login status loaded — netease:', ApiBridge.neteaseLoggedIn, 'qq:', ApiBridge.qqLoggedIn, '(kugou disabled)');
+        console.log('Login status loaded — netease:', ApiBridge.neteaseLoggedIn, 'qq:', ApiBridge.qqLoggedIn, 'qqCookie:', !!cookieStore.qq);
 
-        // Fetch user profiles if already logged in (for UserPanel display)
         if (ApiBridge.neteaseLoggedIn) await fetchNeteaseUserDetail();
-        if (ApiBridge.qqLoggedIn) await fetchQQUserDetail();
+        if (ApiBridge.qqLoggedIn) fetchQQUserDetail();
               }
     } catch (e) {
       console.warn('Failed to get login status:', e);
@@ -118,7 +127,10 @@
         cookieStore[platform] = cookie || '';
 
         if (loggedIn) {
-          // Re-fetch profile for UserPanel
+          // Set default user immediately so UserPanel shows login state
+          if (!ApiBridge[platform + 'User']) {
+            ApiBridge[platform + 'User'] = { avatarUrl: '', nickname: (platform === 'qq' ? 'QQ用户' : '网易云用户'), vipLevel: 0, followers: 0, followings: 0, playlistCount: 0 };
+          }
           if (platform === 'netease') fetchNeteaseUserDetail();
           else if (platform === 'qq') fetchQQUserDetail();
                     // Trigger playlist re-sync
@@ -263,24 +275,28 @@
 
   // ── QQ User Detail ──
   async function fetchQQUserDetail() {
+    // Default user — shows QQ is logged in even if profile API fails
+    if (!ApiBridge.qqUser) {
+      ApiBridge.qqUser = { avatarUrl: '', nickname: 'QQ用户', vipLevel: 0, followers: 0, followings: 0, playlistCount: 0 };
+    }
     try {
       const data = await fetchApi('/api/qq/user/detail', {}, 'qq', 'GET');
-      // fcg_get_profile_homepage.fcg response: { code:0, data:{ creator:{ nick, headpic, ... } } }
+      console.log('[fetchQQUserDetail] API response:', JSON.stringify(data).substring(0, 300));
       if (data && data.code === 0 && data.data) {
         const creator = data.data.creator || data.data;
-        ApiBridge.qqUser = {
-          avatarUrl: (creator.headpic || creator.avatar || creator.avatarUrl || '').replace(/^http:/, 'https:'),
-          nickname: creator.nick || creator.nickname || 'QQ用户',
-          vipLevel: (data.data.vipInfo && data.data.vipInfo.vipType) || 0,
-          followers: creator.fanscnt || creator.followers || 0,
-          followings: creator.followcnt || creator.followings || 0,
-          playlistCount: creator.dissnum || creator.playlistCount || 0,
-        };
+        const nick = creator.nick || creator.nickname || creator.name || '';
+        const headpic = (creator.headpic || creator.avatar || creator.avatarUrl || '').replace(/^http:/, 'https:');
+        if (nick) ApiBridge.qqUser.nickname = nick;
+        if (headpic) ApiBridge.qqUser.avatarUrl = headpic;
+        ApiBridge.qqUser.vipLevel = (data.data.vipInfo && data.data.vipInfo.vipType) || 0;
+        ApiBridge.qqUser.followers = creator.fanscnt || creator.followers || 0;
+        ApiBridge.qqUser.followings = creator.followcnt || creator.followings || 0;
+        ApiBridge.qqUser.playlistCount = creator.dissnum || creator.playlistCount || 0;
       }
       return ApiBridge.qqUser;
     } catch (e) {
       console.warn('Failed to fetch QQ user detail:', e);
-      return null;
+      return ApiBridge.qqUser;
     }
   }
 

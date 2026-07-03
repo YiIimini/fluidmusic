@@ -52,8 +52,13 @@ float noise(vec2 p) {
 }
 
 float fbm(vec2 p) {
-  // Use precomputed noise texture — single sample vs 5 octaves
-  return texture2D(uNoiseTex, p * 0.3).r;
+  // Multi-sample noise texture to simulate octaves (no realtime FBM needed)
+  float n = 0.0;
+  n += texture2D(uNoiseTex, p * 0.3).r * 0.5;
+  n += texture2D(uNoiseTex, p * 0.7 + 0.3).r * 0.3;
+  n += texture2D(uNoiseTex, p * 1.5 + 0.7).r * 0.15;
+  n += texture2D(uNoiseTex, p * 3.0 + 1.1).r * 0.05;
+  return n;
 }
 
 void main() {

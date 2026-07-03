@@ -423,20 +423,20 @@ app.get('/api/qq/song/url', (req, res) => {
 });
 
 app.get("/api/qq/user/detail", (req, res) => {
-  const cookie = req.headers["x-cookie"] || "";
-  // Decode p_uin from cookie to get raw QQ UIN
+  let cookie = req.headers["x-cookie"] || "";
+  if (!cookie) cookie = persistentCookies.qq || "";
   const uin = extractUinFromCookies(cookie);
   console.log('[QQ UserDetail] UIN from cookies:', uin, '| cookie present:', !!cookie);
   if (!uin) {
     return res.json({ code: -1, error: 'No UIN in cookies' });
   }
-  // Mineradio-style REST API for QQ profile — works with p_skey cookies
   const url = `https://c.y.qq.com/rsc/fcgi-bin/fcg_get_profile_homepage.fcg?cid=205360838&userid=${uin}&reqfrom=1&g_tk=5381&loginUin=${uin}&hostUin=0&format=json&inCharset=utf8&outCharset=utf-8&notice=0&platform=yqq.json&needNewCode=0`;
   proxyRequest(url, res, { cookie, referer: 'https://y.qq.com/' });
 });
 
 app.get("/api/qq/user/playlist", async (req, res) => {
-  const cookie = req.headers["x-cookie"] || "";
+  let cookie = req.headers["x-cookie"] || "";
+  if (!cookie) cookie = persistentCookies.qq || "";
   const uin = extractUinFromCookies(cookie);
   console.log('[QQ Playlist] UIN from cookies:', uin, '| cookie present:', !!cookie);
   if (!uin) {
