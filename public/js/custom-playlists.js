@@ -109,6 +109,7 @@
     return CustomPlaylists.playlists;
   }
 
+  // eslint-disable-next-line no-unused-vars
   function getTrackCount(playlistId) {
     const pl = getPlaylist(playlistId);
     return pl ? pl.tracks.length : 0;

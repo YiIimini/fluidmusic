@@ -480,7 +480,7 @@
       });
     },
 
-    renderTrackList(tracks, currentIndex, sourcePlaylist) {
+    renderTrackList(tracks, currentIndex, _sourcePlaylist) {
       const container = document.getElementById('playlist-items');
       if (!container) return;
 

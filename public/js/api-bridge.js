@@ -306,20 +306,11 @@
   }
 
   // ── Kugou User Detail (disabled — Kugou API blocked by WAF) ──
-  async function fetchKugouUserDetail() {
-    ApiBridge.kugouUser = {
-      avatarUrl: '',
-      nickname: '酷狗用户',
-      vipType: 0,
-      followers: 0,
-      followings: 0,
-      playlistCount: 0,
-    };
-    return ApiBridge.kugouUser;
-  }
-  async function fetchKugouPlaylists() {
-    return [];
-  }
+  // Kugou support disabled (API blocked by WAF)
+  /* eslint-disable no-unused-vars */
+  async function fetchKugouUserDetail() { return null; }
+  async function fetchKugouPlaylists() { return []; }
+  /* eslint-enable no-unused-vars */
   async function fetchUserPlaylists() {
     const playlists = { netease: [], qq: [] };
 

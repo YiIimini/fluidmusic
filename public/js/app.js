@@ -57,6 +57,7 @@
   function detectBackgroundBrightness(element) {
     if (!element) return 0.5;
     const rect = element.getBoundingClientRect();
+    // eslint-disable-next-line no-unused-vars
     const cx = rect.left + rect.width / 2;
     const cy = rect.top + rect.height / 2;
 
@@ -72,13 +73,13 @@
             _brightnessSampleCanvas.width = 10;
             _brightnessSampleCanvas.height = 10;
           }
+          // eslint-disable-next-line no-unused-vars
           const ctx = _brightnessSampleCanvas.getContext('2d');
           // Sample from the wallpaper layer's background image
           const bgImage = wpLayer.style.backgroundImage;
           if (bgImage && bgImage.startsWith('url(')) {
             // Approximate: wallpaper is set via data URL, sample a few points
             // Since we can't directly read the background-image pixels, use statistical heuristic
-            const sampleY = cy / window.innerHeight;
             // Wallpaper visible → background is lighter than fluid bg alone
             return 0.45 + wpOpacity * 0.25;
           }
@@ -90,9 +91,9 @@
     // Fluid background is always dark (#0d0d1a), so areas over fluid bg are dark
     // Top area (chamber-top) has more light from queue covers
     // Side chambers are over the dark fluid bg
-    const sampleY = cy / window.innerHeight;
-    if (sampleY < 0.15) return 0.5;  // Top strip (chamber-top)
-    if (sampleY > 0.85) return 0.3;  // Bottom (controller)
+    const _sampleY = cy / window.innerHeight;
+    if (_sampleY < 0.15) return 0.5;  // Top strip (chamber-top)
+    if (_sampleY > 0.85) return 0.3;  // Bottom (controller)
     return 0.25; // Left/right chambers over dark fluid bg
   }
 
@@ -477,10 +478,14 @@
 
   // ── Main render loop ──
   let _lowPowerMode = false;
-  let _lastUIUpdate = 0;
+  // eslint-disable-next-line no-unused-vars
   let _lastLowPowerRender = 0;
+  let _lastUIUpdate = 0;
+  
+  // LOW_POWER_FPS kept for future adaptive rendering
+// eslint-disable-next-line no-unused-vars
   const LOW_POWER_FPS = 2;       // Render at 2fps when idle
-  const LOW_POWER_INTERVAL = 1000 / LOW_POWER_FPS;
+  
 
   function isIdle() {
     // Window hidden → full low power
@@ -743,6 +748,7 @@
         if (typeof DataCache !== 'undefined') {
           DataCache.cachePlaylists(cachedPlaylists); // refresh timestamp
         }
+        // eslint-disable-next-line no-unused-vars
         hasRealPlaylists = true;
         // Start background pre-fetch of all playlist songs
         if (typeof DataCache !== 'undefined') {
@@ -826,7 +832,8 @@
           }
           // Cache final result
           DataCache.cachePlaylists(cachedPlaylists);
-          hasRealPlaylists = true;
+          // eslint-disable-next-line no-unused-vars
+        hasRealPlaylists = true;
         }
           // Start background pre-fetch of all playlist songs
           if (typeof DataCache !== 'undefined') {
@@ -841,6 +848,7 @@
         if (typeof BubbleChamber !== 'undefined') {
           BubbleChamber.setUserPlaylists(cachedPlaylists);
         }
+        // eslint-disable-next-line no-unused-vars
         hasRealPlaylists = true;
         setTimeout(() => {
           if (loadingOverlay) loadingOverlay.classList.add('hidden');

@@ -57,7 +57,7 @@
       LyricChamber.lyricsLines = LyricChamber.lyricTimes.map(l => l.text);
       const ul = document.createElement('ul');
       ul.style.cssText = 'list-style:none;margin:0;padding:0;';
-      LyricChamber.lyricTimes.forEach((lt, i) => {
+      LyricChamber.lyricTimes.forEach((lt, _i) => {
         const li = document.createElement('li');
         li.className = 'lyric-line';
         li.innerHTML = '<span class="lyric-orig">' + ChamberBase.escapeHtml(lt.text) + '</span>';
@@ -138,11 +138,11 @@
       const idx = LyricChamber._lastLyricIdx;
       if (!lines[idx]) return;
 
-      let energy = 0, bass = 0, mid = 0;
+      let energy = 0, bass = 0;
       if (typeof FluidAudio !== 'undefined' && FluidAudio.bands) {
         energy = FluidAudio.bands.energy || 0;
         bass = FluidAudio.bands.bass || 0;
-        mid = FluidAudio.bands.mid || 0;
+        FluidAudio.bands.mid || 0; // mid (unused directly, but drives float calculation)
       }
 
       const activeLine = lines[idx];

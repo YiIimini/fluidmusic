@@ -336,7 +336,7 @@
     }
     if (s.lyricsEffect) {
       document.documentElement.style.setProperty('--lyric-effect', s.lyricsEffect);
-      var lc = document.getElementById('lyrics-container');
+      lc = document.getElementById('lyrics-container');
       if (lc) {
         lc.classList.remove('lyric-effect-fade','lyric-effect-glow','lyric-effect-typewriter','lyric-effect-none');
         if (s.lyricsEffect !== 'fade') lc.classList.add('lyric-effect-' + s.lyricsEffect);
@@ -344,7 +344,7 @@
     }
     // Lyrics visible lines limit
     if (s.lyricsVisibleLines != null) {
-      var lc = document.getElementById('lyrics-container');
+      lc = document.getElementById('lyrics-container');
       if (lc) {
         lc.style.maxHeight = (s.lyricsVisibleLines > 0) ? (s.lyricsVisibleLines * 28 + 'px') : '';
       }
@@ -352,12 +352,12 @@
     // Inline lyric customization
     if (s.inlineLyricColor) {
       document.documentElement.style.setProperty('--inline-lyric-color', s.inlineLyricColor);
-      var il = document.getElementById('inline-lyric');
+      il = document.getElementById('inline-lyric');
       if (il) il.style.color = s.inlineLyricColor;
     }
     if (s.inlineLyricFontSize != null) {
       document.documentElement.style.setProperty('--inline-lyric-size', s.inlineLyricFontSize + 'px');
-      var il = document.getElementById('inline-lyric');
+      il = document.getElementById('inline-lyric');
       if (il) il.style.fontSize = s.inlineLyricFontSize + 'px';
     }
     // Progress bar customization
@@ -373,7 +373,7 @@
     }
     // Progress bar water ripple
     if (typeof s.progressRipple === 'boolean') {
-      var pf = document.getElementById('progress-bar-fill');
+      pf = document.getElementById('progress-bar-fill');
       if (pf) {
         if (s.progressRipple) {
           pf.classList.add('ripple');
@@ -396,8 +396,8 @@
       if (td) td.style.color = s.timeColor;
     }
     if (s.timeFontSize != null) {
-      var tc = document.getElementById('time-current');
-      var td = document.getElementById('time-duration');
+      tc = document.getElementById('time-current');
+      td = document.getElementById('time-duration');
       if (tc) tc.style.fontSize = s.timeFontSize + 'px';
       if (td) td.style.fontSize = s.timeFontSize + 'px';
     }
@@ -407,7 +407,7 @@
       if (st) st.style.color = s.songTitleColor;
     }
     if (s.songTitleFontSize != null) {
-      var st = document.getElementById('song-title');
+      st = document.getElementById('song-title');
       if (st) st.style.fontSize = s.songTitleFontSize + 'px';
     }
     if (s.songArtistColor) {
@@ -415,7 +415,7 @@
       if (sa) sa.style.color = s.songArtistColor;
     }
     if (s.songArtistFontSize != null) {
-      var sa = document.getElementById('song-artist');
+      sa = document.getElementById('song-artist');
       if (sa) sa.style.fontSize = s.songArtistFontSize + 'px';
     }
     // Text water ripple
@@ -780,12 +780,12 @@
           }
         } else if (this.type === 'range') {
           val = parseFloat(this.value);
-          var row = this.closest('.diy-setting-row');
-          if (row) { var d = row.querySelector('.diy-val'); if (d) d.textContent = val; }
+          var rowEl2 = this.closest('.diy-setting-row');
+          if (rowEl2) { var valEl = rowEl2.querySelector('.diy-val'); if (valEl) valEl.textContent = val; }
         } else if (this.type === 'color') {
           val = this.value;
-          var row = this.closest('.diy-setting-row');
-          if (row) { var d = row.querySelector('.diy-color-val'); if (d) d.textContent = val; }
+          var colorRow = this.closest('.diy-setting-row');
+          if (colorRow) { var colorEl = colorRow.querySelector('.diy-color-val'); if (colorEl) colorEl.textContent = val; }
         } else if (this.tagName === 'SELECT') {
           val = this.value;
         } else {
