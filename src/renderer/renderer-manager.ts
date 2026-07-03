@@ -47,6 +47,9 @@ export class RendererManager {
   layers: LayerEntry[] = [];
   initialized = false;
 
+  // Pre-allocated render target for reuse
+  private renderTarget: any = null;
+
   // Performance monitoring for adaptive frame rate
   private frameTimestamps: number[] = [];
   private targetFPS = 60;
@@ -94,6 +97,19 @@ export class RendererManager {
       this.renderer = renderer;
       this.canvas = canvas;
       this.initialized = true;
+
+      // Pre-allocate render target to avoid per-frame allocation
+      const width = canvas.width || window.innerWidth;
+      const height = canvas.height || window.innerHeight;
+      if (typeof THREE !== 'undefined') {
+        this.renderTarget = new THREE.WebGLRenderTarget(width, height, {
+          format: THREE.RGBAFormat,
+          type: THREE.UnsignedByteType,
+          depthBuffer: false,
+          stencilBuffer: false,
+        });
+      }
+
       console.log('[RendererManager] Shared WebGL renderer initialized');
       return true;
     } catch (e) {
@@ -172,6 +188,11 @@ export class RendererManager {
     if (!this.shouldRenderFrame(ts)) return;
     const r = this.renderer;
 
+    // Use pre-allocated render target to reduce GPU allocation
+    if (this.renderTarget) {
+      r.setRenderTarget(this.renderTarget);
+    }
+
     r.autoClear = true;
     let first = true;
 
@@ -202,6 +223,10 @@ export class RendererManager {
         r.autoClear = false;
         first = false;
       }
+    }
+
+    if (this.renderTarget) {
+      r.setRenderTarget(null);
     }
   }
 
@@ -296,6 +321,10 @@ export class RendererManager {
    * Full teardown: dispose the WebGL renderer and clear all layers.
    */
   dispose(): void {
+    if (this.renderTarget) {
+      this.renderTarget.dispose();
+      this.renderTarget = null;
+    }
     if (this.renderer) {
       this.renderer.dispose();
       this.renderer = null;
