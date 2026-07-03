@@ -91,6 +91,8 @@ contextBridge.exposeInMainWorld('fluidmusic', {
 
   // Mini player: send media control actions to main process
   sendMediaControl: (action) => ipcRenderer.send('fluidmusic-media-control', action),
+  setMouseIgnore: () => ipcRenderer.send('fluidmusic-set-ignore-mouse'),
+  setMouseCapture: () => ipcRenderer.send('fluidmusic-set-capture-mouse'),
 
   // Mini player: receive track info and playback state
   onMiniPlayerUpdate: (callback) => {

@@ -2,6 +2,10 @@ const { app, BrowserWindow, ipcMain, shell, screen, session, globalShortcut, sys
 const net = require('net');
 const path = require('path');
 const fs = require('fs');
+// Disable Chromium disk cache — desktop app doesn't need web caching
+app.commandLine.appendSwitch('disable-http-cache');
+app.commandLine.appendSwitch('disable-cache');
+
 const { createApplicationMenu } = require('./menu');
 const { saveCookie: secureSaveCookie, loadCookie: secureLoadCookie, deleteCookie: secureDeleteCookie } = require('./cookie-store');
 const { initAutoUpdater, stopAutoUpdater } = require('./updater');
@@ -378,6 +382,13 @@ async function clearQQMusicLoginSession() {
   await cookieSession.clearStorageData({
     storages: ['cookies', 'localstorage', 'indexdb', 'cachestorage'],
   });
+  // Clear in-memory store + encrypted file
+  cookieStore.qq = '';
+  secureDeleteCookie('qq');
+  // Notify renderer
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('login-state-changed', { platform: 'qq', loggedIn: false, cookie: '' });
+  }
   return { ok: true };
 }
 
@@ -386,6 +397,13 @@ async function clearNeteaseMusicLoginSession() {
   await cookieSession.clearStorageData({
     storages: ['cookies', 'localstorage', 'indexdb', 'cachestorage'],
   });
+  // Clear in-memory store + encrypted file
+  cookieStore.netease = '';
+  secureDeleteCookie('netease');
+  // Notify renderer
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('login-state-changed', { platform: 'netease', loggedIn: false, cookie: '' });
+  }
   return { ok: true };
 }
 
@@ -577,6 +595,30 @@ async function createWindow() {
   mainWindow.on('leave-full-screen', () => {
     mainWindow.webContents.send('fluidmusic-window-state', { isFullScreen: false });
   });
+
+  // Mouse click-through: forward events on empty/passthrough areas to desktop
+  // The renderer sends IPC when mouse is over interactive vs passthrough elements
+  ipcMain.on('fluidmusic-set-ignore-mouse', () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.setIgnoreMouseEvents(true, { forward: true });
+    }
+  });
+  ipcMain.on('fluidmusic-set-capture-mouse', () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.setIgnoreMouseEvents(false);
+    }
+  });
+
+  // Clear renderer cache to prevent stale JS
+  try {
+    const { session } = require('electron');
+    await mainWindow.webContents.session.clearCache();
+    await mainWindow.webContents.session.clearStorageData({ storages: ['caches', 'serviceworkers'] });
+    console.log('[createWindow] Renderer cache cleared');
+  } catch(e) {}
+
+  // Enable DevTools in development
+  mainWindow.webContents.openDevTools({ mode: 'detach' });
 
   console.log('[createWindow] Loading URL: http://127.0.0.1:' + port);
   try {
@@ -843,6 +885,16 @@ if (!gotSingleInstanceLock) {
         systemPreferences.setUserDefault('NSAppSleepDisabled', 'boolean', true);
       } catch (_) {}
     }
+
+    // Clear V8 code cache — prevents stale compiled JS
+    try {
+      const codeCacheDir = path.join(app.getPath('userData'), 'Code Cache');
+      if (fs.existsSync(codeCacheDir)) {
+        fs.rmSync(codeCacheDir, { recursive: true, force: true });
+        fs.mkdirSync(codeCacheDir);
+      }
+      console.log('[startup] V8 Code Cache cleared');
+    } catch(_) {}
 
     await createWindow();
   });

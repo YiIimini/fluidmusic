@@ -174,7 +174,6 @@
     const progressBar = document.getElementById('progress-bar-container');
     const progressFill = document.getElementById('progress-bar-fill');
     const progressThumb = document.getElementById('progress-bar-thumb');
-    const progressParticles = document.getElementById('progress-bar-particles');
     const volumeSlider = document.getElementById('volume-slider');
 
     let playMode = 0; // 0=sequential, 1=shuffle, 2=single-loop
@@ -988,9 +987,9 @@
     }
 
     if (btnMaximize) {
-      btnMaximize.addEventListener('click', async () => {
-        if (fluidmusic.windowMaximize) {
-          fluidmusic.windowMaximize();
+      btnMaximize.addEventListener('click', () => {
+        if (fluidmusic.toggleFullscreen) {
+          fluidmusic.toggleFullscreen();
         }
       });
     }
@@ -1110,6 +1109,11 @@
 
   function initWallpaper() {
     try {
+      // Apply fluidBg canvas visibility on startup
+      var lbg = document.getElementById('layer-bg');
+      if (lbg && _visualEnabled.fluidBg) lbg.classList.add('fluid-active');
+    } catch(e) {}
+    try {
       // Restore video background — reconstruct URL with current port
       if (localStorage.getItem('fluidmusic-has-bg-video') === 'true') {
         var wpLayer = document.getElementById('wallpaper-layer');
@@ -1186,14 +1190,10 @@
       return;
     }
 
-    // Idle low power: audio paused, no transition — render at LOW_POWER_FPS
+    // Idle low power: audio paused, no transition — skip ALL rendering
     if (_lowPowerMode) {
-      if (timestamp - _lastLowPowerRender < LOW_POWER_INTERVAL) {
-        return;
-      }
-      _lastLowPowerRender = timestamp;
       lastTime = timestamp;
-      // Fall through to render one low-power frame
+      return;
     }
 
     const dt = lastTime ? Math.min((timestamp - lastTime) / 1000, 0.1) : 0.016;
@@ -1363,6 +1363,7 @@
     const loadingSub = document.getElementById('loading-sub');
 
     function updateLoading(msg, sub) {
+  window._updateLoading = updateLoading;
       if (loadingMsg) loadingMsg.textContent = msg;
       if (loadingSub) loadingSub.textContent = sub || '';
     }
@@ -1638,16 +1639,15 @@
     console.log('[Prefetch] Pre-fetching', fetchList.length, 'of', allPl.length, 'synced playlists...');
 
     console.log('[Prefetch] Starting background fetch of', fetchList.length, 'playlists...');
-    updateLoading('预缓存歌单歌曲', '0/' + fetchList.length);
+    if (window._updateLoading) window._updateLoading('预缓存歌单歌曲', '0/' + fetchList.length);
 
     for (let i = 0; i < fetchList.length; i++) {
       const pl = fetchList[i];
-      // Skip if already cached and fresh
       if (DataCache.getCachedPlaylistSongs(pl.id, pl.platform)) {
-        updateLoading('预缓存歌单', (i+1) + '/' + allPl.length + ' (跳过已缓存)');
+        if (window._updateLoading) window._updateLoading('预缓存歌单', (i+1) + '/' + allPl.length + ' (跳过已缓存)');
         continue;
       }
-      updateLoading('预缓存歌单', (i+1) + '/' + allPl.length + ' ' + (pl.name || '').substring(0, 12));
+      if (window._updateLoading) window._updateLoading('预缓存歌单', (i+1) + '/' + allPl.length + ' ' + (pl.name || '').substring(0, 12));
       try {
         let tracks = [];
         if (pl.platform === 'netease') {
@@ -1739,6 +1739,17 @@
   // Track mouse for hover ripples
   document.addEventListener('mousemove', function(e) {
     _mouseX = e.clientX; _mouseY = e.clientY;
+    // Mouse click-through: check if over passthrough area
+    var el = document.elementFromPoint(e.clientX, e.clientY);
+    if (el) {
+      var isPassthrough = (el.id === 'layer-passthrough' || el.id === 'layer-bg' ||
+        el.id === 'bg-canvas' || el.id === 'wallpaper-layer');
+      if (isPassthrough && window.fluidmusic && window.fluidmusic.setMouseIgnore) {
+        window.fluidmusic.setMouseIgnore();
+      } else if (!isPassthrough && window.fluidmusic && window.fluidmusic.setMouseCapture) {
+        window.fluidmusic.setMouseCapture();
+      }
+    }
   }, { passive: true });
 
   function isAudioPlaying() {
@@ -1807,7 +1818,8 @@
 
   function tickAudioRipples() {
     _audioRippleRAF = requestAnimationFrame(tickAudioRipples);
-    if (!_rippleEnabled || !isAudioPlaying()) return;
+    // Audio ripples always on when music plays (independent of click ripple toggle)
+    if (!isAudioPlaying()) return;
     if (typeof FluidAudio === 'undefined' || !FluidAudio.bands) return;
 
     var bands = FluidAudio.bands;
@@ -1870,16 +1882,17 @@
     if (_audioRippleRAF) { cancelAnimationFrame(_audioRippleRAF); _audioRippleRAF = null; }
   }
 
+  // Audio ripples always start — independent of click ripple toggle
+  startAudioRipple();
+
   window._rippleSetEnabled = function(on) {
     _rippleEnabled = on;
     if (on) {
       document.addEventListener('click', window._clickRippleHandler);
       startHoverRipple();
-      startAudioRipple();
     } else {
       document.removeEventListener('click', window._clickRippleHandler);
       if (_hoverRippleInterval) { clearInterval(_hoverRippleInterval); _hoverRippleInterval = null; }
-      stopAudioRipple();
     }
   };
 

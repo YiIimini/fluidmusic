@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: http: https:; media-src 'self' http: https: blob:; connect-src 'self' http://127.0.0.1:* https:; font-src 'self' https://fonts.gstatic.com;">
-<link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0a0a14">
 <title>FluidMusic</title>
 <link rel="stylesheet" href="styles/variables.css">
@@ -14,6 +13,14 @@
 <link rel="stylesheet" href="styles/animations.css">
 </head>
 <body>
+<script>
+// Kill any cached Service Worker to prevent stale content
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.getRegistrations().then(function(regs) {
+    regs.forEach(function(r) { r.unregister(); });
+  });
+}
+</script>
 
 <!-- Loading Overlay -->
 <div id="loading-overlay">
@@ -192,7 +199,7 @@
   <span id="traffic-lights" class="traffic-lights-hidden">
     <button class="traffic-light traffic-close" id="tl-close" title="关闭窗口"></button>
     <button class="traffic-light traffic-minimize" id="tl-minimize" title="最小化"></button>
-    <button class="traffic-light traffic-maximize" id="tl-maximize" title="最大化/还原"></button>
+    <button class="traffic-light traffic-maximize" id="tl-maximize" title="全屏"></button>
   </span>
 
   <!-- Section 2: Playback controls (centered) -->
@@ -253,7 +260,7 @@
   <div id="diy-panel">
     <div style="position:relative; display:flex; align-items:center; padding:0 20px;">
       <div id="diy-tabs">
-        <button class="diy-tab active" data-tab="particle">🔮 粒子</button>
+        <button class="diy-tab active" data-tab="particle">🎵 封面</button>
         <button class="diy-tab" data-tab="visual">🎨 特效</button>
         <button class="diy-tab" data-tab="playlist">📋 歌单</button>
         <button class="diy-tab" data-tab="lyricsTab">🎵 歌词</button>
@@ -308,7 +315,6 @@ window.onerror = function(msg, url, line) {
 </div>
 
 <!-- TypeScript Bridge (bundled by Vite) -->
-<script type="module" src="/../src/bridge.ts"></script>
 <script src="js/ts-loader.js"></script>
 <script src="vendor/three.min.js"></script>
 <script src="js/module-registry.js"></script>
@@ -337,14 +343,5 @@ window.onerror = function(msg, url, line) {
 
 
 
-<script>
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/sw.js').then(() => {
-      console.log('[PWA] Service Worker registered');
-    }).catch(() => {
-      console.log('[PWA] SW registration failed (expected in dev)');
-    });
-  }
-</script>
 </body>
 </html>
