@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: http: https:; media-src 'self' http: https: blob:; connect-src 'self' http://127.0.0.1:* https:; font-src 'self' https://fonts.gstatic.com;">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: http: https:; media-src 'self' http: https: blob:; connect-src 'self' http://127.0.0.1:* https:; font-src 'self' https://fonts.gstatic.com;">
 <meta name="theme-color" content="#0a0a14">
 <title>FluidMusic</title>
 <link rel="stylesheet" href="styles/variables.css?t=1783090631">
@@ -13,14 +13,7 @@
 <link rel="stylesheet" href="styles/animations.css?t=1783090631">
 </head>
 <body>
-<script>
-// Kill any cached Service Worker to prevent stale content
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.getRegistrations().then(function(regs) {
-    regs.forEach(function(r) { r.unregister(); });
-  });
-}
-</script>
+<script src="js/sw-cleanup.js"></script>
 
 <!-- Loading Overlay -->
 <div id="loading-overlay">
@@ -106,7 +99,7 @@ if ('serviceWorker' in navigator) {
 
 <!-- Layer 3: Left Chamber — Playlist -->
 <div class="bubble-chamber" id="chamber-left">
-  <button class="chamber-back-btn" id="btn-playlist-back" aria-label="返回歌单列表" title="返回歌单列表" style="display:none;" onclick="if(typeof DataCache!=='undefined'){var c=DataCache.getCachedPlaylists();if(c){BubbleChamber.setUserPlaylists(c);document.getElementById('btn-playlist-back').style.display='none';return}}if(typeof FluidMusicApp!=='undefined')FluidMusicApp.syncPlaylists();">
+  <button class="chamber-back-btn" id="btn-playlist-back" aria-label="返回歌单列表" title="返回歌单列表" style="display:none;" >
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
   </button>
   <div class="chamber-title">🎵 歌单
@@ -152,8 +145,7 @@ if ('serviceWorker' in navigator) {
     background:rgba(10,10,24,0.85);color:var(--text-primary);font-size:12px;font-family:var(--font-main);
     backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);outline:none;
     transition:border-color 0.2s,box-shadow 0.2s;"
-    onfocus="this.style.borderColor='var(--accent-color)';this.style.boxShadow='0 0 12px rgba(100,150,255,0.2)'"
-    onblur="this.style.borderColor='var(--glass-border)';this.style.boxShadow='none'">
+    >
   <button id="btn-search-close" aria-label="关闭搜索" title="关闭搜索" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:14px;padding:4px 8px;">✕</button>
 </div>
 
@@ -274,17 +266,7 @@ if ('serviceWorker' in navigator) {
 </div>
 
 <!-- Scripts -->
-<script>
-window.onerror = function(msg, url, line) {
-  console.error('RENDERER ERROR:', msg, 'at', url, ':', line);
-  document.title = 'ERR: ' + msg;
-  var dbg = document.createElement('div');
-  dbg.id = 'js-error-dump';
-  dbg.style.cssText = 'position:fixed;bottom:0;left:0;right:0;background:red;color:white;padding:8px;z-index:9999;font-size:11px;';
-  dbg.textContent = 'JS ERROR: ' + msg + ' @ ' + url + ':' + line;
-  document.body.appendChild(dbg);
-};
-</script>
+<script src="js/error-handler.js"></script>
 <!-- Mini Player Overlay -->
 <div id="mini-player" style="display:none;position:fixed;bottom:20px;right:20px;z-index:100;
   width:280px;border-radius:16px;border:1px solid var(--glass-border);
@@ -315,33 +297,33 @@ window.onerror = function(msg, url, line) {
 </div>
 
 <!-- TypeScript Bridge (bundled by Vite) -->
-<script src="js/ts-loader.js?t=1783090631"></script>
+<script type="module" src="js/ts-loader.js?t=1783090631"></script>
 <script src="vendor/three.min.js?t=1783090631"></script>
-<script src="js/module-registry.js?t=1783090631"></script>
-<script src="js/audio-engine.js?t=1783090631"></script>
-<script src="js/ts-audio-bridge.js?t=1783090631"></script>
-<script src="js/renderer-manager.js?t=1783090631"></script>
-<script src="js/fluid-bg.js?t=1783090631"></script>
-<script src="js/particle-cover.js?t=1783090631"></script>
-<script src="js/bubble-chamber/chamber-base.js?t=1783090631"></script>
-<script src="js/bubble-chamber/playlist-chamber.js?t=1783090631"></script>
-<script src="js/bubble-chamber/lyric-chamber.js?t=1783090631"></script>
-<script src="js/bubble-chamber/queue-chamber.js?t=1783090631"></script>
-<script src="js/bubble-chamber/index.js?t=1783090631"></script>
-<script src="js/lastfm.js?t=1783090631"></script>
-<script src="js/custom-playlists.js?t=1783090631"></script>
-<script src="js/favorites.js?t=1783090631"></script>
-<script src="js/user-panel.js?t=1783090631"></script>
-<script src="js/api-bridge.js?t=1783090631"></script>
-<script src="js/i18n.js?t=1783090631"></script>
-<script src="js/data-cache.js?t=1783090631"></script>
-<script src="js/search.js?t=1783090631"></script>
-<script src="js/diy-settings.js?t=1783093912"></script>
-<script src="js/diy-renderer.js?t=1783093912"></script>
-<script src="js/visual-contrast.js?t=1783094065"></script>
-<script src="js/controllers.js?t=1783093036"></script>
-<script src="js/ripple-system.js?t=1783093036"></script>
-<script src="js/app.js?t=1783093036"></script>
+<script type="module" src="js/module-registry.js?t=1783090631"></script>
+<script type="module" src="js/audio-engine.js?t=1783090631"></script>
+<script type="module" src="js/ts-audio-bridge.js?t=1783090631"></script>
+<script type="module" src="js/renderer-manager.js?t=1783090631"></script>
+<script type="module" src="js/fluid-bg.js?t=1783090631"></script>
+<script type="module" src="js/particle-cover.js?t=1783090631"></script>
+<script type="module" src="js/bubble-chamber/chamber-base.js?t=1783090631"></script>
+<script type="module" src="js/bubble-chamber/playlist-chamber.js?t=1783090631"></script>
+<script type="module" src="js/bubble-chamber/lyric-chamber.js?t=1783090631"></script>
+<script type="module" src="js/bubble-chamber/queue-chamber.js?t=1783090631"></script>
+<script type="module" src="js/bubble-chamber/index.js?t=1783090631"></script>
+<script type="module" src="js/lastfm.js?t=1783090631"></script>
+<script type="module" src="js/custom-playlists.js?t=1783090631"></script>
+<script type="module" src="js/favorites.js?t=1783090631"></script>
+<script type="module" src="js/user-panel.js?t=1783090631"></script>
+<script type="module" src="js/api-bridge.js?t=1783090631"></script>
+<script type="module" src="js/i18n.js?t=1783090631"></script>
+<script type="module" src="js/data-cache.js?t=1783090631"></script>
+<script type="module" src="js/search.js?t=1783090631"></script>
+<script type="module" src="js/diy-settings.js?t=1783093912"></script>
+<script type="module" src="js/diy-renderer.js?t=1783093912"></script>
+<script type="module" src="js/visual-contrast.js?t=1783094065"></script>
+<script type="module" src="js/controllers.js?t=1783093036"></script>
+<script type="module" src="js/ripple-system.js?t=1783093036"></script>
+<script type="module" src="js/app.js?t=1783093036"></script>
 
 
 

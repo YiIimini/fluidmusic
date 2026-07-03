@@ -381,7 +381,7 @@
         var wpLayer = document.getElementById('wallpaper-layer');
         if (wpLayer) {
           var videoUrl = window.location.origin + '/bg-video?t=' + Date.now();
-          var vidHtml = '<video src="' + videoUrl + '" autoplay muted loop playsinline preload="auto" style="width:100%;height:100%;object-fit:cover;background:#0a0a14;" onerror="this.parentElement.classList.remove(\'loaded\');this.parentElement.innerHTML=\'\';localStorage.removeItem(\'fluidmusic-has-bg-video\');"></video>';
+          var vidHtml = '<video src="' + videoUrl + '" autoplay muted loop playsinline preload="auto" style="width:100%;height:100%;object-fit:cover;background:#0a0a14;"></video>';
           wpLayer.innerHTML = vidHtml;
           wpLayer.classList.add('loaded');
         }

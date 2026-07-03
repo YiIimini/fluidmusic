@@ -82,13 +82,22 @@
       wpRow.style.gap = '8px';
       wpRow.innerHTML = '<span class="diy-label">🖼 背景</span>'
         + '<div style="display:flex;gap:8px;align-items:center;">'
-        + '<button class="user-panel-btn" id="btn-pick-wallpaper" style="font-size:11px;" onclick="window._pickWallpaper()">选择图片</button>'
-        + '<button class="user-panel-btn" id="btn-pick-bg-video" style="font-size:11px;" onclick="window._pickBgVideo()">选择视频</button>'
+        + '<button class="user-panel-btn" id="btn-pick-wallpaper" style="font-size:11px;" id="btn-pick-wallpaper">选择图片</button>'
+        + '<button class="user-panel-btn" id="btn-pick-bg-video" style="font-size:11px;" id="btn-pick-bg-video">选择视频</button>'
         + '<button class="diy-reset-btn" id="btn-clear-wallpaper" title="清除背景" style="width:22px;height:22px;">✕</button>'
         + '</div>'
         + '<div id="wallpaper-thumb-preview"></div>'
         + '<video id="bg-video-preview" style="display:none;width:120px;height:68px;border-radius:6px;border:1px solid var(--glass-border);object-fit:cover;margin-top:4px;" muted loop></video>';
       container.appendChild(wpRow);
+      // Wire wallpaper/video picker buttons (moved from inline onclick for CSP)
+      var btnWallpaper = document.getElementById('btn-pick-wallpaper');
+      var btnBgVideo = document.getElementById('btn-pick-bg-video');
+      if (btnWallpaper) btnWallpaper.addEventListener('click', function() {
+        if (typeof window._pickWallpaper === 'function') window._pickWallpaper();
+      });
+      if (btnBgVideo) btnBgVideo.addEventListener('click', function() {
+        if (typeof window._pickBgVideo === 'function') window._pickBgVideo();
+      });
 
       // Show thumbnail preview
       var updateThumb = function() {
@@ -104,7 +113,7 @@
           // Apply video to wallpaper layer, but don't overwrite an already-playing video
           var wpLayer = document.getElementById('wallpaper-layer');
           if (wpLayer && !wpLayer.querySelector('video')) {
-            wpLayer.innerHTML = '<video src="' + videoUrl + '" autoplay muted loop playsinline style="width:100%;height:100%;object-fit:cover;background:#0a0a14;" onerror="this.parentElement.classList.remove(\'loaded\');this.parentElement.innerHTML=\'\';localStorage.removeItem(\'fluidmusic-has-bg-video\');"></video>';
+            wpLayer.innerHTML = '<video src="' + videoUrl + '" autoplay muted loop playsinline style="width:100%;height:100%;object-fit:cover;background:#0a0a14;"></video>';
             wpLayer.classList.add('loaded');
           }
         } else if (savedImg) {

@@ -119,7 +119,7 @@
 
       let avatarHtml = '';
       if (avatarUrl) {
-        avatarHtml = `<img class="user-panel-avatar" src="${escHtml(avatarUrl)}" alt="${escHtml(nickname)}" onerror="this.style.display='none'">`;
+        avatarHtml = `<img class="user-panel-avatar" src="${escHtml(avatarUrl)}" alt="${escHtml(nickname)}">`;
       }
 
       content.innerHTML = `
@@ -251,7 +251,7 @@
         // Cover HTML
         let coverHtml = '<span class="playlist-item-cover" style="display:flex;align-items:center;justify-content:center;background:rgba(238,102,68,0.12);border:1px solid rgba(238,102,68,0.2);font-size:18px;width:36px;height:36px;border-radius:6px;flex-shrink:0;">❤️</span>';
         if (pl.coverUrl) {
-          coverHtml = '<img class="playlist-item-cover" src="' + escHtml(pl.coverUrl) + '" alt="" onerror="this.style.display=\'none\'" style="width:36px;height:36px;border-radius:6px;object-fit:cover;flex-shrink:0;">';
+          coverHtml = '<img class="playlist-item-cover" src="' + escHtml(pl.coverUrl) + '" alt="" style="width:36px;height:36px;border-radius:6px;object-fit:cover;flex-shrink:0;">';
         }
         return '<div class="user-playlist-item">'
           + '<label class="user-playlist-label" style="cursor:pointer;display:flex;align-items:center;gap:8px;flex:1;min-width:0;">'

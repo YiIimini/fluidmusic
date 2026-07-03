@@ -1269,3 +1269,12 @@
   min-height: 40px;
   display: flex; align-items: center;
 }
+
+#search-input:focus {
+  border-color: var(--accent-color);
+  box-shadow: 0 0 12px rgba(100,150,255,0.2);
+  outline: none;
+}
+.search-result-item:hover {
+  background: rgba(255,255,255,0.04);
+}
