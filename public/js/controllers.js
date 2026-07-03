@@ -676,6 +676,7 @@
   window.setLikeIcon = setLikeIcon;
   window.setPlaymodeIcon = setPlaymodeIcon;
   window.setupControllerButtons = setupControllerButtons;
+  window.formatTime = formatTime;
 
   if (typeof __FM !== 'undefined') __FM.register('controllers', ['audioEngine'], function () {
     return { setPlayIcon, setLikeIcon, setPlaymodeIcon, formatTime };
