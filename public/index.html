@@ -6,11 +6,11 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: http: https:; media-src 'self' http: https: blob:; connect-src 'self' http://127.0.0.1:* https:; font-src 'self' https://fonts.gstatic.com;">
 <meta name="theme-color" content="#0a0a14">
 <title>FluidMusic</title>
-<link rel="stylesheet" href="styles/variables.css">
-<link rel="stylesheet" href="styles/base.css">
-<link rel="stylesheet" href="styles/layout.css">
-<link rel="stylesheet" href="styles/components.css">
-<link rel="stylesheet" href="styles/animations.css">
+<link rel="stylesheet" href="styles/variables.css?t=1783090631">
+<link rel="stylesheet" href="styles/base.css?t=1783090631">
+<link rel="stylesheet" href="styles/layout.css?t=1783090631">
+<link rel="stylesheet" href="styles/components.css?t=1783090631">
+<link rel="stylesheet" href="styles/animations.css?t=1783090631">
 </head>
 <body>
 <script>
@@ -93,7 +93,7 @@ if ('serviceWorker' in navigator) {
       </div>
       <span id="time-duration" style="font-size:10px;color:var(--text-dim);font-variant-numeric:tabular-nums;min-width:32px;">0:00</span>
     </div>
-    <div id="inline-lyric" style="display:none;font-size:15px;font-weight:600;color:var(--text-primary);text-align:center;margin-top:6px;margin-bottom:4px;padding-bottom:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:260px;line-height:1.4;transition:opacity 0.4s var(--ease-fluid);text-shadow:0 0 12px rgba(130,180,255,0.35),0 0 24px rgba(130,180,255,0.15);">...</div>
+    <div id="inline-lyric" style="display:none;font-size:15px;font-weight:600;color:var(--text-primary);text-align:center;margin-top:6px;margin-bottom:4px;padding-bottom:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:260px;line-height:1.4;transition:opacity 0.4s var(--ease-fluid);;">...</div>
 
   </div>
 
@@ -125,7 +125,7 @@ if ('serviceWorker' in navigator) {
 <div class="bubble-chamber" id="chamber-right">
   <div class="chamber-title">📝 歌词</div>
   <div id="lyrics-container">
-    <div class="lyric-line placeholder">暂无歌词</div>
+    <ul style="list-style:none;margin:0;padding:0;"><li class="lyric-line placeholder">暂无歌词</li></ul>
   </div>
 </div>
 
@@ -315,29 +315,29 @@ window.onerror = function(msg, url, line) {
 </div>
 
 <!-- TypeScript Bridge (bundled by Vite) -->
-<script src="js/ts-loader.js"></script>
-<script src="vendor/three.min.js"></script>
-<script src="js/module-registry.js"></script>
-<script src="js/audio-engine.js"></script>
-<script src="js/ts-audio-bridge.js"></script>
-<script src="js/renderer-manager.js"></script>
-<script src="js/fluid-bg.js"></script>
-<script src="js/particle-cover.js"></script>
-<script src="js/bubble-chamber/chamber-base.js"></script>
-<script src="js/bubble-chamber/playlist-chamber.js"></script>
-<script src="js/bubble-chamber/lyric-chamber.js"></script>
-<script src="js/bubble-chamber/queue-chamber.js"></script>
-<script src="js/bubble-chamber/index.js"></script>
-<script src="js/lastfm.js"></script>
-<script src="js/custom-playlists.js"></script>
-<script src="js/favorites.js"></script>
-<script src="js/user-panel.js"></script>
-<script src="js/api-bridge.js"></script>
-<script src="js/i18n.js"></script>
-<script src="js/data-cache.js"></script>
-<script src="js/search.js"></script>
-<script src="js/diy-settings.js"></script>
-<script src="js/app.js"></script>
+<script src="js/ts-loader.js?t=1783090631"></script>
+<script src="vendor/three.min.js?t=1783090631"></script>
+<script src="js/module-registry.js?t=1783090631"></script>
+<script src="js/audio-engine.js?t=1783090631"></script>
+<script src="js/ts-audio-bridge.js?t=1783090631"></script>
+<script src="js/renderer-manager.js?t=1783090631"></script>
+<script src="js/fluid-bg.js?t=1783090631"></script>
+<script src="js/particle-cover.js?t=1783090631"></script>
+<script src="js/bubble-chamber/chamber-base.js?t=1783090631"></script>
+<script src="js/bubble-chamber/playlist-chamber.js?t=1783090631"></script>
+<script src="js/bubble-chamber/lyric-chamber.js?t=1783090631"></script>
+<script src="js/bubble-chamber/queue-chamber.js?t=1783090631"></script>
+<script src="js/bubble-chamber/index.js?t=1783090631"></script>
+<script src="js/lastfm.js?t=1783090631"></script>
+<script src="js/custom-playlists.js?t=1783090631"></script>
+<script src="js/favorites.js?t=1783090631"></script>
+<script src="js/user-panel.js?t=1783090631"></script>
+<script src="js/api-bridge.js?t=1783090631"></script>
+<script src="js/i18n.js?t=1783090631"></script>
+<script src="js/data-cache.js?t=1783090631"></script>
+<script src="js/search.js?t=1783090631"></script>
+<script src="js/diy-settings.js?t=1783090631"></script>
+<script src="js/app.js?t=1783090631"></script>
 
 
 

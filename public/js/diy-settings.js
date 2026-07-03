@@ -21,7 +21,7 @@
       lyricsColor: '#f0c060',
       lyricsHighlightColor: '#f0c060',
       lyricsFadeStrength: 0.5,
-      lyricsEffect: 'fade',  // fade/glow/typewriter/none
+      lyricsEffect: 'none',  // fade/glow/typewriter/none
       lyricsVisibleLines: 0,
       inlineLyricColor: '#f0c060',
       inlineLyricFontSize: 15,
@@ -521,7 +521,7 @@
     particleRotationSpeed: 0.5, particleColor: '#ffffff',
     enableParticleCover: true, enableFluidBg: true,
     lyricsLines: 0, lyricsFontSize: 13, lyricsColor: '#ffffff', lyricsHighlightColor: '#5588ee', lyricsFadeStrength: 0.5,
-    lyricsVisibleLines: 0, lyricsEffect: 'fade', inlineLyricColor: '#f0c060', inlineLyricFontSize: 15,
+    lyricsVisibleLines: 0, lyricsEffect: 'none', inlineLyricColor: '#f0c060', inlineLyricFontSize: 15,
     playlistStyle: 'default', playlistFontSize: 13, playlistTransparency: 0.15, playlistTextColor: '#e0d8c0',
     controllerParticleDensity: 0.6, controllerSandStrength: 0.5, controllerStyle: 'default',
     bgIntensity: 0.8, bgSpeed: 1.0, bgColorScheme: 'dark', bgNoiseScale: 0.5,

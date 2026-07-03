@@ -146,9 +146,9 @@
     const iconSeq = document.getElementById('icon-playmode-seq');
     const iconShuffle = document.getElementById('icon-playmode-shuffle');
     const iconSingle = document.getElementById('icon-playmode-single');
-    if (iconSeq) iconSeq.style.display = mode === 2 ? '' : 'none';
+    if (iconSeq) iconSeq.style.display = mode === 0 ? '' : 'none';
     if (iconShuffle) iconShuffle.style.display = mode === 1 ? '' : 'none';
-    if (iconSingle) iconSingle.style.display = mode === 0 ? '' : 'none';
+    if (iconSingle) iconSingle.style.display = mode === 2 ? '' : 'none';
     const btn = document.getElementById('btn-playmode');
     if (btn) {
       const titles = ['播放模式: 顺序播放', '播放模式: 随机播放', '播放模式: 单曲循环'];

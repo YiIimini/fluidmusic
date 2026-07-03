@@ -43,38 +43,43 @@
 
       container.innerHTML = '';
       if (LyricChamber.lyricTimes.length === 0) {
-        const div = document.createElement('div');
-        div.className = 'lyric-line active';
-        div.textContent = typeof I18N !== 'undefined' ? I18N.t('lyrics.empty') : '暂无歌词';
-        container.appendChild(div);
+        const ul = document.createElement('ul');
+        ul.style.cssText = 'list-style:none;margin:0;padding:0;';
+        const li = document.createElement('li');
+        li.className = 'lyric-line placeholder';
+        li.textContent = typeof I18N !== 'undefined' ? I18N.t('lyrics.empty') : '暂无歌词';
+        ul.appendChild(li);
+        container.appendChild(ul);
         LyricChamber.lyricsLines = [(typeof I18N !== 'undefined' ? I18N.t('lyrics.empty') : '暂无歌词')];
         return;
       }
 
       LyricChamber.lyricsLines = LyricChamber.lyricTimes.map(l => l.text);
+      const ul = document.createElement('ul');
+      ul.style.cssText = 'list-style:none;margin:0;padding:0;';
       LyricChamber.lyricTimes.forEach((lt, i) => {
-        const div = document.createElement('div');
-        div.className = 'lyric-line';
-        div.innerHTML = '<span class="lyric-orig">' + ChamberBase.escapeHtml(lt.text) + '</span>';
+        const li = document.createElement('li');
+        li.className = 'lyric-line';
+        li.innerHTML = '<span class="lyric-orig">' + ChamberBase.escapeHtml(lt.text) + '</span>';
 
-        // Find matching translation (closest time match)
         if (LyricChamber.transTimes && LyricChamber.transTimes.length > 0) {
           let bestTrans = '';
           let bestDiff = Infinity;
           for (const tt of LyricChamber.transTimes) {
             const diff = Math.abs(tt.time - lt.time);
-            if (diff < bestDiff && diff < 3) { // within 3 seconds
+            if (diff < bestDiff && diff < 3) {
               bestDiff = diff;
               bestTrans = tt.text;
             }
           }
           if (bestTrans && bestTrans !== lt.text) {
-            div.innerHTML += '<span class="lyric-trans">' + ChamberBase.escapeHtml(bestTrans) + '</span>';
+            li.innerHTML += '<span class="lyric-trans">' + ChamberBase.escapeHtml(bestTrans) + '</span>';
           }
         }
 
-        container.appendChild(div);
+        ul.appendChild(li);
       });
+      container.appendChild(ul);
       LyricChamber.highlightLyric(0);
     },
 
