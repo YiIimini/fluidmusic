@@ -555,11 +555,10 @@ async function createWindow() {
     console.warn('[MainWindow] Renderer became unresponsive');
   });
 
-  // macOS: hide instead of close (standard behavior — Dock click restores)
-  mainWindow.on('close', (e) => {
-    if (process.platform === 'darwin' && !app.isQuitting) {
-      e.preventDefault();
-      mainWindow.hide();
+  // macOS: close = quit app, Dock click = relaunch
+  mainWindow.on('close', () => {
+    if (typeof FluidAudio !== 'undefined') {
+      mainWindow.webContents.send('media-control', 'pause');
     }
   });
 
@@ -853,7 +852,7 @@ if (!gotSingleInstanceLock) {
   });
 
   app.on('window-all-closed', () => {
-    if (process.platform !== 'darwin') app.quit();
+    app.quit();
   });
 
   app.on('before-quit', () => {
@@ -972,7 +971,7 @@ ipcMain.handle('fluidmusic-pick-bg-video', async () => {
     const ext = path.extname(srcPath).toLowerCase();
     const destName = 'bg-video' + ext;
     const destPath = path.join(destDir, destName);
-    // Clean old files, then copy
+    // Clean old video files, then copy new one
     try { fs.readdirSync(destDir).forEach(f => { if (f.startsWith('bg-video')) fs.unlinkSync(path.join(destDir, f)); }); } catch(_) {}
     fs.copyFileSync(srcPath, destPath);
     // Tell Express server where the video is
@@ -982,6 +981,20 @@ ipcMain.handle('fluidmusic-pick-bg-video', async () => {
     return { ok: true, dataUrl: videoUrl, fileName: path.basename(srcPath) };
   } catch (e) {
     console.error('[BgVideo] Failed:', e.message);
+    return { ok: false, error: e.message };
+  }
+});
+
+ipcMain.handle('fluidmusic-clear-bg-video', async () => {
+  try {
+    const destDir = path.join(app.getPath('userData'), 'backgrounds');
+    if (fs.existsSync(destDir)) {
+      fs.readdirSync(destDir).forEach(f => {
+        if (f.startsWith('bg-video')) fs.unlinkSync(path.join(destDir, f));
+      });
+    }
+    return { ok: true };
+  } catch (e) {
     return { ok: false, error: e.message };
   }
 });

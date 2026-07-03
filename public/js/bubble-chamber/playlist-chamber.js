@@ -486,11 +486,16 @@
 
       container.innerHTML = '';
 
-      // Play All button — uses cached track data, fetches URL only for first track
+      // Play All button + search on same row
       if (tracks.length > 0) {
-        const playAll = document.createElement('div');
-        playAll.className = 'playlist-item playlist-playall';
-        playAll.textContent = 'All(' + tracks.length + ')';
+        var toolbarRow = document.createElement('div');
+        toolbarRow.className = 'playlist-toolbar';
+        toolbarRow.style.cssText = 'display:flex;align-items:center;gap:8px;padding:0 0 6px 0;';
+
+        var playAll = document.createElement('button');
+        playAll.className = 'playlist-playall-btn';
+        playAll.textContent = '全部播放';
+        playAll.title = '播放全部 ' + tracks.length + ' 首';
         playAll.addEventListener('click', async () => {
           if (typeof FluidAudio !== 'undefined') {
             // Respect current play mode: shuffle list if in random mode
@@ -524,13 +529,18 @@
             }
           }
         });
-        container.appendChild(playAll);
+        toolbarRow.appendChild(playAll);
 
-        // Search filter input
-        var searchDiv = document.createElement('div');
-        searchDiv.style.cssText = 'padding:4px 8px;';
-        searchDiv.innerHTML = '<input type="text" id="playlist-search" placeholder="搜索当前列表..." style="width:100%;padding:6px 10px;border-radius:8px;border:1px solid var(--glass-border);background:rgba(255,255,255,0.05);color:var(--text-primary);font-size:12px;outline:none;font-family:var(--font-main);" oninput="window._filterPlaylistTracks(this.value)">';
-        container.appendChild(searchDiv);
+        // Search filter input — same row as All button
+        var searchInput = document.createElement('input');
+        searchInput.type = 'text';
+        searchInput.id = 'playlist-search';
+        searchInput.placeholder = '搜索当前列表...';
+        searchInput.style.cssText = 'flex:1;padding:5px 10px;border-radius:8px;border:1px solid var(--glass-border);background:rgba(255,255,255,0.05);color:var(--text-primary);font-size:12px;outline:none;font-family:var(--font-main);min-width:120px;';
+        searchInput.setAttribute('oninput', 'window._filterPlaylistTracks(this.value)');
+        toolbarRow.appendChild(searchInput);
+
+        container.appendChild(toolbarRow);
       }
 
       tracks.forEach((track, i) => {

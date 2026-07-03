@@ -1,6 +1,6 @@
 {
   "name": "fluidmusic",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "FluidMusic — 流体动态音乐播放器",
   "main": "desktop/main.js",
   "scripts": {
