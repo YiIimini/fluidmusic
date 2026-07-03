@@ -721,11 +721,11 @@
       if (!toast) {
         toast = document.createElement('div');
         toast.id = 'global-toast';
-        toast.style.cssText = 'position:fixed;top:136px;left:50%;transform:translateX(-50%);z-index:99;'
-          + 'padding:6px 16px;border-radius:12px;background:rgba(10,10,24,0.75);border:1px solid var(--glass-border);'
-          + 'backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);'
-          + 'color:var(--text-primary);font-size:11px;font-family:var(--font-main);'
-          + 'opacity:0;pointer-events:none;transition:opacity 0.25s var(--spring-expand),transform 0.25s var(--spring-expand);';
+        toast.style.cssText = 'position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:200;'
+          + 'padding:8px 16px;border-radius:10px;background:rgba(10,10,24,0.9);border:1px solid rgba(255,255,255,0.1);'
+          + 'box-shadow:0 4px 16px rgba(0,0,0,0.3);'
+          + 'color:#fff;font-size:13px;font-family:var(--font-main);'
+          + 'opacity:0;pointer-events:none;transition:opacity 0.3s ease-out,transform 0.3s ease-out;';
         document.body.appendChild(toast);
       }
       toast.textContent = msg;
