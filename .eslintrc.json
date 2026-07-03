@@ -24,9 +24,7 @@
     "FluidAudio": "readonly",
     "FluidBackground": "readonly",
     "ParticleCover": "readonly",
-    "FoamSystem": "readonly",
-    "FoamEqualizer": "readonly",
-    "Spectrum3D": "readonly",
+
     "BubbleChamber": "readonly",
     "Favorites": "readonly",
     "ApiBridge": "readonly",

@@ -215,8 +215,8 @@
   function applySettings() {
     const s = DIYSettings.settings;
     // ── Visual effect toggles ──
-    const visKeys = ['enableFluidBg','enableParticleCover','enableFoamSystem','enableFoamEqualizer'];
-    const visMap = { enableFluidBg:'fluidBg', enableParticleCover:'particleCover', enableFoamSystem:'foamSystem', enableFoamEqualizer:'foamEqualizer' };
+    const visKeys = ['enableFluidBg','enableParticleCover'];
+    const visMap = { enableFluidBg:'fluidBg', enableParticleCover:'particleCover' };
     let visChanged = false;
     visKeys.forEach(k => {
       if (s[k] != null && window._fluidVisualEnabled) {
@@ -484,11 +484,9 @@
     particleResolution: 160, particleScatterStrength: 0.8, particleSensitivity: 0.8,
     particleRotationSpeed: 0.5, particleColor: '#ffffff',
     enableParticleCover: true, enableFluidBg: true,
-    foamCount: 80, foamSize: 1.5, foamIridescence: 0.6, foamFloatAmplitude: 0.7, foamColorScheme: 0,
     lyricsLines: 0, lyricsFontSize: 13, lyricsColor: '#ffffff', lyricsHighlightColor: '#5588ee', lyricsFadeStrength: 0.5,
     lyricsVisibleLines: 0, lyricsEffect: 'fade', inlineLyricColor: '#f0c060', inlineLyricFontSize: 15,
     playlistStyle: 'default', playlistFontSize: 13, playlistTransparency: 0.15, playlistTextColor: '#e0d8c0',
-    foamPreset: 'pearl', foamDensity: 1.0, foamColorIntensity: 1.0,
     controllerParticleDensity: 0.6, controllerSandStrength: 0.5, controllerStyle: 'default',
     bgIntensity: 0.8, bgSpeed: 1.0, bgColorScheme: 'dark', bgNoiseScale: 0.5,
     volume: 0.7, chamberTransparency: 0.15, chamberTriggerSensitivity: 0.5, chamberLeftPinned: false, chamberRightPinned: false, chamberTopPinned: true, chamberBottomPinned: true, queueDockMag: true,

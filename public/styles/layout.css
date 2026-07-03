@@ -222,33 +222,6 @@
   transform: translate(-50%, 0) scale(1);
 }
 
-/* ── Foam Equalizer Container (replaces old spectrum) ── */
-#foam-equalizer-container {
-  position: fixed;
-  bottom: 0; left: 50%;
-  transform: translate(-50%, 0);
-  width: 600px; height: 100px;
-  z-index: 3;
-  pointer-events: auto;
-  cursor: default;
-  border-radius: 20px 20px 0 0;
-  border: 1px solid rgba(255,255,255,0.04);
-  border-bottom: none;
-  background: rgba(10,10,24,0.06);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  box-shadow: 0 -4px 20px rgba(0,0,0,0.08);
-  transition: box-shadow 0.5s var(--ease-fluid), border-color 0.5s var(--ease-fluid);
-  overflow: visible;
-}
-#foam-equalizer-container:hover {
-  border-color: rgba(255,255,255,0.10);
-  box-shadow: 0 -4px 28px rgba(130,180,255,0.08);
-}
-#foam-equalizer-container canvas {
-  width: 100%; height: 100%;
-}
-
 .controller-center {
   display: flex; align-items: center; gap: 10px; flex: 1; justify-content: center;
 }
