@@ -480,6 +480,59 @@
       });
     },
 
+
+    // ── Shared track-action helpers (used by renderTrackList/renderFavoritesList/renderQueueList) ──
+
+    /** Format a track into a safe display string: "Title — Artist" */
+    _trackDisplayText: function(track) {
+      const title = track.title || track.name || '未知';
+      const artist = track.artist ? ' — ' + track.artist : '';
+      return ChamberBase.escapeHtml(title + artist);
+    },
+
+    /** Play a track at the given index in a track list, with URL resolution. */
+    _playTrack: async function(tracks, index) {
+      if (typeof FluidAudio === 'undefined') return false;
+      const t = tracks[index];
+      if (!t) return false;
+      await window._ensureTrackUrl(t);
+      if (!t.url) return false;
+      FluidAudio.setPlaylist(tracks, index);
+      if (typeof QueueChamber !== 'undefined') {
+        QueueChamber.updateQueueDisplay(t, tracks, index);
+      }
+      FluidAudio.load(t.url, t);
+      FluidAudio.play();
+      PlaylistChamber.setActivePlaylistItem(index);
+      if (typeof showToast !== 'undefined') showToast('▶ ' + (t.title || t.name || ''));
+      return true;
+    },
+
+    /** Toggle a track in/out of the playback queue. Returns true if added. */
+    _toggleQueue: function(track) {
+      if (typeof FluidAudio === 'undefined') return false;
+      const exists = FluidAudio.playlist.find(function(p) {
+        return p.id === track.id && p.platform === track.platform;
+      });
+      if (!exists) {
+        FluidAudio.playlist.push(track);
+        if (typeof QueueChamber !== 'undefined') {
+          QueueChamber.updateQueueDisplay(FluidAudio.currentTrack, FluidAudio.playlist, FluidAudio.playlistIndex);
+        }
+        if (typeof showToast !== 'undefined') showToast('+ 已添加到队列');
+        return true;
+      } else {
+        FluidAudio.playlist = FluidAudio.playlist.filter(function(p) {
+          return !(p.id === track.id && p.platform === track.platform);
+        });
+        if (typeof QueueChamber !== 'undefined') {
+          QueueChamber.updateQueueDisplay(FluidAudio.currentTrack, FluidAudio.playlist, FluidAudio.playlistIndex);
+        }
+        if (typeof showToast !== 'undefined') showToast('− 从队列移除');
+        return false;
+      }
+    },
+
     renderTrackList(tracks, currentIndex, _sourcePlaylist) {
       const container = document.getElementById('playlist-items');
       if (!container) return;
@@ -576,43 +629,15 @@
           const btn = e.currentTarget;
           const origText = btn.textContent;
           btn.textContent = '…';
-          const t = tracks[i];
-          await window._ensureTrackUrl(t);
-          if (t.url && typeof FluidAudio !== 'undefined') {
-            FluidAudio.setPlaylist(tracks, i);
-            if (typeof QueueChamber !== 'undefined') {
-              QueueChamber.updateQueueDisplay(t, tracks, i);
-            }
-            FluidAudio.load(t.url, t);
-            FluidAudio.play();
-            PlaylistChamber.setActivePlaylistItem(i);
-            if (typeof showToast !== 'undefined') showToast('▶ ' + (t.title || t.name || ''));
-          } else {
-            btn.textContent = '✗';
-            setTimeout(() => { btn.textContent = origText; }, 800);
-            return;
-          }
-          btn.textContent = origText;
+          const ok = await PlaylistChamber._playTrack(tracks, i);
+          btn.textContent = ok ? origText : '✗';
+          if (!ok) setTimeout(function() { btn.textContent = origText; }, 800);
         });
         row.querySelector('.pli-add').addEventListener('click', (e) => {
           e.stopPropagation();
-          if (typeof FluidAudio !== 'undefined') {
-            const exists = FluidAudio.playlist.find(p => p.id === track.id && p.platform === track.platform);
-            const btn = e.currentTarget;
-            if (!exists) {
-              FluidAudio.playlist.push(track);
-              btn.textContent = '✓';
-              if (typeof showToast !== 'undefined') showToast('+ 已添加到队列');
-            } else {
-              FluidAudio.playlist = FluidAudio.playlist.filter(p => !(p.id === track.id && p.platform === track.platform));
-              btn.textContent = '+';
-              if (typeof showToast !== 'undefined') showToast('− 从队列移除');
-            }
-            if (typeof QueueChamber !== 'undefined') {
-              QueueChamber.updateQueueDisplay(FluidAudio.currentTrack, FluidAudio.playlist, FluidAudio.playlistIndex);
-            }
-            setTimeout(() => { btn.textContent = exists ? '+' : '✓'; }, 600);
-          }
+          const added = PlaylistChamber._toggleQueue(track);
+          e.currentTarget.textContent = added ? '✓' : '+';
+          setTimeout(function() { e.currentTarget.textContent = added ? '+' : '✓'; }, 600);
         });
 
         // Initial fav state
@@ -651,7 +676,7 @@
       tracks.forEach((track, i) => {
         const row = document.createElement('div');
         row.className = 'playlist-item playlist-item-row';
-        const info = ChamberBase.escapeHtml(track.title) + (track.artist ? ' — ' + ChamberBase.escapeHtml(track.artist) : '');
+        const info = PlaylistChamber._trackDisplayText(track);
         row.innerHTML = `
           <span class="pli-actions">
             <button class="pli-btn pli-play" data-idx="${i}" title="立即播放">▶</button>
@@ -662,23 +687,15 @@
         `;
         row.querySelector('.pli-play').addEventListener('click', async (e) => {
           e.stopPropagation();
-          const t = tracks[i];
-          if ((!t.url || t.platform === 'qq') && t.id && typeof ApiBridge !== 'undefined') {
-            await window._ensureTrackUrl(t);
-          }
-          if (t.url && typeof FluidAudio !== 'undefined') {
-            FluidAudio.load(t.url, t);
+          await window._ensureTrackUrl(tracks[i]);
+          if (tracks[i].url && typeof FluidAudio !== 'undefined') {
+            FluidAudio.load(tracks[i].url, tracks[i]);
             FluidAudio.play();
           }
         });
         row.querySelector('.pli-add').addEventListener('click', (e) => {
           e.stopPropagation();
-          if (typeof FluidAudio !== 'undefined') {
-            FluidAudio.playlist.push(track);
-            if (typeof QueueChamber !== 'undefined') {
-              QueueChamber.updateQueueDisplay(FluidAudio.currentTrack, FluidAudio.playlist, FluidAudio.playlistIndex);
-            }
-          }
+          if (typeof FluidAudio !== 'undefined') FluidAudio.playlist.push(track);
         });
         row.querySelector('.pli-remove').addEventListener('click', (e) => {
           e.stopPropagation();
@@ -709,7 +726,7 @@
       tracks.forEach((track, i) => {
         const row = document.createElement('div');
         row.className = 'playlist-item playlist-item-row' + (i === (FluidAudio.playlistIndex || 0) ? ' active' : '');
-        const info = ChamberBase.escapeHtml(track.title || track.name || '未知') + (track.artist ? ' — ' + ChamberBase.escapeHtml(track.artist) : '');
+        const info = PlaylistChamber._trackDisplayText(track);
         row.innerHTML = `
           <span class="pli-actions">
             <button class="pli-btn pli-play" data-idx="${i}" title="播放">▶</button>
@@ -719,12 +736,9 @@
         `;
         row.querySelector('.pli-play').addEventListener('click', async (e) => {
           e.stopPropagation();
-          const t = tracks[i];
-          if ((!t.url || t.platform === 'qq') && t.id && typeof ApiBridge !== 'undefined') {
-            await window._ensureTrackUrl(t);
-          }
-          if (t.url && typeof FluidAudio !== 'undefined') {
-            FluidAudio.load(t.url, t);
+          await window._ensureTrackUrl(tracks[i]);
+          if (tracks[i].url && typeof FluidAudio !== 'undefined') {
+            FluidAudio.load(tracks[i].url, tracks[i]);
             FluidAudio.play();
             FluidAudio.playlistIndex = i;
           }
