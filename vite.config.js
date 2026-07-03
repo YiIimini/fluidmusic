@@ -35,7 +35,10 @@ export default defineConfig({
     // Generate sourcemaps for debugging
     sourcemap: true,
     rollupOptions: {
-      input: resolve(__dirname, 'public/index.html'),
+      input: {
+        main: resolve(__dirname, 'public/index.html'),
+        bridge: resolve(__dirname, 'src/bridge.ts'),
+      },
     },
   },
 
