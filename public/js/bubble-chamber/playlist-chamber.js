@@ -591,6 +591,7 @@
         searchInput.placeholder = '搜索当前列表...';
         searchInput.style.cssText = 'flex:1;padding:5px 10px;border-radius:8px;border:1px solid var(--glass-border);background:rgba(255,255,255,0.05);color:var(--text-primary);font-size:12px;outline:none;font-family:var(--font-main);min-width:120px;';
         searchInput.setAttribute('oninput', 'window._filterPlaylistTracks(this.value)');
+        searchInput.setAttribute('aria-label', '搜索当前歌单');
         toolbarRow.appendChild(searchInput);
 
         container.appendChild(toolbarRow);
@@ -599,6 +600,10 @@
       tracks.forEach((track, i) => {
         const row = document.createElement('div');
         row.className = 'playlist-item playlist-item-row' + (i === currentIndex ? ' active' : '');
+        row.setAttribute('role', 'listitem');
+        row.setAttribute('tabindex', '0');
+        row.setAttribute('role', 'listitem');
+        row.setAttribute('tabindex', '0');
 
         const trackInfo = track.title || track.name || '未知';
         const artistInfo = track.artist ? ' — ' + track.artist : '';
