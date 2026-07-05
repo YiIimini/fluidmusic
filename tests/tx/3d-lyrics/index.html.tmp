@@ -1,0 +1,1671 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>3D Lyrics + Cover Particles — Mineradio</title>
+<style>
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+html, body { width:100%; height:100%; overflow:hidden; background:#0a0a10; font-family:Inter,'Noto Sans SC','PingFang SC','Microsoft YaHei',Arial,sans-serif; }
+canvas { display:block; position:fixed; top:0; left:0; width:100%; height:100%; z-index:0; }
+
+#drop-hint {
+  position:fixed; top:50%; left:50%; transform:translate(-50%,-50%);
+  color:rgba(255,255,255,0.35); font-size:15px; pointer-events:none; text-align:center;
+  transition:opacity 0.6s; z-index:5;
+}
+
+/* Bottom control bar */
+#control-bar {
+  position:fixed; bottom:0; left:0; right:0; z-index:10;
+  display:flex; flex-wrap:wrap; align-items:center; gap:10px;
+  padding:10px 14px;
+  background:rgba(10,10,20,0.90);
+  backdrop-filter:blur(12px);
+  -webkit-backdrop-filter:blur(12px);
+  border-top:1px solid rgba(255,255,255,0.08);
+  font-size:12px; color:#d0d0d0;
+}
+#control-bar button {
+  padding:7px 14px; border-radius:7px; border:1px solid rgba(255,255,255,0.16);
+  background:rgba(255,255,255,0.06); color:#d8d8d8; cursor:pointer;
+  font-size:12px; font-family:inherit; white-space:nowrap;
+  transition:background 0.2s, border-color 0.2s;
+}
+#control-bar button:hover { background:rgba(255,255,255,0.13); border-color:rgba(255,255,255,0.30); }
+#control-bar button.active { background:rgba(220,80,80,0.22); border-color:rgba(220,80,80,0.45); color:#f0c0c0; }
+#control-bar input[type="number"] {
+  width:52px; padding:6px 4px; border-radius:7px;
+  border:1px solid rgba(255,255,255,0.14); background:rgba(255,255,255,0.05);
+  color:#e0e0e0; font-size:12px; text-align:center; outline:none; font-family:inherit;
+}
+#control-bar input[type="range"] {
+  width:80px; accent-color:#ffd700;
+}
+#control-bar select {
+  padding:6px 8px; border-radius:7px;
+  border:1px solid rgba(255,255,255,0.14); background:rgba(255,255,255,0.06);
+  color:#e0e0e0; font-size:12px; outline:none; font-family:inherit; cursor:pointer;
+  max-width:150px;
+}
+#control-bar select option { background:#1a1a28; color:#e0e0e0; }
+#control-bar input[type="color"] {
+  width:26px; height:26px; border-radius:6px; border:1px solid rgba(255,255,255,0.18);
+  cursor:pointer; padding:0; background:transparent;
+}
+#control-bar input[type="color"]::-webkit-color-swatch-wrapper { padding:0; }
+#control-bar input[type="color"]::-webkit-color-swatch { border:none; border-radius:4px; }
+#control-bar .sep { width:1px; height:20px; background:rgba(255,255,255,0.10); margin:0 2px; }
+#control-bar .label { color:rgba(255,255,255,0.5); white-space:nowrap; }
+
+#audio-status {
+  font-size:11px; color:rgba(255,255,255,0.45); margin-left:auto; white-space:nowrap;
+  max-width:200px; overflow:hidden; text-overflow:ellipsis;
+}
+
+/* File inputs hidden */
+#file-input, #cover-input { display:none; }
+
+/* Textarea panel (top-right) */
+#lyrics-panel {
+  position:fixed; top:12px; right:12px; z-index:10;
+  display:flex; flex-direction:column; gap:6px;
+}
+#lyrics-textarea {
+  width:240px; height:140px; padding:10px; border-radius:10px;
+  border:1px solid rgba(255,255,255,0.14); background:rgba(10,10,20,0.82);
+  backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
+  color:#e0e0e0; font-size:13px; font-family:inherit;
+  resize:none; outline:none; line-height:1.5;
+}
+#lyrics-textarea:focus { border-color:rgba(255,215,0,0.45); }
+#lyrics-textarea::placeholder { color:rgba(255,255,255,0.25); }
+
+/* Status toast */
+#status-toast {
+  position:fixed; top:18px; left:50%; transform:translateX(-50%); z-index:20;
+  padding:8px 20px; border-radius:8px;
+  background:rgba(0,0,0,0.68); color:rgba(255,255,255,0.72);
+  font-size:13px; pointer-events:none; opacity:0; transition:opacity 0.3s;
+}
+#status-toast.visible { opacity:1; }
+
+/* Particle settings panel */
+#particle-settings {
+  position:fixed; bottom:52px; right:14px; z-index:15;
+  background:rgba(10,10,20,0.94);
+  backdrop-filter:blur(14px);
+  -webkit-backdrop-filter:blur(14px);
+  border:1px solid rgba(255,255,255,0.12);
+  border-radius:10px;
+  padding:12px 14px;
+  display:none;
+  flex-direction:column;
+  gap:7px;
+  min-width:280px;
+  max-height:70vh;
+  overflow-y:auto;
+  box-shadow:0 8px 32px rgba(0,0,0,0.45);
+}
+#particle-settings.visible { display:flex; }
+#particle-settings .ps-header {
+  display:flex; justify-content:space-between; align-items:center;
+  font-size:13px; color:rgba(255,255,255,0.8); font-weight:600;
+  margin-bottom:4px;
+}
+#particle-settings .ps-header button {
+  background:none; border:none; color:rgba(255,255,255,0.4); cursor:pointer;
+  font-size:16px; padding:2px 6px; line-height:1;
+}
+#particle-settings .ps-header button:hover { color:rgba(255,255,255,0.7); }
+#particle-settings label {
+  display:flex; justify-content:space-between; align-items:center;
+  font-size:11px; color:rgba(255,255,255,0.65); gap:8px;
+}
+#particle-settings input[type="range"] {
+  width:110px; accent-color:#ffd700;
+}
+#particle-settings .ps-val {
+  font-size:11px; color:rgba(255,255,255,0.35); min-width:36px; text-align:right;
+}
+
+/* Gear button */
+#btn-gear {
+  font-size:15px; padding:7px 10px !important;
+}
+</style>
+</head>
+<body>
+
+<canvas id="c"></canvas>
+<div id="drop-hint">拖放音频文件或<br>点击下方按钮</div>
+<div id="status-toast">就绪</div>
+
+<!-- Lyrics textarea (top-right) -->
+<div id="lyrics-panel">
+  <textarea id="lyrics-textarea" placeholder="输入歌词，每行一句...&#10;例如：&#10;第一行歌词&#10;第二行歌词&#10;第三行歌词"></textarea>
+</div>
+
+<!-- Particle settings panel -->
+<div id="particle-settings">
+  <div class="ps-header">
+    <span>粒子参数设置</span>
+    <button id="btn-ps-close" title="关闭">✕</button>
+  </div>
+  <label>粒子分辨率 <span><input type="range" id="ps-resolution" value="118" min="60" max="160" step="2"><span class="ps-val">118</span></span></label>
+  <label>粒子大小 <span><input type="range" id="ps-point-scale" value="1.0" min="0.3" max="2.5" step="0.05"><span class="ps-val">1.00</span></span></label>
+  <label>强度 <span><input type="range" id="ps-intensity" value="0.85" min="0.2" max="2.0" step="0.05"><span class="ps-val">0.85</span></span></label>
+  <label>深度 <span><input type="range" id="ps-depth" value="1.0" min="0.1" max="2.5" step="0.05"><span class="ps-val">1.00</span></span></label>
+  <label>散射 <span><input type="range" id="ps-scatter" value="0" min="0" max="1.0" step="0.02"><span class="ps-val">0.00</span></span></label>
+  <label>扭曲 <span><input type="range" id="ps-twist" value="0" min="0" max="1.5" step="0.02"><span class="ps-val">0.00</span></span></label>
+  <label>速度 <span><input type="range" id="ps-speed" value="1.0" min="0.1" max="3.0" step="0.05"><span class="ps-val">1.00</span></span></label>
+  <label>色彩增强 <span><input type="range" id="ps-color-boost" value="1.1" min="0.5" max="2.0" step="0.05"><span class="ps-val">1.10</span></span></label>
+</div>
+
+<!-- Main control bar -->
+<div id="control-bar">
+  <button id="btn-mic" title="使用麦克风">🎤 麦克风</button>
+  <button id="btn-file" title="加载音频文件">📁 音频文件</button>
+  <input type="file" id="file-input" accept="audio/*">
+  <button id="btn-cover" title="上传封面图片">📷 上传封面</button>
+  <input type="file" id="cover-input" accept="image/*">
+
+  <span class="sep"></span>
+
+  <span class="label">行数:</span>
+  <input type="number" id="line-count" value="5" min="1" max="20" step="1">
+
+  <span class="label">当前行:</span>
+  <input type="number" id="current-line" value="0" min="0" step="1">
+
+  <span class="sep"></span>
+
+  <span class="label">当前行颜色:</span>
+  <input type="color" id="color-current" value="#ffd700">
+
+  <span class="label">其他行颜色:</span>
+  <input type="color" id="color-other" value="#cccccc">
+
+  <span class="sep"></span>
+
+  <span class="label">歌词字体:</span>
+  <select id="font-family">
+    <option value="'PingFang SC',sans-serif">PingFang SC (默认)</option>
+    <option value="'Noto Sans SC',sans-serif">Noto Sans SC</option>
+    <option value="'Microsoft YaHei',sans-serif">Microsoft YaHei</option>
+    <option value="'STSong','Songti SC',serif">宋体</option>
+    <option value="'STKaiti','Kaiti SC',serif">楷体</option>
+    <option value="'KaiTi',serif">KaiTi</option>
+    <option value="'SimHei','Heiti SC',sans-serif">黑体</option>
+    <option value="'Inter',sans-serif">Inter (英文)</option>
+  </select>
+
+  <span class="label">字体大小:</span>
+  <input type="range" id="font-size" value="120" min="60" max="180" step="2">
+
+  <span class="label">行间距:</span>
+  <input type="range" id="line-spacing" value="1.2" min="0.8" max="2.5" step="0.05">
+
+  <span class="label">周边字号比例:</span>
+  <input type="range" id="surround-scale" value="0.65" min="0.3" max="1.0" step="0.05">
+
+  <span class="label">律动倍率:</span>
+  <input type="range" id="beat-pulse-ratio" value="1.0" min="0" max="3.0" step="0.05">
+
+  <span class="label">高亮特效:</span>
+  <select id="highlight-effect">
+    <option value="无">无</option>
+    <option value="发光">发光</option>
+    <option value="描边">描边</option>
+    <option value="渐变">渐变</option>
+  </select>
+
+  <button id="btn-gear" title="粒子参数设置">⚙️</button>
+  <button id="btn-cover-particles" class="active" title="显示/隐藏封面粒子">👁 封面粒子</button>
+
+  <span id="audio-status">就绪</span>
+</div>
+
+<script type="importmap">
+{ "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+
+// ============================================================
+//  AudioAnalyzer — inlined from shared/audio-analyzer.js
+// ============================================================
+class AudioAnalyzer {
+  constructor(fftSize = 2048) {
+    this.fftSize = fftSize;
+    this.ac = null;
+    this.analyser = null;
+    this.source = null;
+    this.freqData = null;
+    this._stream = null;
+    this._audioEl = null;
+    this.smoothing = 0.12;
+    this.activeSmoothing = 0.04;
+    this._activity = 0;
+    this.onActivityChange = null;
+    this.subBass = 0; this.bass = 0; this.lowMid = 0; this.mid = 0;
+    this.highMid = 0; this.presence = 0; this.brilliance = 0; this.air = 0;
+    this.energy = 0;
+  }
+
+  _bandRms(data, len, sampleRate, hz0, hz1) {
+    const binHz = sampleRate / (len * 2);
+    const a = Math.max(0, Math.floor(hz0 / binHz));
+    const b = Math.min(len - 1, Math.ceil(hz1 / binHz));
+    let sum = 0, count = 0;
+    for (let i = a; i <= b; i++) { const v = data[i] / 255; sum += v * v; count++; }
+    return count ? Math.sqrt(sum / count) : 0;
+  }
+
+  async initFromMic() {
+    this.dispose();
+    this.ac = new (window.AudioContext || window.webkitAudioContext)();
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    this._stream = stream;
+    this.source = this.ac.createMediaStreamSource(stream);
+    this.analyser = this.ac.createAnalyser();
+    this.analyser.fftSize = this.fftSize;
+    this.source.connect(this.analyser);
+    this.freqData = new Uint8Array(this.analyser.frequencyBinCount);
+    return this;
+  }
+
+  initFromElement(audioEl) {
+    this.dispose();
+    this._audioEl = audioEl;
+    this.ac = new (window.AudioContext || window.webkitAudioContext)();
+    try {
+      this.source = this.ac.createMediaElementSource(audioEl);
+    } catch (e) {
+      const newAudio = new Audio(audioEl.src);
+      newAudio.volume = audioEl.volume;
+      newAudio.currentTime = audioEl.currentTime;
+      if (!audioEl.paused) newAudio.play();
+      this._audioEl = newAudio;
+      this.source = this.ac.createMediaElementSource(newAudio);
+    }
+    this.analyser = this.ac.createAnalyser();
+    this.analyser.fftSize = this.fftSize;
+    this.source.connect(this.analyser);
+    this.source.connect(this.ac.destination);
+    this.freqData = new Uint8Array(this.analyser.frequencyBinCount);
+    return this;
+  }
+
+  getAnalysis() {
+    const empty = { subBass:0, bass:0, lowMid:0, mid:0, highMid:0, presence:0, brilliance:0, air:0, energy:0 };
+    if (!this.analyser || !this.freqData) return empty;
+    const rate = this.ac ? this.ac.sampleRate : 44100;
+    const target = { ...empty };
+    try { this.analyser.getByteFrequencyData(this.freqData); } catch (e) { return empty; }
+    const len = this.freqData.length;
+    target.subBass    = this._bandRms(this.freqData, len, rate, 20, 60);
+    target.bass       = this._bandRms(this.freqData, len, rate, 60, 150);
+    target.lowMid     = this._bandRms(this.freqData, len, rate, 150, 300);
+    target.mid        = this._bandRms(this.freqData, len, rate, 300, 1200);
+    target.highMid    = this._bandRms(this.freqData, len, rate, 1200, 3000);
+    target.presence   = this._bandRms(this.freqData, len, rate, 3000, 6000);
+    target.brilliance = this._bandRms(this.freqData, len, rate, 6000, 12000);
+    target.air        = this._bandRms(this.freqData, len, rate, 12000, 20000);
+    let energySum = 0;
+    for (let i = 0; i < len; i++) energySum += this.freqData[i] / 255;
+    target.energy = energySum / len;
+    const smooth = target.energy > 0.001 ? this.smoothing : this.smoothing * 0.5;
+    for (const k of Object.keys(target)) { this[k] += (target[k] - this[k]) * smooth; }
+    const rawActive = this.energy > 0.005 ? 1 : 0;
+    const prev = this._activity;
+    this._activity += (rawActive - this._activity) * this.activeSmoothing;
+    if (this.onActivityChange && Math.abs(this._activity - prev) > 0.05) this.onActivityChange(this._activity);
+    return { subBass:this.subBass, bass:this.bass, lowMid:this.lowMid, mid:this.mid,
+             highMid:this.highMid, presence:this.presence, brilliance:this.brilliance,
+             air:this.air, energy:this.energy };
+  }
+
+  isActive() { return !!(this.ac && this.analyser); }
+  getActivity() { return this._activity; }
+
+  dispose() {
+    if (this._stream) { this._stream.getTracks().forEach(t => t.stop()); this._stream = null; }
+    if (this.ac && this.ac.state !== 'closed') { this.ac.close().catch(() => {}); }
+    this.ac = null; this.analyser = null; this.source = null; this.freqData = null;
+    this._audioEl = null; this._activity = 0;
+  }
+}
+
+// ============================================================
+//  Constants
+// ============================================================
+let GRID = 118;
+const PLANE_SIZE = 4.8;
+const RIPPLE_MAX = 12;
+const FONT_WEIGHT = 900;
+const LYRIC_CANVAS_W = 2048;
+const LYRIC_CANVAS_H = 256;
+
+// ============================================================
+//  DOM refs
+// ============================================================
+const canvas = document.getElementById('c');
+const dropHint = document.getElementById('drop-hint');
+const statusToast = document.getElementById('status-toast');
+const audioStatusEl = document.getElementById('audio-status');
+const btnMic = document.getElementById('btn-mic');
+const btnFile = document.getElementById('btn-file');
+const fileInput = document.getElementById('file-input');
+const btnCover = document.getElementById('btn-cover');
+const coverInput = document.getElementById('cover-input');
+const lyricsTextarea = document.getElementById('lyrics-textarea');
+const lineCountInput = document.getElementById('line-count');
+const currentLineInput = document.getElementById('current-line');
+const colorCurrentInput = document.getElementById('color-current');
+const colorOtherInput = document.getElementById('color-other');
+const fontFamilySelect = document.getElementById('font-family');
+const fontSizeInput = document.getElementById('font-size');
+const lineSpacingInput = document.getElementById('line-spacing');
+const surroundScaleInput = document.getElementById('surround-scale');
+const beatPulseRatioInput = document.getElementById('beat-pulse-ratio');
+let beatPulseRatio = 1.0;
+const highlightEffectSelect = document.getElementById('highlight-effect');
+const themeSelect = document.getElementById('theme-select');
+const btnGear = document.getElementById('btn-gear');
+const btnCoverParticles = document.getElementById('btn-cover-particles');
+const particleSettingsPanel = document.getElementById('particle-settings');
+const btnPsClose = document.getElementById('btn-ps-close');
+
+// Particle settings refs
+const psResolution = document.getElementById('ps-resolution');
+const psPointScale = document.getElementById('ps-point-scale');
+const psIntensity = document.getElementById('ps-intensity');
+const psDepth = document.getElementById('ps-depth');
+const psScatter = document.getElementById('ps-scatter');
+const psTwist = document.getElementById('ps-twist');
+const psSpeed = document.getElementById('ps-speed');
+const psColorBoost = document.getElementById('ps-color-boost');
+
+// ============================================================
+//  Helpers
+// ============================================================
+function setStatus(msg) { audioStatusEl.textContent = msg; }
+
+function showToast(msg, duration = 2200) {
+  statusToast.textContent = msg;
+  statusToast.classList.add('visible');
+  clearTimeout(showToast._timer);
+  showToast._timer = setTimeout(() => statusToast.classList.remove('visible'), duration);
+}
+
+function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+
+function lightenColor(hex, factor) {
+  const c = new THREE.Color(hex);
+  c.r = Math.min(1, c.r * factor);
+  c.g = Math.min(1, c.g * factor);
+  c.b = Math.min(1, c.b * factor);
+  return '#' + c.getHexString();
+}
+
+// ============================================================
+//  Dynamic font family
+// ============================================================
+let lyricFontFamily = "'PingFang SC','Noto Sans SC','Microsoft YaHei',Arial,sans-serif";
+
+fontFamilySelect.addEventListener('change', () => {
+  lyricFontFamily = fontFamilySelect.value;
+  updateLyricLines();
+});
+
+// ============================================================
+//  Audio setup
+// ============================================================
+const analyzer = new AudioAnalyzer(2048);
+let audioEl = null;
+
+async function startMic() {
+  try {
+    if (audioEl) { audioEl.pause(); audioEl = null; }
+    await analyzer.initFromMic();
+    btnMic.classList.add('active');
+    btnFile.classList.remove('active');
+    dropHint.style.opacity = '0';
+    setStatus('麦克风已激活');
+    showToast('麦克风已激活 — 说话或播放音乐');
+  } catch (e) {
+    setStatus('麦克风错误: ' + e.message);
+    showToast('麦克风访问被拒绝或不可用');
+  }
+}
+
+async function loadAudioFile(file) {
+  try {
+    if (audioEl) { audioEl.pause(); URL.revokeObjectURL(audioEl.src); }
+    const url = URL.createObjectURL(file);
+    audioEl = new Audio(url);
+    audioEl.loop = false;
+    audioEl.volume = 0.8;
+    analyzer.initFromElement(audioEl);
+    await audioEl.play();
+    btnFile.classList.add('active');
+    btnMic.classList.remove('active');
+    dropHint.style.opacity = '0';
+    setStatus('播放中: ' + file.name);
+    showToast('正在播放: ' + file.name);
+  } catch (e) {
+    setStatus('文件错误: ' + e.message);
+    showToast('音频文件加载失败');
+  }
+}
+
+btnMic.addEventListener('click', startMic);
+btnFile.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (file) loadAudioFile(file);
+});
+
+// Drag and drop audio
+document.addEventListener('dragover', (e) => { e.preventDefault(); e.stopPropagation(); });
+document.addEventListener('drop', (e) => {
+  e.preventDefault(); e.stopPropagation();
+  const files = e.dataTransfer.files;
+  if (files.length > 0) {
+    const file = files[0];
+    if (file.type.startsWith('audio/') || /\.(mp3|wav|flac|ogg|m4a|aac|wma|opus|webm)$/i.test(file.name)) {
+      loadAudioFile(file);
+    }
+  }
+});
+
+// ============================================================
+//  Three.js setup (shared)
+// ============================================================
+const renderer = new THREE.WebGLRenderer({ canvas, alpha: false, antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setClearColor(0x0a0a10);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color('#0a0a10');
+scene.fog = new THREE.Fog('#0a0a10', 10, 35);
+
+const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.5, 60);
+camera.position.set(0, 0, 6.8);
+camera.lookAt(0, 0, 0);
+
+// Orbit state (shared)
+let orbitTheta = 0;
+let orbitPhi = 0;
+let orbitDistance = 6.8;
+let isDragging = false;
+let prevMouse = { x: 0, y: 0 };
+
+function updateCameraPosition() {
+  const sp = Math.sin(orbitPhi), cp = Math.cos(orbitPhi);
+  const st = Math.sin(orbitTheta), ct = Math.cos(orbitTheta);
+  camera.position.x = orbitDistance * cp * st;
+  camera.position.y = orbitDistance * sp;
+  camera.position.z = orbitDistance * cp * ct;
+  camera.lookAt(0, 0, 0);
+}
+
+// ============================================================
+//  Dot texture (for particles & star river — SHARED)
+// ============================================================
+function makeDotTexture() {
+  const cv = document.createElement('canvas'); cv.width = cv.height = 64;
+  const ctx = cv.getContext('2d');
+  const g = ctx.createRadialGradient(32, 32, 0, 32, 32, 31);
+  g.addColorStop(0.00, 'rgba(255,255,255,0.96)');
+  g.addColorStop(0.42, 'rgba(255,255,255,0.78)');
+  g.addColorStop(0.72, 'rgba(255,255,255,0.22)');
+  g.addColorStop(1.00, 'rgba(255,255,255,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 64, 64);
+  const tex = new THREE.CanvasTexture(cv);
+  tex.minFilter = THREE.LinearFilter; tex.magFilter = THREE.LinearFilter;
+  return tex;
+}
+const dotTexture = makeDotTexture();
+
+// ============================================================
+//  Particle geometry — builds a grid x grid plane
+// ============================================================
+function buildParticleGeometry(grid) {
+  const count = grid * grid;
+  const positions = new Float32Array(count * 3);
+  const uvs = new Float32Array(count * 2);
+  const rand = new Float32Array(count);
+  const texelStep = 1 / grid;
+  for (let i = 0; i < count; i++) {
+    const gx = i % grid, gy = Math.floor(i / grid);
+    const u = (gx + 0.5) * texelStep, v = (gy + 0.5) * texelStep;
+    const px = gx / (grid - 1), py = gy / (grid - 1);
+    positions[i*3]   = (px - 0.5) * PLANE_SIZE;
+    positions[i*3+1] = (py - 0.5) * PLANE_SIZE;
+    positions[i*3+2] = 0;
+    uvs[i*2]   = u;
+    uvs[i*2+1] = v;
+    rand[i]    = Math.random();
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geo.setAttribute('aUv',      new THREE.BufferAttribute(uvs, 2));
+  geo.setAttribute('aRand',    new THREE.BufferAttribute(rand, 1));
+  return geo;
+}
+let particleGeo = buildParticleGeometry(GRID);
+
+// ============================================================
+//  Ripple system (12 ripples, DataTexture)
+// ============================================================
+const rippleData = new Float32Array(RIPPLE_MAX * 4);
+const rippleTex = new THREE.DataTexture(rippleData, 1, RIPPLE_MAX, THREE.RGBAFormat, THREE.FloatType);
+rippleTex.magFilter = THREE.NearestFilter; rippleTex.minFilter = THREE.NearestFilter;
+const ripples = [];
+for (let ri = 0; ri < RIPPLE_MAX; ri++) ripples.push({ x: 0, y: 0, age: -10, str: 0 });
+
+let rippleIdx = 0;
+let lastRippleAt = 0;
+let lastBassRising = false;
+const BASS_THRESHOLD = 0.25;
+const RIPPLE_COOLDOWN = 0.32;
+
+const regions = [];
+function initRippleRegions() {
+  if (regions.length) return;
+  const ps = PLANE_SIZE;
+  for (let ry = 0; ry < 3; ry++) for (let rx = 0; rx < 3; rx++) {
+    regions.push({
+      x: (rx / 2 - 0.5) * ps * 0.72,
+      y: (ry / 2 - 0.5) * ps * 0.72,
+    });
+  }
+}
+initRippleRegions();
+
+function triggerRipple(x, y, strength) {
+  const r = ripples[rippleIdx];
+  r.x = x; r.y = y; r.age = 0; r.str = strength;
+  rippleIdx = (rippleIdx + 1) % RIPPLE_MAX;
+}
+
+function updateRipples(dt, bass, time) {
+  const isBassHit = bass > BASS_THRESHOLD && !lastBassRising;
+  lastBassRising = bass > BASS_THRESHOLD * 0.75;
+  if (isBassHit && (time - lastRippleAt) > RIPPLE_COOLDOWN) {
+    lastRippleAt = time;
+    const count = 2 + (Math.random() < 0.5 ? 0 : 1);
+    const used = {};
+    for (let k = 0; k < count; k++) {
+      let idx, tries = 0;
+      do { idx = Math.floor(Math.random() * 9); tries++; } while (used[idx] && tries < 12);
+      used[idx] = true;
+      const reg = regions[idx];
+      const jx = reg.x + (Math.random() - 0.5) * 0.7;
+      const jy = reg.y + (Math.random() - 0.5) * 0.7;
+      const str = 0.65 + bass * 1.4 + Math.random() * 0.25;
+      triggerRipple(jx, jy, str);
+    }
+  }
+
+  for (let i = 0; i < RIPPLE_MAX; i++) {
+    const r = ripples[i];
+    if (r.str > 0.005) {
+      r.age += dt;
+      if (r.age > 2.0) { r.str = 0; r.age = -10; }
+    }
+    const off = i * 4;
+    rippleData[off]   = r.x;
+    rippleData[off+1] = r.y;
+    rippleData[off+2] = r.age;
+    rippleData[off+3] = r.str;
+  }
+  rippleTex.needsUpdate = true;
+
+  let active = 0;
+  for (let i = 0; i < RIPPLE_MAX; i++) if (ripples[i].str > 0.005) active++;
+  return active;
+}
+
+// ============================================================
+//  Cover texture
+// ============================================================
+const _initCv = document.createElement('canvas'); _initCv.width = _initCv.height = 64;
+_initCv.getContext('2d').fillStyle = '#1c1c28'; _initCv.getContext('2d').fillRect(0, 0, 64, 64);
+let coverTex = new THREE.CanvasTexture(_initCv);
+coverTex.minFilter = THREE.LinearFilter; coverTex.magFilter = THREE.LinearFilter;
+coverTex.wrapS = THREE.ClampToEdgeWrapping; coverTex.wrapT = THREE.ClampToEdgeWrapping;
+if (THREE.LinearSRGBColorSpace) coverTex.colorSpace = THREE.LinearSRGBColorSpace;
+
+let hasCover = false;
+
+function loadCoverFromImage(img) {
+  const size = 512;
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = size;
+  const ctx = cv.getContext('2d');
+  const minDim = Math.min(img.width, img.height);
+  const sx = (img.width - minDim) / 2;
+  const sy = (img.height - minDim) / 2;
+  ctx.drawImage(img, sx, sy, minDim, minDim, 0, 0, size, size);
+
+  coverTex.dispose();
+  coverTex = new THREE.CanvasTexture(cv);
+  coverTex.minFilter = THREE.LinearFilter; coverTex.magFilter = THREE.LinearFilter;
+  coverTex.wrapS = THREE.ClampToEdgeWrapping; coverTex.wrapT = THREE.ClampToEdgeWrapping;
+  if (THREE.LinearSRGBColorSpace) coverTex.colorSpace = THREE.LinearSRGBColorSpace;
+  uniforms.uCoverTex.value = coverTex;
+  hasCover = true;
+  uniforms.uHasCover.value = 1;
+  setStatus('封面已加载');
+  showToast('封面已加载');
+}
+
+btnCover.addEventListener('click', () => coverInput.click());
+coverInput.addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    const img = new Image();
+    img.onload = () => loadCoverFromImage(img);
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+});
+
+// ============================================================
+//  Uniforms (shared between cover particles and star river)
+// ============================================================
+const uniforms = {
+  uTime:       { value: 0 },
+  uBass:       { value: 0 },
+  uMid:        { value: 0 },
+  uTreble:     { value: 0 },
+  uBeat:       { value: 0 },
+  uEnergy:     { value: 0 },
+  uIntensity:  { value: 0.85 },
+  uPointScale: { value: 1.0 },
+  uSpeed:      { value: 1.0 },
+  uTwist:      { value: 0 },
+  uColorBoost: { value: 1.1 },
+  uScatter:    { value: 0 },
+  uDepth:      { value: 1.0 },
+  uCoverTex:   { value: coverTex },
+  uRippleTex:  { value: rippleTex },
+  uRippleCount:{ value: 0 },
+  uDotTex:     { value: dotTexture },
+  uHasCover:   { value: 0 },
+  uMouseXY:    { value: new THREE.Vector2(-999, -999) },
+  uMouseActive:{ value: 0 },
+  uPixel:      { value: renderer.getPixelRatio() },
+  uAlpha:      { value: 0 },
+};
+
+// ============================================================
+//  Vertex Shader — SILK preset with uDepth support
+// ============================================================
+const vs = `
+precision highp float;
+uniform float uTime, uBass, uMid, uTreble, uBeat, uEnergy;
+uniform float uIntensity, uPointScale, uSpeed, uTwist;
+uniform float uColorBoost, uScatter, uDepth;
+uniform float uHasCover, uMouseActive;
+uniform sampler2D uCoverTex, uRippleTex;
+uniform int uRippleCount;
+uniform vec2 uMouseXY;
+uniform float uPixel;
+attribute vec2 aUv;
+attribute float aRand;
+varying vec3 vColor;
+varying float vBright, vRipple, vAlpha, vSourceLum;
+
+#define PI 3.14159265359
+
+vec3 mod289(vec3 x){return x-floor(x*(1.0/289.0))*289.0;}
+vec4 mod289v(vec4 x){return x-floor(x*(1.0/289.0))*289.0;}
+vec4 perm(vec4 x){return mod289v(((x*34.0)+1.0)*x);}
+float snoise(vec3 v){
+  const vec2 C=vec2(1.0/6.0,1.0/3.0);
+  const vec4 D=vec4(0.0,0.5,1.0,2.0);
+  vec3 i=floor(v+dot(v,C.yyy));
+  vec3 x0=v-i+dot(i,C.xxx);
+  vec3 g=step(x0.yzx,x0.xyz); vec3 l=1.0-g;
+  vec3 i1=min(g.xyz,l.zxy); vec3 i2=max(g.xyz,l.zxy);
+  vec3 x1=x0-i1+C.xxx;
+  vec3 x2=x0-i2+C.yyy;
+  vec3 x3=x0-D.yyy;
+  i=mod289(i);
+  vec4 p=perm(perm(perm(i.z+vec4(0.0,i1.z,i2.z,1.0))+i.y+vec4(0.0,i1.y,i2.y,1.0))+i.x+vec4(0.0,i1.x,i2.x,1.0));
+  float n_=0.142857142857;
+  vec3 ns=n_*D.wyz-D.xzx;
+  vec4 j=p-49.0*floor(p*ns.z*ns.z);
+  vec4 x_=floor(j*ns.z); vec4 y_=floor(j-7.0*x_);
+  vec4 x=x_*ns.x+ns.yyyy; vec4 y=y_*ns.x+ns.yyyy;
+  vec4 h=1.0-abs(x)-abs(y);
+  vec4 b0=vec4(x.xy,y.xy); vec4 b1=vec4(x.zw,y.zw);
+  vec4 s0=floor(b0)*2.0+1.0; vec4 s1=floor(b1)*2.0+1.0;
+  vec4 sh=-step(h,vec4(0.0));
+  vec4 a0=b0.xzyw+s0.xzyw*sh.xxyy; vec4 a1=b1.xzyw+s1.xzyw*sh.zzww;
+  vec3 p0=vec3(a0.xy,h.x); vec3 p1=vec3(a0.zw,h.y); vec3 p2=vec3(a1.xy,h.z); vec3 p3=vec3(a1.zw,h.w);
+  vec4 norm=inversesqrt(vec4(dot(p0,p0),dot(p1,p1),dot(p2,p2),dot(p3,p3)));
+  p0*=norm.x; p1*=norm.y; p2*=norm.z; p3*=norm.w;
+  vec4 m=max(0.6-vec4(dot(x0,x0),dot(x1,x1),dot(x2,x2),dot(x3,x3)),0.0);
+  m=m*m;
+  return 42.0*dot(m*m,vec4(dot(p0,x0),dot(p1,x1),dot(p2,x2),dot(p3,x3)));
+}
+
+float hash11(float p) {
+  return fract(sin(p * 127.1) * 43758.5453123);
+}
+
+vec2 safeCoverUv(vec2 uv) {
+  return clamp(uv, vec2(0.0012), vec2(0.9988));
+}
+
+vec3 sampleNewCoverColor(vec2 uv) {
+  return texture2D(uCoverTex, safeCoverUv(uv)).rgb;
+}
+
+float rippleSumAt(vec2 p, out float maxAmp) {
+  float sum = 0.0; maxAmp = 0.0;
+  for (int ri = 0; ri < 12; ri++) {
+    if (ri >= uRippleCount) break;
+    float vCoord = (float(ri) + 0.5) / 12.0;
+    vec4 rd = texture2D(uRippleTex, vec2(0.5, vCoord));
+    float age = rd.z; float str = rd.w;
+    if (str < 0.005 || age < 0.0 || age > 2.0) continue;
+    float dx = p.x - rd.x, dy = p.y - rd.y;
+    float dist = sqrt(dx*dx + dy*dy);
+    float lifeN = age / 2.0;
+    float fadeIn  = smoothstep(0.0, 0.06, age);
+    float fadeOut = 1.0 - smoothstep(0.7, 1.0, lifeN);
+    float env = fadeIn * fadeOut;
+    float bulgeW = 0.55 + age * 0.80;
+    float bulge  = exp(-dist*dist / (2.0 * bulgeW * bulgeW)) * (1.0 - smoothstep(0.0, 0.55, lifeN));
+    float waveR  = age * 2.10;
+    float ringW  = 0.40 + age * 0.22;
+    float ring   = exp(-pow((dist - waveR) / ringW, 2.0));
+    float local  = (bulge * 2.4 + ring * 1.30) * env * str;
+    sum += local;
+    maxAmp = max(maxAmp, abs(local));
+  }
+  return sum;
+}
+
+void main(){
+  float t = uTime * uSpeed;
+  vec3 pos;
+  vec2 sampleUv = safeCoverUv(aUv);
+  vec3 coverColor = sampleNewCoverColor(sampleUv);
+  float maxRippleAmp = 0.0;
+  float rippleZ = 0.0;
+
+  vec3 defaultColor = mix(
+    vec3(0.36, 0.28, 0.72),
+    mix(vec3(0.85, 0.55, 0.95), vec3(0.45, 0.78, 0.95), aUv.x),
+    aUv.y
+  );
+  vColor = mix(defaultColor, coverColor, uHasCover);
+  vAlpha = 1.0;
+
+  float K = uIntensity * 1.6;
+
+  // SILK preset: planar with ripple + audio displacement
+  pos = position;
+  rippleZ = rippleSumAt(pos.xy, maxRippleAmp);
+
+  float midN = snoise(vec3(pos.x*1.4, pos.y*1.4, t*0.55)) * 0.6
+             + snoise(vec3(pos.x*2.8+5.0, pos.y*2.8-3.0, t*0.85)) * 0.4;
+  float midMask = 0.55 + 0.45 * snoise(vec3(pos.x*0.4, pos.y*0.4, t*0.18));
+  float midDisp = midN * uMid * 0.55 * midMask * K;
+
+  float trebleJ = snoise(vec3(pos.x*6.5, pos.y*6.5, t*3.5 + aRand*4.0)) * uTreble * 0.18 * K;
+  float bassBreath = snoise(vec3(pos.x*0.35, pos.y*0.35, t*0.4)) * uBass * 0.42 * K;
+
+  pos.z = (rippleZ * 1.30 + midDisp + trebleJ + bassBreath) * uDepth;
+
+  // Mouse interaction (push particles away)
+  if (uMouseActive > 0.5) {
+    float mdx = pos.x - uMouseXY.x;
+    float mdy = pos.y - uMouseXY.y;
+    float md = sqrt(mdx*mdx + mdy*mdy);
+    if (md < 1.0) {
+      float push = (1.0 - md) * (1.0 - md);
+      pos.z += push * 0.55 * uDepth;
+    }
+  }
+
+  // Scatter
+  if (uScatter > 0.001) {
+    vec2 jdir = vec2(cos(aRand * 6.2831), sin(aRand * 6.2831));
+    pos.xy += jdir * uScatter * (0.05 + uTreble * 0.10);
+  }
+
+  // Twist
+  if (uTwist > 0.001) {
+    float ta = uTwist * pos.z * 0.6;
+    float cs = cos(ta), sn = sin(ta);
+    pos.xy = mat2(cs, -sn, sn, cs) * pos.xy;
+  }
+
+  // Color processing
+  vSourceLum = dot(max(vColor, vec3(0.0)), vec3(0.299, 0.587, 0.114));
+  vColor = pow(max(vColor, vec3(0.0)), vec3(1.0 / max(0.35, uColorBoost)));
+
+  vBright = 0.82 + maxRippleAmp * 0.55 + uBass * 0.10 + uEnergy * 0.05;
+  vRipple = clamp(maxRippleAmp * 1.5, 0.0, 1.0);
+
+  vec4 mvPos = modelViewMatrix * vec4(pos, 1.0);
+  float depthSize = 36.0 / max(0.5, -mvPos.z);
+  float audioBoost = 1.0 + maxRippleAmp * 0.7 + uBeat * 0.30;
+  float sz = clamp(depthSize * audioBoost, 1.05, 4.95);
+  gl_PointSize = sz * uPixel * uPointScale;
+  gl_Position = projectionMatrix * mvPos;
+}
+`;
+
+// ============================================================
+//  Fragment Shader — SILK preset
+// ============================================================
+const fs = `
+precision highp float;
+uniform sampler2D uDotTex;
+uniform float uAlpha;
+varying vec3 vColor;
+varying float vBright, vRipple, vAlpha, vSourceLum;
+
+void main(){
+  vec4 tex = texture2D(uDotTex, gl_PointCoord);
+  if (tex.a < 0.02) discard;
+  vec3 col = vColor * vBright;
+  col = mix(col, col * 1.2, vRipple * 0.4);
+  float keepBlack = 1.0 - smoothstep(0.025, 0.115, vSourceLum);
+  float nonBlack = 1.0 - keepBlack;
+  float dotDist = length(gl_PointCoord - vec2(0.5)) * 2.0;
+  float readableRim = smoothstep(0.44, 0.94, dotDist) * (1.0 - smoothstep(0.94, 1.08, dotDist)) * tex.a;
+  float outLum = dot(col, vec3(0.299, 0.587, 0.114));
+  float lightParticle = smoothstep(0.50, 0.82, outLum) * nonBlack;
+  float darkParticle = (1.0 - smoothstep(0.20, 0.50, outLum)) * nonBlack;
+  col = mix(col, vec3(0.0), readableRim * lightParticle * 0.38);
+  col = mix(col, vec3(1.0), readableRim * darkParticle * 0.20);
+  col = clamp(col, vec3(0.0), vec3(1.6));
+  float alpha = tex.a * uAlpha * max(vAlpha, 0.15);
+  gl_FragColor = vec4(col, alpha);
+}
+`;
+
+// ============================================================
+//  Particle shader material + Points
+// ============================================================
+const particleMaterial = new THREE.ShaderMaterial({
+  uniforms,
+  vertexShader: vs,
+  fragmentShader: fs,
+  transparent: true,
+  depthWrite: false,
+  depthTest: true,
+  blending: THREE.NormalBlending,
+});
+
+const particles = new THREE.Points(particleGeo, particleMaterial);
+particles.renderOrder = 1;
+scene.add(particles);
+
+// Back-facing mirrored copy — correct cover image from behind
+const particlesBack = new THREE.Points(particles.geometry, particles.material);
+particlesBack.scale.x = -1;
+particlesBack.renderOrder = 1;
+particlesBack.visible = false;
+scene.add(particlesBack);
+
+// ============================================================
+//  Rebuild particles with new resolution
+// ============================================================
+function rebuildParticles(newGrid) {
+  const oldGeo = particles.geometry;
+  const newGeo = buildParticleGeometry(newGrid);
+  particles.geometry = newGeo;
+  oldGeo.dispose();
+  particleGeo = newGeo;
+  GRID = newGrid;
+}
+
+// ============================================================
+//  Lyrics Group (foreground layer)
+// ============================================================
+const lyricsGroup = new THREE.Group();
+lyricsGroup.renderOrder = 10;
+lyricsGroup.position.set(0, 0, 1.5);
+scene.add(lyricsGroup);
+
+// Line slot state
+const lineSlots = [];
+const PLANE_W = 6.0;
+
+// Base factor converting font-size (canvas px) to world-unit inter-line spacing
+const LINE_HEIGHT_FACTOR = 0.0035;
+
+function disposeSlot(slot) {
+  if (!slot) return;
+  if (slot.group) {
+    if (slot.group.parent) slot.group.parent.remove(slot.group);
+    // frontMesh and backMesh share the same material — dispose once
+    if (slot.frontMesh) {
+      if (slot.frontMesh.material) {
+        if (slot.frontMesh.material.map) slot.frontMesh.material.map.dispose();
+        slot.frontMesh.material.dispose();
+      }
+      if (slot.frontMesh.geometry) slot.frontMesh.geometry.dispose();
+    }
+    if (slot.backMesh) {
+      if (slot.backMesh.geometry) slot.backMesh.geometry.dispose();
+    }
+  }
+  if (slot.texture) slot.texture.dispose();
+  slot.group = null;
+  slot.frontMesh = null;
+  slot.backMesh = null;
+  slot.texture = null;
+  slot.canvas = null;
+  slot.ctx = null;
+  slot.mat = null;
+}
+
+function ensureLineSlots(count) {
+  while (lineSlots.length > count) {
+    const slot = lineSlots.pop();
+    disposeSlot(slot);
+  }
+  while (lineSlots.length < count) {
+    const canvas = document.createElement('canvas');
+    canvas.width = LYRIC_CANVAS_W;
+    canvas.height = LYRIC_CANVAS_H;
+    const ctx = canvas.getContext('2d');
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.minFilter = THREE.LinearFilter;
+    texture.magFilter = THREE.LinearFilter;
+    texture.generateMipmaps = false;
+
+    const aspect = LYRIC_CANVAS_H / LYRIC_CANVAS_W;
+    const planeH = PLANE_W * aspect;
+
+    const frontGeo = new THREE.PlaneGeometry(PLANE_W, planeH, 1, 1);
+    const mat = new THREE.MeshBasicMaterial({
+      map: texture,
+      transparent: true,
+      depthWrite: false,
+      depthTest: false,
+      side: THREE.FrontSide,
+    });
+    const frontMesh = new THREE.Mesh(frontGeo, mat);
+    frontMesh.renderOrder = 10;
+
+    // Back plane: same material, rotated PI so FrontSide faces -Z
+    const backGeo = new THREE.PlaneGeometry(PLANE_W, planeH, 1, 1);
+    const backMesh = new THREE.Mesh(backGeo, mat);
+    backMesh.renderOrder = 10;
+    backMesh.rotation.y = Math.PI;
+
+    const group = new THREE.Group();
+    group.add(frontMesh);
+    group.add(backMesh);
+
+    const slot = {
+      canvas, ctx, texture,
+      group, frontMesh, backMesh,
+      mat: mat,
+      baseOpacity: 1.0,
+      isCurrent: false,
+    };
+    lyricsGroup.add(group);
+    lineSlots.push(slot);
+  }
+}
+
+function renderTextToCanvas(ctx, w, h, text, fontSize, colorHex, effect) {
+  ctx.clearRect(0, 0, w, h);
+  if (!text || !text.trim()) return;
+
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = FONT_WEIGHT + ' ' + fontSize + 'px ' + lyricFontFamily;
+
+  ctx.shadowColor = 'transparent';
+  ctx.shadowBlur = 0;
+  ctx.shadowOffsetX = 0;
+  ctx.shadowOffsetY = 0;
+
+  switch (effect) {
+    case '发光': {
+      ctx.shadowColor = colorHex;
+      ctx.shadowBlur = fontSize * 0.28;
+      ctx.shadowOffsetX = 0;
+      ctx.shadowOffsetY = 0;
+      ctx.fillStyle = colorHex;
+      ctx.fillText(text, w / 2, h / 2);
+      ctx.fillText(text, w / 2, h / 2);
+      ctx.shadowBlur = fontSize * 0.12;
+      ctx.fillStyle = lightenColor(colorHex, 1.3);
+      ctx.fillText(text, w / 2, h / 2);
+      break;
+    }
+    case '描边': {
+      ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+      ctx.lineWidth = fontSize * 0.06;
+      ctx.lineJoin = 'round';
+      ctx.miterLimit = 2;
+      ctx.strokeText(text, w / 2, h / 2);
+      ctx.fillStyle = colorHex;
+      ctx.fillText(text, w / 2, h / 2);
+      break;
+    }
+    case '渐变': {
+      const grad = ctx.createLinearGradient(0, h * 0.05, 0, h * 0.95);
+      grad.addColorStop(0, lightenColor(colorHex, 1.5));
+      grad.addColorStop(0.45, colorHex);
+      grad.addColorStop(1, lightenColor(colorHex, 0.65));
+      ctx.fillStyle = grad;
+      ctx.fillText(text, w / 2, h / 2);
+      break;
+    }
+    default: {
+      ctx.fillStyle = colorHex;
+      ctx.fillText(text, w / 2, h / 2);
+      break;
+    }
+  }
+}
+
+function updateLyricLines() {
+  const text = lyricsTextarea.value || '';
+  const allLines = text.split('\n');
+  const lineCount = parseInt(lineCountInput.value) || 5;
+  const currentLineIdx = parseInt(currentLineInput.value) || 0;
+
+  const clampedCurrent = clamp(currentLineIdx, 0, Math.max(0, allLines.length - 1));
+  if (clampedCurrent !== currentLineIdx) {
+    currentLineInput.value = clampedCurrent;
+  }
+
+  currentLineInput.max = Math.max(0, allLines.length - 1);
+
+  ensureLineSlots(lineCount);
+
+  const halfN = Math.floor(lineCount / 2);
+  let startIdx = clampedCurrent - halfN;
+  if (startIdx < 0) startIdx = 0;
+  if (startIdx + lineCount > allLines.length) {
+    startIdx = Math.max(0, allLines.length - lineCount);
+  }
+
+  const currentColor = colorCurrentInput.value || '#ffd700';
+  const otherColor = colorOtherInput.value || '#cccccc';
+  const fontSize = parseInt(fontSizeInput.value) || 120;
+  const spacingMultiplier = parseFloat(lineSpacingInput.value) || 1.2;
+  const surroundRatio = parseFloat(surroundScaleInput.value) || 0.65;
+  const highlightEffect = highlightEffectSelect.value || '无';
+
+  const lineSpacing = LINE_HEIGHT_FACTOR * fontSize * spacingMultiplier;
+
+  for (let i = 0; i < lineCount; i++) {
+    const lineIdx = startIdx + i;
+    const slot = lineSlots[i];
+    const hasText = lineIdx < allLines.length && allLines[lineIdx].trim().length > 0;
+    const isEmptyLine = lineIdx < allLines.length && allLines[lineIdx].trim().length === 0;
+    const distance = Math.abs(lineIdx - clampedCurrent);
+    const isCurrent = (distance === 0);
+
+    if (lineIdx < allLines.length && (hasText || isEmptyLine)) {
+      const color = isCurrent ? currentColor : otherColor;
+      const effect = isCurrent ? highlightEffect : '无';
+
+      // Progressive scaling by distance:
+      // distance=0 (current): fontSize
+      // distance=1: fontSize * surroundRatio^1 = smaller
+      // distance=N: fontSize * surroundRatio^N = progressively smaller
+      const effectiveFontSize = isCurrent ? fontSize : Math.max(20, Math.round(fontSize * Math.pow(surroundRatio, distance)));
+
+      // Progressive opacity by distance:
+      // distance=0: 1.0
+      // distance=1: 0.75
+      // distance=N: max(0.12, 1.0 - N * 0.25)
+      const baseOpacity = isCurrent ? 1.0 : Math.max(0.12, 1.0 - distance * 0.25);
+
+      if (hasText) {
+        renderTextToCanvas(slot.ctx, LYRIC_CANVAS_W, LYRIC_CANVAS_H, allLines[lineIdx], effectiveFontSize, color, effect);
+      } else {
+        slot.ctx.clearRect(0, 0, LYRIC_CANVAS_W, LYRIC_CANVAS_H);
+      }
+      slot.texture.needsUpdate = true;
+      slot.group.visible = true;
+
+      // Store progressive opacity + isCurrent flag on slot for the render loop
+      slot.baseOpacity = baseOpacity;
+      slot.isCurrent = isCurrent;
+
+      // Position: current line at center, surrounding lines above/below with Z receding
+      const relOffset = lineIdx - clampedCurrent;
+      slot.group.position.y = -relOffset * lineSpacing;
+      slot.group.position.z = -Math.abs(relOffset) * lineSpacing * 0.4;
+
+      slot.group.scale.setScalar(1.0);
+    } else {
+      slot.group.visible = false;
+    }
+  }
+}
+
+// ============================================================
+//  Star River — ShaderMaterial with independent uniforms
+// ============================================================
+let starRiver = null;
+
+function ensureStarRiver() {
+  if (starRiver) return starRiver;
+
+  const count = 420;
+  const geo = new THREE.BufferGeometry();
+  const seeds = new Float32Array(count);
+  const lanes = new Float32Array(count);
+  const depths = new Float32Array(count);
+  for (let i = 0; i < count; i++) {
+    seeds[i] = Math.random() * 1000;
+    lanes[i] = Math.random();
+    depths[i] = Math.random();
+  }
+  geo.setAttribute('seed', new THREE.BufferAttribute(seeds, 1));
+  geo.setAttribute('lane', new THREE.BufferAttribute(lanes, 1));
+  geo.setAttribute('depthSeed', new THREE.BufferAttribute(depths, 1));
+
+  // INDEPENDENT uniforms — NOT shared references
+  const starUniforms = {
+    uMap: { value: dotTexture },
+    uTime: { value: 0 },
+    uPixel: { value: renderer.getPixelRatio() },
+    uBass: { value: 0 },
+    uBeat: { value: 0 },
+    uWidth: { value: 4.2 },
+    uHeight: { value: 0.58 },
+    uOpacity: { value: 0.55 },
+    uColorA: { value: new THREE.Color('#9cffdf').multiplyScalar(0.42) },
+    uColorB: { value: new THREE.Color('#fff7d2').multiplyScalar(0.44) }
+  };
+
+  const mat = new THREE.ShaderMaterial({
+    uniforms: starUniforms,
+    vertexShader: [
+      'precision highp float;',
+      'attribute float seed,lane,depthSeed;',
+      'uniform float uTime,uPixel,uBass,uBeat,uWidth,uHeight;',
+      'varying float vSeed,vLane,vGlow;',
+      'float hash(float n){return fract(sin(n)*43758.5453123);}',
+      'void main(){',
+      '  float laneBand = floor(lane * 5.0);',
+      '  float laneLocal = fract(lane * 5.0);',
+      '  float speed = 0.030 + hash(seed * 1.71) * 0.055 + laneBand * 0.005;',
+      '  float flow = fract(hash(seed * 2.13) + uTime * speed);',
+      '  float x = (flow - 0.5) * uWidth * (1.08 + hash(seed * 5.1) * 0.18);',
+      '  float curve = sin(flow * 6.2831853 * (0.92 + hash(seed * 4.0) * 0.46) + seed * 0.071 + uTime * 0.34);',
+      '  float breath = sin(uTime * (0.42 + hash(seed * 6.9) * 0.42) + seed * 0.093);',
+      '  float y = (laneBand - 2.0) * uHeight * 0.135 + curve * uHeight * (0.20 + hash(seed * 9.0) * 0.18) + (laneLocal - 0.5) * uHeight * 0.16 + breath * uHeight * 0.10;',
+      '  float z = -0.08 + (depthSeed - 0.5) * 0.44 + sin(uTime * (0.18 + hash(seed) * 0.24) + seed) * 0.08;',
+      '  vec3 pos = vec3(x, y, z);',
+      '  float edge = smoothstep(0.0, 0.18, flow) * (1.0 - smoothstep(0.82, 1.0, flow));',
+      '  vSeed = seed;',
+      '  vLane = lane;',
+      '  vGlow = edge * (0.62 + 0.38 * sin(uTime * (0.9 + hash(seed * 8.0) * 0.7) + seed));',
+      '  vec4 mv = modelViewMatrix * vec4(pos, 1.0);',
+      '  float dist = max(0.45, -mv.z);',
+      '  float size = (0.030 + hash(seed * 12.0) * 0.040 + vGlow * 0.024 + uBeat * 0.010) * (1.0 + uBass * 0.18);',
+      '  gl_PointSize = clamp(size * uPixel * 120.0 / dist, 1.0, 7.2);',
+      '  gl_Position = projectionMatrix * mv;',
+      '}'
+    ].join('\n'),
+    fragmentShader: [
+      'precision highp float;',
+      'uniform sampler2D uMap;',
+      'uniform vec3 uColorA,uColorB;',
+      'uniform float uOpacity,uTime,uBeat;',
+      'varying float vSeed,vLane,vGlow;',
+      'void main(){',
+      '  vec4 tex = texture2D(uMap, gl_PointCoord);',
+      '  if(tex.a < 0.02) discard;',
+      '  float tw = pow(0.5 + 0.5 * sin(uTime * (0.55 + fract(vSeed) * 0.35) + vSeed), 4.0);',
+      '  vec3 col = mix(uColorA, uColorB, smoothstep(0.12, 0.92, vLane) * 0.45 + tw * 0.42 + vGlow * 0.26);',
+      '  float alpha = tex.a * uOpacity * (0.20 + vGlow * 0.78 + tw * 0.32 + uBeat * 0.10);',
+      '  gl_FragColor = vec4(col * (0.82 + vGlow * 0.72 + tw * 0.32), alpha);',
+      '}'
+    ].join('\n'),
+    transparent: true,
+    depthWrite: false,
+    depthTest: false,
+    blending: THREE.AdditiveBlending
+  });
+
+  const points = new THREE.Points(geo, mat);
+  points.renderOrder = 45;
+  points.frustumCulled = true;
+  points.position.set(0, 0.20, 1.53);
+  lyricsGroup.add(points);
+
+  // Store uniforms reference for explicit update in render loop
+  points._starUniforms = starUniforms;
+
+  starRiver = points;
+  console.log('[StarRiver] Created ShaderMaterial with independent uniforms, count:', count);
+  return points;
+}
+
+// ============================================================
+//  Theme handling
+// ============================================================
+function syncSettingsSliders() {
+  psIntensity.value = uniforms.uIntensity.value;
+  psIntensity.parentElement.querySelector('.ps-val').textContent = uniforms.uIntensity.value.toFixed(2);
+  psColorBoost.value = uniforms.uColorBoost.value;
+  psColorBoost.parentElement.querySelector('.ps-val').textContent = uniforms.uColorBoost.value.toFixed(2);
+}
+
+function applyTheme(theme) {
+  switch (theme) {
+    case 'night':
+      scene.background = new THREE.Color('#050510');
+      uniforms.uColorBoost.value = 0.9;
+      uniforms.uIntensity.value = 0.75;
+      break;
+    case 'warm':
+      scene.background = new THREE.Color('#100a08');
+      uniforms.uColorBoost.value = 1.3;
+      uniforms.uIntensity.value = 0.9;
+      break;
+    case 'cool':
+      scene.background = new THREE.Color('#060a14');
+      uniforms.uColorBoost.value = 1.0;
+      uniforms.uIntensity.value = 0.8;
+      break;
+    default:
+      scene.background = new THREE.Color('#0a0a10');
+      uniforms.uColorBoost.value = 1.1;
+      uniforms.uIntensity.value = 0.85;
+      break;
+  }
+  syncSettingsSliders();
+}
+
+themeSelect.addEventListener('change', () => {
+  applyTheme(themeSelect.value);
+});
+
+// ============================================================
+//  Particle settings panel
+// ============================================================
+function toggleParticleSettings() {
+  const visible = particleSettingsPanel.classList.toggle('visible');
+  btnGear.classList.toggle('active', visible);
+}
+
+btnGear.addEventListener('click', toggleParticleSettings);
+btnPsClose.addEventListener('click', toggleParticleSettings);
+
+let coverParticlesVisible = true;
+btnCoverParticles.addEventListener('click', () => {
+  coverParticlesVisible = !coverParticlesVisible;
+  btnCoverParticles.classList.toggle('active', coverParticlesVisible);
+});
+
+function bindParticleSlider(sliderEl, uniformKey, format, onChange) {
+  const valEl = sliderEl.parentElement.querySelector('.ps-val');
+  sliderEl.addEventListener('input', () => {
+    const val = parseFloat(sliderEl.value);
+    uniforms[uniformKey].value = val;
+    if (valEl) valEl.textContent = typeof format === 'function' ? format(val) : val.toFixed(2);
+    if (onChange) onChange(val);
+  });
+}
+
+bindParticleSlider(psResolution, null, v => Math.round(v).toString(), (val) => {
+  const g = Math.round(val);
+  if (g !== GRID) {
+    rebuildParticles(g);
+  }
+});
+
+bindParticleSlider(psPointScale, 'uPointScale');
+bindParticleSlider(psIntensity, 'uIntensity');
+bindParticleSlider(psDepth, 'uDepth');
+bindParticleSlider(psScatter, 'uScatter');
+bindParticleSlider(psTwist, 'uTwist');
+bindParticleSlider(psSpeed, 'uSpeed');
+bindParticleSlider(psColorBoost, 'uColorBoost');
+
+// ============================================================
+//  Mouse / Touch handling
+// ============================================================
+const mouse = new THREE.Vector2();
+const mouseWorld = new THREE.Vector2(-999, -999);
+let mouseOnCanvas = false;
+
+function screenToWorld(sx, sy) {
+  const ndc = new THREE.Vector3(
+    (sx / window.innerWidth) * 2 - 1,
+    -(sy / window.innerHeight) * 2 + 1,
+    0.5
+  );
+  ndc.unproject(camera);
+  const dir = ndc.clone().sub(camera.position).normalize();
+  const t = -camera.position.z / dir.z;
+  const pt = camera.position.clone().add(dir.multiplyScalar(t));
+  return new THREE.Vector2(pt.x, pt.y);
+}
+
+canvas.addEventListener('mousedown', (e) => {
+  isDragging = true;
+  prevMouse.x = e.clientX;
+  prevMouse.y = e.clientY;
+});
+
+window.addEventListener('mousemove', (e) => {
+  mouse.x = e.clientX;
+  mouse.y = e.clientY;
+  mouseOnCanvas = true;
+
+  if (isDragging) {
+    const dx = e.clientX - prevMouse.x;
+    const dy = e.clientY - prevMouse.y;
+    orbitTheta -= dx * 0.005;
+    orbitPhi += dy * 0.005;
+    orbitPhi = Math.max(-Math.PI * 0.48, Math.min(Math.PI * 0.48, orbitPhi));
+    prevMouse.x = e.clientX;
+    prevMouse.y = e.clientY;
+    updateCameraPosition();
+  }
+
+  const wp = screenToWorld(e.clientX, e.clientY);
+  mouseWorld.x = wp.x;
+  mouseWorld.y = wp.y;
+});
+
+window.addEventListener('mouseup', () => { isDragging = false; });
+canvas.addEventListener('mouseleave', () => { mouseOnCanvas = false; });
+canvas.addEventListener('mouseenter', () => { mouseOnCanvas = true; });
+
+canvas.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  orbitDistance += e.deltaY * 0.005;
+  orbitDistance = Math.max(2.0, Math.min(20.0, orbitDistance));
+  updateCameraPosition();
+}, { passive: false });
+
+canvas.addEventListener('touchstart', (e) => {
+  if (e.touches.length === 1) {
+    isDragging = true;
+    prevMouse.x = e.touches[0].clientX;
+    prevMouse.y = e.touches[0].clientY;
+    mouseOnCanvas = true;
+    const wp = screenToWorld(e.touches[0].clientX, e.touches[0].clientY);
+    mouseWorld.x = wp.x; mouseWorld.y = wp.y;
+  }
+}, { passive: false });
+
+canvas.addEventListener('touchmove', (e) => {
+  e.preventDefault();
+  if (e.touches.length === 1 && isDragging) {
+    const dx = e.touches[0].clientX - prevMouse.x;
+    const dy = e.touches[0].clientY - prevMouse.y;
+    orbitTheta -= dx * 0.005;
+    orbitPhi += dy * 0.005;
+    orbitPhi = Math.max(-Math.PI * 0.48, Math.min(Math.PI * 0.48, orbitPhi));
+    prevMouse.x = e.touches[0].clientX;
+    prevMouse.y = e.touches[0].clientY;
+    updateCameraPosition();
+    const wp = screenToWorld(e.touches[0].clientX, e.touches[0].clientY);
+    mouseWorld.x = wp.x; mouseWorld.y = wp.y;
+  }
+}, { passive: false });
+
+canvas.addEventListener('touchend', () => { isDragging = false; });
+
+canvas.addEventListener('click', (e) => {
+  if (!isDragging) {
+    const wp = screenToWorld(e.clientX, e.clientY);
+    triggerRipple(wp.x, wp.y, 0.9);
+  }
+});
+
+// ============================================================
+//  Beat detection state
+// ============================================================
+let prevEnergy = 0;
+let beatValue = 0;
+const BEAT_ENERGY_THRESHOLD = 0.12;
+let energyHistory = 0;
+const ENERGY_SMOOTH = 0.94;
+const BEAT_THRESHOLD_MULT = 1.3;
+let beatPulseLyrics = 0;
+
+// ============================================================
+//  Animation loop
+// ============================================================
+let lastTime = performance.now();
+let fadeInStart = performance.now();
+const FADE_DURATION = 2000;
+let elapsedTime = 0;
+
+function animate(timestamp) {
+  requestAnimationFrame(animate);
+
+  const dt = Math.min(0.1, (timestamp - lastTime) / 1000);
+  lastTime = timestamp;
+  elapsedTime += dt;
+
+  // Fade in
+  const fadeT = Math.min(1, (timestamp - fadeInStart) / FADE_DURATION);
+  uniforms.uAlpha.value = fadeT * fadeT * (3 - 2 * fadeT);
+
+  // Audio analysis
+  let bass = 0, mid = 0, treble = 0, energy = 0;
+  if (analyzer.isActive()) {
+    const a = analyzer.getAnalysis();
+    bass = a.bass;
+    mid = a.mid;
+    treble = a.brilliance + a.highMid;
+    energy = a.energy;
+  }
+
+  // Beat detection (for particles)
+  if (energy > BEAT_ENERGY_THRESHOLD && prevEnergy <= BEAT_ENERGY_THRESHOLD) {
+    beatValue = 1.0;
+  } else {
+    beatValue *= 0.92;
+  }
+  prevEnergy = energy;
+
+  // Beat detection (for lyrics)
+  energyHistory = energyHistory * ENERGY_SMOOTH + energy * (1 - ENERGY_SMOOTH);
+  if (energy > energyHistory * BEAT_THRESHOLD_MULT && energy > 0.015) {
+    beatPulseLyrics = Math.max(beatPulseLyrics, 1.0);
+  }
+  beatPulseLyrics *= Math.pow(0.28, dt);
+
+  // Update particle uniforms
+  uniforms.uTime.value = timestamp * 0.001;
+  uniforms.uBass.value = bass;
+  uniforms.uMid.value = mid;
+  uniforms.uTreble.value = treble;
+  uniforms.uEnergy.value = energy;
+  uniforms.uBeat.value = beatValue;
+
+  // Mouse
+  if (mouseOnCanvas) {
+    uniforms.uMouseXY.value.set(mouseWorld.x, mouseWorld.y);
+    uniforms.uMouseActive.value += (1.0 - uniforms.uMouseActive.value) * 0.15;
+  } else {
+    uniforms.uMouseActive.value *= 0.9;
+  }
+
+  // Ripples
+  const rippleCount = updateRipples(dt, bass, uniforms.uTime.value);
+  uniforms.uRippleCount.value = rippleCount;
+
+  // --- Lyrics group audio reactivity ---
+  const baseZ = 1.5;
+  const targetZ = baseZ + bass * 0.3;
+  lyricsGroup.position.z += (targetZ - lyricsGroup.position.z) * 0.12;
+
+  const targetScale = 1.0 + energy * 0.08 + beatPulseLyrics * 0.03 * beatPulseRatio;
+  const currentScale = lyricsGroup.scale.x;
+  const newScale = currentScale + (targetScale - currentScale) * 0.15;
+  lyricsGroup.scale.setScalar(newScale);
+
+  const yOsc = Math.sin(elapsedTime * 1.7) * mid * 0.12 + Math.sin(elapsedTime * 3.1) * energy * 0.06;
+  lyricsGroup.position.y += (yOsc - lyricsGroup.position.y) * 0.08;
+
+  // Individual line brightness pulsing with beat, using progressive opacity as base
+  for (let i = 0; i < lineSlots.length; i++) {
+    const slot = lineSlots[i];
+    if (!slot.group || !slot.group.visible) continue;
+    const isCurrent = slot.isCurrent || false;
+    const baseOp = slot.baseOpacity !== undefined ? slot.baseOpacity : (isCurrent ? 0.92 : 0.65);
+    const pulseBoost = isCurrent ? beatPulseLyrics * 0.15 * beatPulseRatio : beatPulseLyrics * 0.06;
+    const targetOp = Math.min(1.0, baseOp + pulseBoost);
+    if (slot.mat) {
+      const curOp = slot.mat.opacity;
+      if (curOp !== undefined && !isNaN(curOp)) {
+        const newOp = curOp + (targetOp - curOp) * 0.2;
+        slot.mat.opacity = newOp;
+      } else {
+        slot.mat.opacity = targetOp;
+      }
+    }
+  }
+
+  // --- Star River update with INDEPENDENT uniforms ---
+  const river = ensureStarRiver();
+  if (river && river._starUniforms) {
+    const su = river._starUniforms;
+    su.uTime.value = elapsedTime;
+    su.uBass.value = bass;
+    su.uBeat.value = beatValue;
+    su.uPixel.value = renderer.getPixelRatio();
+
+    // Opacity from lyrics presence
+    const hasLyrics = lyricsTextarea.value.trim().length > 0;
+    const targetOp = hasLyrics ? 0.35 + bass * 0.15 + beatValue * 0.10 : 0.08;
+    su.uOpacity.value += (targetOp - su.uOpacity.value) * 0.08;
+
+    // Position oscillation (matching original)
+    river.position.y += ((0.18 + Math.sin(elapsedTime * 0.44) * 0.035 + Math.sin(elapsedTime * 0.91 + 1.7) * 0.018) - river.position.y) * 0.08;
+
+    river.visible = su.uOpacity.value > 0.03;
+  }
+
+  // --- Cover particles back-face handling ---
+  const camBehind = camera.position.z < 0;
+  particles.visible = coverParticlesVisible && !camBehind;
+  if (particlesBack) particlesBack.visible = coverParticlesVisible && camBehind;
+
+  // Render
+  renderer.render(scene, camera);
+}
+
+// ============================================================
+//  UI Event handlers for lyrics controls
+// ============================================================
+lyricsTextarea.addEventListener('input', () => {
+  updateLyricLines();
+  const lineCount = parseInt(lineCountInput.value) || 5;
+  currentLineInput.max = Math.max(0, lyricsTextarea.value.split('\n').length - 1);
+});
+
+lineCountInput.addEventListener('input', () => {
+  const val = parseInt(lineCountInput.value) || 5;
+  lineCountInput.value = clamp(val, 1, 20);
+  updateLyricLines();
+});
+
+currentLineInput.addEventListener('input', () => {
+  const maxLines = Math.max(0, (lyricsTextarea.value || '').split('\n').length - 1);
+  const val = parseInt(currentLineInput.value) || 0;
+  currentLineInput.value = clamp(val, 0, maxLines);
+  updateLyricLines();
+});
+
+colorCurrentInput.addEventListener('input', () => updateLyricLines());
+colorOtherInput.addEventListener('input', () => updateLyricLines());
+fontSizeInput.addEventListener('input', () => updateLyricLines());
+lineSpacingInput.addEventListener('input', () => updateLyricLines());
+surroundScaleInput.addEventListener('input', () => updateLyricLines());
+beatPulseRatioInput.addEventListener('input', () => {
+  beatPulseRatio = parseFloat(beatPulseRatioInput.value) || 1.0;
+});
+highlightEffectSelect.addEventListener('change', () => updateLyricLines());
+
+// ============================================================
+//  Resize
+// ============================================================
+window.addEventListener('resize', () => {
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  uniforms.uPixel.value = renderer.getPixelRatio();
+});
+
+// ============================================================
+//  Keyboard shortcuts
+// ============================================================
+window.addEventListener('keydown', (e) => {
+  if (document.activeElement === lyricsTextarea) return;
+
+  switch (e.key.toLowerCase()) {
+    case 'r':
+      orbitTheta = 0; orbitPhi = 0; orbitDistance = 6.8;
+      updateCameraPosition();
+      break;
+    case 'f':
+      if (document.fullscreenElement) {
+        document.exitFullscreen();
+      } else {
+        document.body.requestFullscreen().catch(() => {});
+      }
+      break;
+    case '1': uniforms.uScatter.value = Math.max(0, uniforms.uScatter.value - 0.1); break;
+    case '2': uniforms.uScatter.value = Math.min(1, uniforms.uScatter.value + 0.1); break;
+    case '3': uniforms.uTwist.value = Math.max(0, uniforms.uTwist.value - 0.1); break;
+    case '4': uniforms.uTwist.value = Math.min(2, uniforms.uTwist.value + 0.1); break;
+    case 'arrowup': uniforms.uIntensity.value = Math.min(1.6, uniforms.uIntensity.value + 0.05); break;
+    case 'arrowdown': uniforms.uIntensity.value = Math.max(0.1, uniforms.uIntensity.value - 0.05); break;
+  }
+});
+
+// ============================================================
+//  Start
+// ============================================================
+updateCameraPosition();
+ensureStarRiver();
+
+// Default demo lyrics
+lyricsTextarea.value = '第一行歌词\n第二行歌词\n第三行歌词\n第四行歌词\n第五行歌词';
+lineCountInput.value = 5;
+currentLineInput.value = 2;
+currentLineInput.max = 4;
+updateLyricLines();
+
+requestAnimationFrame(animate);
+setStatus('就绪 — 点击麦克风或拖放音频文件');
+showToast('拖放音频文件开始 / 点击麦克风 / 旋转视角');
+
+console.log('3D Lyrics + Cover Particles ready');
+console.log('Controls: drag to orbit | scroll to zoom | R=reset | F=fullscreen');
+console.log('Sliders: 1/2=scatter  3/4=twist  Up/Down=intensity');
+console.log('Enter lyrics in the textarea (top-right), multi-line with newlines');
+</script>
+</body>
+</html>

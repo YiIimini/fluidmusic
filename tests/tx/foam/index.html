@@ -1,0 +1,1161 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>泡沫 & 不规则 — Mineradio</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #030814; }
+  canvas { display: block; }
+
+  /* ─── Control bar at bottom ─── */
+  #ctrl-bar {
+    position: fixed; bottom: 0; left: 0; right: 0; z-index: 100;
+    display: flex; align-items: center; gap: 12px; padding: 10px 20px;
+    background: rgba(8,14,40,0.85);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-top: 1px solid rgba(51,119,255,0.15);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, sans-serif;
+    color: #aaccff;
+  }
+  #ctrl-bar button {
+    background: rgba(51,119,255,0.12);
+    border: 1px solid rgba(51,119,255,0.25);
+    color: #aaccff; border-radius: 6px;
+    padding: 7px 14px; cursor: pointer; font-size: 13px;
+    transition: all 0.2s; white-space: nowrap;
+  }
+  #ctrl-bar button:hover { background: rgba(51,119,255,0.25); color: #fff; }
+  #ctrl-bar button.active { background: rgba(238,85,51,0.35); border-color: rgba(238,85,51,0.6); color: #ffbbaa; }
+  #ctrl-bar button:disabled { opacity: 0.35; cursor: default; }
+
+  /* ─── Mode toggle buttons ─── */
+  #btn-foam.mode-active, #btn-irregular.mode-active {
+    background: rgba(51,119,255,0.30) !important;
+    border-color: rgba(51,119,255,0.55) !important;
+    color: #ffffff !important;
+    font-weight: 600;
+  }
+  #btn-foam.mode-active:hover, #btn-irregular.mode-active:hover {
+    background: rgba(51,119,255,0.40) !important;
+  }
+
+  #track-label {
+    flex: 1; font-size: 13px; color: #6688bb;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    min-width: 0;
+  }
+  #volume-wrap { display: flex; align-items: center; gap: 6px; }
+  #volume-wrap label { font-size: 12px; color: #5577aa; }
+  #volume-slider { width: 70px; accent-color: #3377ff; }
+
+  /* ─── Theme dropdown ─── */
+  #theme-wrap { display: flex; align-items: center; gap: 6px; }
+  #theme-wrap label { font-size: 12px; color: #5577aa; white-space: nowrap; }
+  #theme-select {
+    background: rgba(51,119,255,0.12);
+    border: 1px solid rgba(51,119,255,0.25);
+    color: #aaccff; border-radius: 6px;
+    padding: 5px 10px; font-size: 12px; cursor: pointer;
+    outline: none;
+  }
+  #theme-select option { background: #080e28; color: #aaccff; }
+
+  /* ─── Settings toggle button ─── */
+  #btn-settings {
+    background: rgba(51,119,255,0.12) !important;
+    border: 1px solid rgba(51,119,255,0.25) !important;
+    color: #aaccff !important;
+    font-size: 16px !important;
+    padding: 5px 10px !important;
+    line-height: 1;
+  }
+
+  /* ─── Settings panel ─── */
+  #settings-panel {
+    position: fixed; bottom: 58px; right: 20px; z-index: 99;
+    display: none;
+    background: rgba(8,14,40,0.92);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(51,119,255,0.15);
+    border-radius: 10px;
+    padding: 16px 20px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, sans-serif;
+    color: #aaccff;
+    max-height: 70vh;
+    overflow-y: auto;
+    min-width: 260px;
+  }
+  #settings-panel.visible { display: block; }
+  #settings-panel h3 {
+    font-size: 13px; color: #3377ff; margin-bottom: 12px;
+    font-weight: 600; letter-spacing: 0.5px;
+  }
+  #settings-panel label {
+    display: block; font-size: 11px; color: #5577aa;
+    margin-bottom: 3px; margin-top: 10px;
+  }
+  #settings-panel label:first-of-type { margin-top: 0; }
+  #settings-panel input[type="range"] {
+    width: 100%; accent-color: #3377ff; margin: 0;
+  }
+  #settings-panel .slider-val {
+    float: right; font-size: 11px; color: #88aacc;
+  }
+  #settings-panel .section-title {
+    font-size: 12px; color: #6688bb; margin-top: 14px;
+    padding-top: 10px; border-top: 1px solid rgba(51,119,255,0.1);
+    font-weight: 600;
+  }
+
+  /* Drop overlay */
+  #drop-overlay {
+    position: fixed; inset: 0; z-index: 200;
+    display: none; align-items: center; justify-content: center;
+    background: rgba(3,8,20,0.7);
+    pointer-events: none;
+  }
+  #drop-overlay.show { display: flex; }
+  #drop-overlay .msg {
+    padding: 40px 60px; border: 2px dashed rgba(51,119,255,0.4);
+    border-radius: 16px; color: #aaccff; font-size: 18px;
+    background: rgba(8,14,40,0.8);
+  }
+  #activity-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: #334466; transition: background 0.3s;
+  }
+  #activity-dot.live { background: #44ddff; box-shadow: 0 0 8px #44ddff; }
+</style>
+</head>
+<body>
+
+<div id="drop-overlay"><div class="msg">拖放音频文件到此处</div></div>
+
+<div id="ctrl-bar">
+  <button id="btn-foam" class="mode-active" title="泡沫效果">🫧 泡沫</button>
+  <button id="btn-irregular" title="不规则效果">🔷 不规则</button>
+  <span style="color:#334466;margin:0 4px;">|</span>
+  <div id="theme-wrap">
+    <label for="theme-select">主题:</label>
+    <select id="theme-select">
+      <option value="nocturnal">Nocturnal</option>
+      <option value="neon_tokyo">Neon Tokyo</option>
+      <option value="cyber_forest">Cyber Forest</option>
+      <option value="minimal_mono">Minimal Mono</option>
+      <option value="ink_wash">Ink Wash</option>
+      <option value="royal">Royal</option>
+      <option value="ocean_reef">Ocean Reef</option>
+      <option value="aurora">Aurora</option>
+      <option value="foam_bubble" selected>Foam Bubble</option>
+    </select>
+  </div>
+  <button id="btn-mic" title="麦克风输入">🎤 麦克风</button>
+  <button id="btn-file" title="打开音频文件">📁 音频文件</button>
+  <button id="btn-play" disabled title="播放/暂停">▶ 播放</button>
+  <span id="track-label">无音频 — 拖放文件或点击麦克风</span>
+  <div id="activity-dot"></div>
+  <div id="volume-wrap">
+    <label for="volume-slider">音量</label>
+    <input type="range" id="volume-slider" min="0" max="100" value="80">
+  </div>
+  <button id="btn-settings" title="频率控制">⚙ 设置</button>
+</div>
+
+<div id="settings-panel">
+  <h3>频率响应</h3>
+  <label>高度缩放 <span class="slider-val" id="val-height">1.00</span></label>
+  <input type="range" id="slider-height" min="0.1" max="3.0" value="1.0" step="0.05">
+
+  <label>频段增益 <span class="slider-val" id="val-bandgain">1.00</span></label>
+  <input type="range" id="slider-bandgain" min="0.0" max="3.0" value="1.0" step="0.05">
+
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+
+// ============================================================
+//  AudioAnalyzer — 8-band RMS audio analysis + exponential smoothing
+//  Inlined from tests/tl/shared/audio-analyzer.js
+// ============================================================
+class AudioAnalyzer {
+  constructor(fftSize = 2048) {
+    this.fftSize = fftSize;
+    this.ac = null;
+    this.analyser = null;
+    this.source = null;
+    this.freqData = null;
+    this._stream = null;
+    this._audioEl = null;
+    this.smoothing = 0.12;
+    this.activeSmoothing = 0.04;
+    this._activity = 0;
+    this.onActivityChange = null;
+
+    this.subBass = 0;
+    this.bass = 0;
+    this.lowMid = 0;
+    this.mid = 0;
+    this.highMid = 0;
+    this.presence = 0;
+    this.brilliance = 0;
+    this.air = 0;
+    this.energy = 0;
+  }
+
+  _bandRms(data, len, sampleRate, hz0, hz1) {
+    const binHz = sampleRate / (len * 2);
+    const a = Math.max(0, Math.floor(hz0 / binHz));
+    const b = Math.min(len - 1, Math.ceil(hz1 / binHz));
+    let sum = 0, count = 0;
+    for (let i = a; i <= b; i++) {
+      const v = data[i] / 255;
+      sum += v * v;
+      count++;
+    }
+    return count ? Math.sqrt(sum / count) : 0;
+  }
+
+  async initFromMic() {
+    this.dispose();
+    this.ac = new (window.AudioContext || window.webkitAudioContext)();
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    this._stream = stream;
+    this.source = this.ac.createMediaStreamSource(stream);
+    this.analyser = this.ac.createAnalyser();
+    this.analyser.fftSize = this.fftSize;
+    this.source.connect(this.analyser);
+    this.freqData = new Uint8Array(this.analyser.frequencyBinCount);
+    return this;
+  }
+
+  initFromElement(audioEl) {
+    this.dispose();
+    this._audioEl = audioEl;
+    this.ac = new (window.AudioContext || window.webkitAudioContext)();
+    let sourceEl = audioEl;
+    try {
+      this.source = this.ac.createMediaElementSource(audioEl);
+    } catch (e) {
+      const newAudio = new Audio(audioEl.src);
+      newAudio.volume = audioEl.volume;
+      newAudio.currentTime = audioEl.currentTime;
+      if (!audioEl.paused) newAudio.play();
+      this._audioEl = newAudio;
+      sourceEl = newAudio;
+      this.source = this.ac.createMediaElementSource(newAudio);
+    }
+    this.analyser = this.ac.createAnalyser();
+    this.analyser.fftSize = this.fftSize;
+    this.source.connect(this.analyser);
+    this.source.connect(this.ac.destination);
+    this.freqData = new Uint8Array(this.analyser.frequencyBinCount);
+    return this;
+  }
+
+  getAnalysis() {
+    const empty = {
+      subBass: 0, bass: 0, lowMid: 0, mid: 0,
+      highMid: 0, presence: 0, brilliance: 0, air: 0, energy: 0
+    };
+    if (!this.analyser || !this.freqData) return empty;
+    const rate = this.ac ? this.ac.sampleRate : 44100;
+    const target = { ...empty };
+    try { this.analyser.getByteFrequencyData(this.freqData); } catch (e) { return empty; }
+    const len = this.freqData.length;
+    target.subBass    = this._bandRms(this.freqData, len, rate, 20, 60);
+    target.bass       = this._bandRms(this.freqData, len, rate, 60, 150);
+    target.lowMid     = this._bandRms(this.freqData, len, rate, 150, 300);
+    target.mid        = this._bandRms(this.freqData, len, rate, 300, 1200);
+    target.highMid    = this._bandRms(this.freqData, len, rate, 1200, 3000);
+    target.presence   = this._bandRms(this.freqData, len, rate, 3000, 6000);
+    target.brilliance = this._bandRms(this.freqData, len, rate, 6000, 12000);
+    target.air        = this._bandRms(this.freqData, len, rate, 12000, 20000);
+    let energySum = 0;
+    for (let i = 0; i < len; i++) energySum += this.freqData[i] / 255;
+    target.energy = energySum / len;
+    const smooth = target.energy > 0.001 ? this.smoothing : this.smoothing * 0.5;
+    for (const k of Object.keys(target)) {
+      this[k] += (target[k] - this[k]) * smooth;
+    }
+    const rawActive = this.energy > 0.005 ? 1 : 0;
+    const prev = this._activity;
+    this._activity += (rawActive - this._activity) * this.activeSmoothing;
+    if (this.onActivityChange && Math.abs(this._activity - prev) > 0.05) {
+      this.onActivityChange(this._activity);
+    }
+    return {
+      subBass: this.subBass, bass: this.bass, lowMid: this.lowMid,
+      mid: this.mid, highMid: this.highMid, presence: this.presence,
+      brilliance: this.brilliance, air: this.air, energy: this.energy
+    };
+  }
+
+  isActive() { return !!(this.ac && this.analyser); }
+  getActivity() { return this._activity; }
+
+  dispose() {
+    if (this._stream) { this._stream.getTracks().forEach(t => t.stop()); this._stream = null; }
+    if (this.ac && this.ac.state !== 'closed') { this.ac.close().catch(() => {}); }
+    this.ac = null; this.analyser = null; this.source = null; this.freqData = null;
+    this._audioEl = null; this._activity = 0;
+  }
+}
+
+// ============================================================
+//  Theme presets (shared)
+// ============================================================
+const THEMES = {
+  nocturnal:    { base1:'#03050a', base2:'#080d17', cool:'#004dff', warm:'#ff331a', accent:'#33e6ff', glow:1.0 },
+  neon_tokyo:   { base1:'#060618', base2:'#100830', cool:'#ff33aa', warm:'#33ffcc', accent:'#ffffff', glow:2.5 },
+  cyber_forest: { base1:'#040c08', base2:'#0a180a', cool:'#33ffaa', warm:'#ccff33', accent:'#99ff66', glow:2.3 },
+  minimal_mono: { base1:'#0a0a0a', base2:'#1a1a1a', cool:'#cccccc', warm:'#ffffff', accent:'#ffffff', glow:1.5 },
+  ink_wash:     { base1:'#060a0e', base2:'#0c1118', cool:'#3a5a6a', warm:'#e8e0d4', accent:'#c4a86a', glow:0.5 },
+  royal:        { base1:'#08060c', base2:'#100818', cool:'#6a3ab0', warm:'#ffc844', accent:'#ffdd88', glow:1.2 },
+  ocean_reef:   { base1:'#020a10', base2:'#061420', cool:'#1155aa', warm:'#ff6688', accent:'#88ccff', glow:1.0 },
+  aurora:       { base1:'#040a08', base2:'#081018', cool:'#22cc88', warm:'#9944ee', accent:'#66ffcc', glow:1.4 },
+  foam_bubble:  { base1:'#080e28', base2:'#0c1a40', cool:'#3377ff', warm:'#ee5533', accent:'#44ddff', glow:1.8 }
+};
+
+// ============================================================
+//  Configuration (hardcoded)
+// ============================================================
+const FOAM_GRID = 128;
+const IRREG_GRID = 80;
+const GRID = 96;
+const SPACING = 1.05;
+const SIZE = GRID * SPACING;   // 100.8
+const HALF = SIZE / 2;         // 50.4
+
+// ============================================================
+//  Shared theme state
+// ============================================================
+const sharedTheme = {
+  uBaseColor1: new THREE.Color('#080e28'),
+  uBaseColor2: new THREE.Color('#0c1a40'),
+  uCoolCore:   new THREE.Color('#3377ff'),
+  uWarmCore:   new THREE.Color('#ee5533'),
+  uGlowIntensity: 1.8
+};
+
+// ============================================================
+//  Shared band gain / height scale
+// ============================================================
+let bandGain = 1.0;
+let heightScale = 1.0;
+let currentMode = 'foam';          // 'foam' or 'irregular'
+
+// ============================================================
+//  FOAM Vertex Shader
+//  Extracted from mineradio-terrain.js lines 348-378
+//  snoise() is the classic 2D simplex noise by Stefan Gustavson
+// ============================================================
+const foamVertShader = /* glsl */ `
+uniform float uTime, uSubBass, uBass, uLowMid, uMid, uHighMid;
+uniform vec3 uDrops[6];
+uniform float uPresence, uBrilliance, uAir, uEnergy;
+uniform float uHeightScale;
+uniform float uBandGain[8];
+varying float vHeight;
+varying vec2 vWorldXZ;
+
+float random(vec2 st) {
+  return fract(sin(dot(st, vec2(12.9898, 78.233))) * 43758.5453);
+}
+
+vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+vec2 mod289(vec2 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+vec3 permute(vec3 x) { return mod289(((x * 34.0) + 1.0) * x); }
+
+float snoise(vec2 v) {
+  const vec4 C = vec4(0.211324865405187, 0.366025403784439, -0.577350269189626, 0.024390243902439);
+  vec2 i  = floor(v + dot(v, C.yy));
+  vec2 x0 = v - i + dot(i, C.xx);
+  vec2 i1 = (x0.x > x0.y) ? vec2(1.0, 0.0) : vec2(0.0, 1.0);
+  vec4 x12 = x0.xyxy + C.xxzz;
+  x12.xy -= i1;
+  i = mod289(i);
+  vec3 p = permute(permute(i.y + vec3(0.0, i1.y, 1.0)) + i.x + vec3(0.0, i1.x, 1.0));
+  vec3 m = max(0.5 - vec3(dot(x0, x0), dot(x12.xy, x12.xy), dot(x12.zw, x12.zw)), 0.0);
+  m = m * m;
+  m = m * m;
+  vec3 x = 2.0 * fract(p * C.www) - 1.0;
+  vec3 h = abs(x) - 0.5;
+  vec3 ox = floor(x + 0.5);
+  vec3 a0 = x - ox;
+  m *= 1.79284291400159 - 0.85373472095314 * (a0 * a0 + h * h);
+  vec3 g;
+  g.x  = a0.x * x0.x + h.x * x0.y;
+  g.yz = a0.yz * x12.xz + h.yz * x12.yw;
+  return 130.0 * dot(m, g);
+}
+
+void main() {
+  vec2 pos2D = position.xz;
+  vWorldXZ = pos2D;
+
+  float centerDist = length(pos2D);
+
+  // Idle wave
+  float wave = sin(pos2D.x * 0.15 + pos2D.y * 0.1 - uTime * 0.6) * 0.7 + 0.5;
+
+  // Global radial falloff: HALF*0.8=40.3 → HALF*0.33=16.6
+  float globalFalloff = smoothstep(40.3, 16.6, centerDist);
+
+  float idleElevation = wave * 1.5 * globalFalloff;
+
+  // Audio band lifts (with per-band gain)
+  float subLift    = uSubBass  * smoothstep(27.7, 0.0, centerDist) * 3.5 * uBandGain[0];
+  float bassLift   = uBass     * smoothstep(37.8, 4.0, centerDist + sin(pos2D.x * 0.1 - pos2D.y * 0.12) * 6.0) * (snoise(pos2D * 0.08) * 0.3 + 0.7) * 3.5 * uBandGain[1];
+  float lowMidLift = (uLowMid   * 0.5 + uLowMid * snoise(pos2D * 0.1) * 0.75) * uBandGain[2];
+  float midLift    = uMid      * max(0.0, sin(pos2D.x * 0.2 + pos2D.y * 0.2 - uTime * 2.0)) * 2.5 * uBandGain[3];
+  float highMidLift= uHighMid  * smoothstep(8.0, 52.9, centerDist) * 1.8 * uBandGain[4];
+
+  float audioElevation = (subLift + bassLift + lowMidLift + midLift + highMidLift) * globalFalloff;
+  float elevation = (idleElevation + audioElevation) * uHeightScale;
+
+  // Global ripple ring
+  float rippleR = sin(centerDist * 0.12 - uTime * 0.6) * 0.5 + 0.5;
+  elevation += rippleR * (1.0 - centerDist / 60.5) * uEnergy * 2.0;
+
+  // Raindrop ripples (6 drops max)
+  for (int i = 0; i < 6; i++) {
+    float dx = pos2D.x - uDrops[i].x;
+    float dz = pos2D.y - uDrops[i].y;
+    float dt2 = sqrt(dx * dx + dz * dz);
+    float ra = uDrops[i].z;                     // drop age
+    float rl = max(0.0, 1.0 - ra / 3.5);       // remaining life
+    elevation += sin(dt2 * 0.4 - ra * 2.0) * exp(-dt2 * 0.22) * rl * rl * 2.5;
+  }
+
+  vHeight = elevation / 6.25;
+
+  vec3 newPosition = position;
+  newPosition.y = elevation;
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(newPosition, 1.0);
+}
+`;
+
+// ============================================================
+//  FOAM Fragment Shader
+//  Extracted from mineradio-terrain.js lines 380-403
+// ============================================================
+const foamFragShader = /* glsl */ `
+uniform float uTime, uAudioActivity;
+uniform vec3 uBaseColor1, uBaseColor2, uCoolCore, uWarmCore;
+uniform float uGlowIntensity;
+varying float vHeight;
+varying vec2 vWorldXZ;
+
+float random(vec2 st) {
+  return fract(sin(dot(st, vec2(12.9898, 78.233))) * 43758.5453);
+}
+
+void main() {
+  float centerDist = length(vWorldXZ);
+  float normHeight = clamp(vHeight, 0.0, 1.0);
+
+  // Warm/cool blending zone: HALF*2=100.8
+  float warmBlend = smoothstep(0.0, 1.0, 0.5 - centerDist / 100.8 + sin(uTime * 0.25) * 0.15);
+  vec3 zoneColor = mix(uCoolCore, uWarmCore, warmBlend);
+
+  float rnd = random(vWorldXZ * 3.7);
+
+  // MAX_R = HALF*1.02 = 51.4
+  float MAX_R = 51.4;
+
+  // Glow layer: HALF*0.65=32.8
+  vec3 glow = mix(uBaseColor2, zoneColor, normHeight * 0.85)
+            * uGlowIntensity
+            * (1.0 - smoothstep(32.8, MAX_R, centerDist));
+
+  // Body layer: HALF*0.6=30.2
+  vec3 body = mix(uBaseColor1, uBaseColor2,
+                  normHeight * (1.0 - smoothstep(30.2, MAX_R, centerDist)));
+
+  float topInt = clamp(smoothstep(0.0, 0.3, normHeight) + 0.15, 0.0, 1.0);
+  vec3 finalColor = mix(body, glow, topInt);
+
+  // Dither for banding reduction
+  float dither = (rnd - 0.5) * 0.06;
+
+  // Circle fade (circular mask)
+  float circleAlpha = 1.0 - smoothstep(MAX_R * 0.65, MAX_R, centerDist);
+  float alphaFade = circleAlpha;
+
+  // Fade entire board toward transparent when no audio
+  float bgAlpha = mix(0.0, alphaFade + dither, uAudioActivity);
+
+  gl_FragColor = vec4(finalColor, bgAlpha);
+}
+`;
+
+// ============================================================
+//  IRREGULAR Vertex Shader
+//  Extracted from irregular/index.html
+//  Uses plain random() instead of simplex noise
+//  Uses singular uBandGain float instead of array
+// ============================================================
+const irregularVertShader = /* glsl */ `
+uniform float uTime, uSubBass, uBass, uLowMid, uMid, uHighMid;
+uniform vec3 uDrops[6];
+uniform float uPresence, uBrilliance, uAir, uEnergy;
+uniform float uHeightScale;
+uniform float uBandGain;
+varying float vHeight;
+varying vec2 vWorldXZ;
+
+float random(vec2 st) {
+  return fract(sin(dot(st, vec2(12.9898, 78.233))) * 43758.5453);
+}
+
+void main() {
+  vec2 pos2D = position.xz;
+  vWorldXZ = pos2D;
+
+  float centerDist = length(pos2D);
+
+  // Idle wave — uses HALF*1.15=58.0 and HALF*0.45=22.7 (wider falloff than foam)
+  float wave = sin(pos2D.x * 0.15 + pos2D.y * 0.1 - uTime * 0.6) * 0.7 + 0.5;
+  float globalFalloff = smoothstep(58.0, 22.7, centerDist);
+  float idleElevation = wave * 1.5 * globalFalloff;
+
+  // Audio-driven elevation per band — all multiplied by single uBandGain
+  float subLift = uSubBass * smoothstep(27.7, 0.0, centerDist) * 3.5 * uBandGain;
+
+  float bassNoiseVal = sin(pos2D.x * 0.1 - pos2D.y * 0.12) * 6.0;
+  float bassLift = uBass * smoothstep(37.8, 4.0, centerDist + bassNoiseVal)
+                   * (random(pos2D) * 0.6 + 0.4) * 3.0 * uBandGain;
+
+  float lowMidLift = (uLowMid * 0.5 + uLowMid * random(pos2D) * 0.75) * uBandGain;
+
+  float midLift = uMid * max(0.0, sin(pos2D.x * 0.2 + pos2D.y * 0.2 - uTime * 2.0)) * 2.5 * uBandGain;
+
+  float highMidLift = uHighMid * smoothstep(8.0, 52.9, centerDist) * 1.8 * uBandGain;
+
+  float audioElevation = (subLift + bassLift + lowMidLift + midLift + highMidLift)
+                         * globalFalloff;
+
+  float elevation = (idleElevation + audioElevation) * uHeightScale;
+
+  // Global ripple wave
+  float rippleR = sin(centerDist * 0.12 - uTime * 0.6) * 0.5 + 0.5;
+  elevation += rippleR * (1.0 - centerDist / 60.5) * uEnergy * 2.0;
+
+  // Raindrop ripples — 6 drops, stronger than foam
+  for (int i = 0; i < 6; i++) {
+    float dx = pos2D.x - uDrops[i].x;
+    float dz = pos2D.y - uDrops[i].y;
+    float dt2 = sqrt(dx * dx + dz * dz);
+    float ra = uDrops[i].z;
+    float rl = max(0.0, 1.0 - ra / 3.5);
+    elevation += sin(dt2 * 0.7 - ra * 2.5) * exp(-dt2 * 0.25) * rl * rl * 3.5;
+  }
+
+  vHeight = elevation / 5.0;
+
+  vec3 newPosition = position;
+  newPosition.y = elevation;
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(newPosition, 1.0);
+}
+`;
+
+// ============================================================
+//  IRREGULAR Fragment Shader
+//  Extracted from irregular/index.html
+//  Features: cell-based gaps (pillar effect), specular highlights,
+//            dynamic lighting, aerial fog, color clamping
+// ============================================================
+const irregularFragShader = /* glsl */ `
+uniform float uTime, uAudioActivity;
+uniform vec3 uBaseColor1, uBaseColor2, uCoolCore, uWarmCore;
+uniform float uGlowIntensity;
+varying float vHeight;
+varying vec2 vWorldXZ;
+
+float random(vec2 st) {
+  return fract(sin(dot(st, vec2(12.9898, 78.233))) * 43758.5453);
+}
+
+void main() {
+  // Cell-based gap
+  float SPACING = 1.05;
+  vec2 cellCoord = vWorldXZ / SPACING;
+  vec2 cellCenter = (floor(cellCoord) + 0.5) * SPACING;
+  vec2 cellLocal = abs(vWorldXZ - cellCenter) / SPACING;
+  float GAP = 0.10;
+  float edgeDist = 0.5 - max(cellLocal.x, cellLocal.y);
+  float gapFactor = smoothstep(0.0, GAP, edgeDist);
+
+  float centerDist = length(vWorldXZ);
+  float normHeight = clamp(vHeight, 0.0, 1.0);
+
+  // Warm/cool zone blend
+  float warmBlend = smoothstep(0.0, 1.0, 0.5 - centerDist / 100.8 + sin(uTime * 0.25) * 0.15);
+  vec3 zoneColor = mix(uCoolCore, uWarmCore, warmBlend);
+
+  float rnd = random(cellCenter);
+  float MAX_R = 51.4;
+  float distFade = 1.0 - smoothstep(MAX_R * 0.6, MAX_R, centerDist);
+
+  vec3 glow = mix(uBaseColor2, zoneColor, normHeight * 0.85)
+              * uGlowIntensity * distFade;
+  vec3 body = mix(uBaseColor1, uBaseColor2, normHeight * distFade);
+  float topInt = clamp(smoothstep(0.0, 0.3, normHeight) + 0.15, 0.0, 1.0);
+  vec3 finalColor = mix(body, glow, topInt);
+
+  // Side darkening by gap
+  float sideDarken = mix(0.25, 1.0, gapFactor);
+  finalColor *= sideDarken;
+
+  // Dynamic specular highlight
+  vec3 lightPos = vec3(sin(uTime * 0.25) * 28.0, 10.0, cos(uTime * 0.25) * 28.0);
+  vec3 fragPos = vec3(vWorldXZ.x, normHeight * 5.0, vWorldXZ.y);
+  vec3 L = normalize(lightPos - fragPos);
+  float NdotL = max(0.0, L.y * 0.7 + 0.3);
+  float spec = pow(NdotL, 14.0) * 0.38;
+  float glint = smoothstep(0.06, 0.18, edgeDist);
+  spec *= (0.4 + glint * 0.6);
+  finalColor += zoneColor * spec;
+
+  // Aerial fog at edges
+  float aerialFog = smoothstep(MAX_R * 0.6, MAX_R, centerDist);
+  vec3 atmosphericColor = mix(uBaseColor1, uBaseColor2, 0.4);
+  finalColor = mix(finalColor, atmosphericColor, aerialFog * 0.5);
+
+  // Circle alpha cutout
+  float circleAlpha = 1.0 - smoothstep(MAX_R * 0.65, MAX_R, centerDist);
+  float alphaFade = circleAlpha;
+
+  // Pillar mask from gap
+  float pillarMask = smoothstep(0.0, 0.15, gapFactor);
+  float bgAlpha = mix(0.0, alphaFade, uAudioActivity) * pillarMask;
+
+  // Color clamping to prevent over-brightening
+  finalColor = min(finalColor, vec3(1.2));
+
+  gl_FragColor = vec4(finalColor, bgAlpha);
+}
+`;
+
+// ============================================================
+//  Three.js setup
+// ============================================================
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setClearColor(0x000000, 0);
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = null;
+
+const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 1, 120);
+camera.position.set(Math.cos(0) * 22, 24, Math.sin(0) * 22);
+camera.lookAt(0, 0.5, 0);
+
+// ============================================================
+//  Create Foam Plane
+// ============================================================
+function createFoamPlane() {
+  const uniforms = {
+    uTime:          { value: 0 },
+    uSubBass:       { value: 0 },
+    uBass:          { value: 0 },
+    uLowMid:        { value: 0 },
+    uMid:           { value: 0 },
+    uHighMid:       { value: 0 },
+    uPresence:      { value: 0 },
+    uBrilliance:    { value: 0 },
+    uAir:           { value: 0 },
+    uEnergy:        { value: 0 },
+    uAudioActivity: { value: 0 },
+    uBaseColor1:    { value: sharedTheme.uBaseColor1.clone() },
+    uBaseColor2:    { value: sharedTheme.uBaseColor2.clone() },
+    uCoolCore:      { value: sharedTheme.uCoolCore.clone() },
+    uWarmCore:      { value: sharedTheme.uWarmCore.clone() },
+    uGlowIntensity: { value: sharedTheme.uGlowIntensity },
+    uHeightScale:   { value: 1.0 },
+    uBandGain:      { value: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0] },
+    uDrops: { value: [
+      new THREE.Vector3(180, 180, 100),
+      new THREE.Vector3(180, 180, 100),
+      new THREE.Vector3(180, 180, 100),
+      new THREE.Vector3(180, 180, 100),
+      new THREE.Vector3(180, 180, 100),
+      new THREE.Vector3(180, 180, 100)
+    ]}
+  };
+
+  const material = new THREE.ShaderMaterial({
+    uniforms,
+    vertexShader: foamVertShader,
+    fragmentShader: foamFragShader,
+    transparent: true
+  });
+
+  const geo = new THREE.PlaneGeometry(SIZE, SIZE, FOAM_GRID, FOAM_GRID);
+  geo.rotateX(-Math.PI / 2);
+
+  const mesh = new THREE.Mesh(geo, material);
+  return { mesh, material, uniforms };
+}
+
+// ============================================================
+//  Create Irregular Plane
+// ============================================================
+function createIrregularPlane() {
+  const initDropVec3 = () => new THREE.Vector3(180, 180, 100);
+
+  const uniforms = {
+    uTime:          { value: 0 },
+    uSubBass:       { value: 0 },
+    uBass:          { value: 0 },
+    uLowMid:        { value: 0 },
+    uMid:           { value: 0 },
+    uHighMid:       { value: 0 },
+    uPresence:      { value: 0 },
+    uBrilliance:    { value: 0 },
+    uAir:           { value: 0 },
+    uEnergy:        { value: 0 },
+    uAudioActivity: { value: 1.0 },
+    uBaseColor1:    { value: sharedTheme.uBaseColor1.clone() },
+    uBaseColor2:    { value: sharedTheme.uBaseColor2.clone() },
+    uCoolCore:      { value: sharedTheme.uCoolCore.clone() },
+    uWarmCore:      { value: sharedTheme.uWarmCore.clone() },
+    uGlowIntensity: { value: sharedTheme.uGlowIntensity },
+    uHeightScale:   { value: 1.0 },
+    uBandGain:      { value: 1.0 },  // singular float, as used by irregular shader
+    uDrops: {
+      value: [
+        initDropVec3(), initDropVec3(), initDropVec3(),
+        initDropVec3(), initDropVec3(), initDropVec3()
+      ]
+    }
+  };
+
+  const material = new THREE.ShaderMaterial({
+    uniforms,
+    vertexShader: irregularVertShader,
+    fragmentShader: irregularFragShader,
+    transparent: true,
+    depthWrite: false
+  });
+
+  const geo = new THREE.PlaneGeometry(SIZE, SIZE, IRREG_GRID, IRREG_GRID);
+  geo.rotateX(-Math.PI / 2);
+
+  const mesh = new THREE.Mesh(geo, material);
+  return { mesh, material, uniforms };
+}
+
+// Create both meshes
+const { mesh: foamMesh, material: foamMaterial, uniforms: foamUniforms } = createFoamPlane();
+const { mesh: irregularMesh, material: irregularMaterial, uniforms: irregularUniforms } = createIrregularPlane();
+
+scene.add(foamMesh);
+scene.add(irregularMesh);
+
+// Initially show foam, hide irregular
+foamMesh.visible = true;
+irregularMesh.visible = false;
+
+// ============================================================
+//  Raindrop ripple system (shared)
+// ============================================================
+const MAX_DROPS = 4;
+const DROP_LIFETIME = 3.5;
+const rainDrops = [];
+let dropSpawnTimer = 0;
+let terrainTime = 0;
+let sharedAudioActivity = 0;
+
+function spawnRaindrop() {
+  const angle = Math.random() * Math.PI * 2;
+  const dist = Math.random() * HALF * 0.85;  // 42.8 max
+  rainDrops.push({
+    x: Math.cos(angle) * dist,
+    z: Math.sin(angle) * dist,
+    birth: terrainTime
+  });
+  if (rainDrops.length > MAX_DROPS) rainDrops.shift();
+}
+
+function updateRaindrops(dt) {
+  dropSpawnTimer += dt;
+  if (dropSpawnTimer > 1.2 + Math.random() * 1.5 && rainDrops.length < MAX_DROPS) {
+    dropSpawnTimer = 0;
+    spawnRaindrop();
+  }
+  // Remove expired drops
+  for (let i = rainDrops.length - 1; i >= 0; i--) {
+    if (terrainTime - rainDrops[i].birth >= DROP_LIFETIME) {
+      rainDrops.splice(i, 1);
+    }
+  }
+}
+
+// ============================================================
+//  Update Foam Uniforms
+// ============================================================
+function updateFoamUniforms(audioBands) {
+  const u = foamUniforms;
+  const a = audioBands;
+
+  u.uTime.value = terrainTime;
+  u.uSubBass.value = a.subBass;
+  u.uBass.value = a.bass;
+  u.uLowMid.value = a.lowMid;
+  u.uMid.value = a.mid;
+  u.uHighMid.value = a.highMid;
+  u.uPresence.value = a.presence;
+  u.uBrilliance.value = a.brilliance;
+  u.uAir.value = a.air;
+  u.uEnergy.value = a.energy;
+
+  sharedAudioActivity += ((a.energy > 0.005 ? 1 : 0) - sharedAudioActivity) * 0.04;
+  u.uAudioActivity.value = sharedAudioActivity;
+
+  // Use shared theme colors
+  u.uBaseColor1.value.copy(sharedTheme.uBaseColor1);
+  u.uBaseColor2.value.copy(sharedTheme.uBaseColor2);
+  u.uCoolCore.value.copy(sharedTheme.uCoolCore);
+  u.uWarmCore.value.copy(sharedTheme.uWarmCore);
+  u.uGlowIntensity.value = sharedTheme.uGlowIntensity;
+
+  // Apply band gain and height scale from UI
+  u.uHeightScale.value = heightScale;
+  u.uBandGain.value = [bandGain, bandGain, bandGain, bandGain, bandGain, bandGain, bandGain, bandGain];
+
+  // Raindrop uniforms (6 vec3 slots)
+  const drops = u.uDrops.value;
+  for (let i = 0; i < 6; i++) {
+    if (i < rainDrops.length) {
+      drops[i].set(rainDrops[i].x, rainDrops[i].z, terrainTime - rainDrops[i].birth);
+    } else {
+      drops[i].set(180, 180, 100);
+    }
+  }
+}
+
+// ============================================================
+//  Update Irregular Uniforms
+// ============================================================
+function updateIrregularUniforms(audioBands) {
+  const u = irregularUniforms;
+  const a = audioBands;
+
+  u.uTime.value = terrainTime;
+
+  u.uSubBass.value = a.subBass;
+  u.uBass.value = a.bass;
+  u.uLowMid.value = a.lowMid;
+  u.uMid.value = a.mid;
+  u.uHighMid.value = a.highMid;
+  u.uPresence.value = a.presence;
+  u.uBrilliance.value = a.brilliance;
+  u.uAir.value = a.air;
+  u.uEnergy.value = a.energy;
+
+  u.uAudioActivity.value = sharedAudioActivity;
+
+  // Theme colors from shared theme
+  u.uBaseColor1.value.copy(sharedTheme.uBaseColor1);
+  u.uBaseColor2.value.copy(sharedTheme.uBaseColor2);
+  u.uCoolCore.value.copy(sharedTheme.uCoolCore);
+  u.uWarmCore.value.copy(sharedTheme.uWarmCore);
+  u.uGlowIntensity.value = sharedTheme.uGlowIntensity;
+
+  // Height scale and band gain from UI sliders
+  u.uHeightScale.value = heightScale;
+  u.uBandGain.value = bandGain;  // singular float for irregular shader
+
+  // Raindrop positions
+  const drops = u.uDrops.value;
+  for (let j = 0; j < 6; j++) {
+    if (j < rainDrops.length) {
+      drops[j].set(rainDrops[j].x, rainDrops[j].z, terrainTime - rainDrops[j].birth);
+    } else {
+      drops[j].set(180, 180, 100);
+    }
+  }
+}
+
+// ============================================================
+//  Audio system
+// ============================================================
+const analyzer = new AudioAnalyzer(2048);
+let audioFileEl = null;   // <audio> element for file playback
+
+// UI elements
+const btnMic    = document.getElementById('btn-mic');
+const btnFile   = document.getElementById('btn-file');
+const btnPlay   = document.getElementById('btn-play');
+const trackLabel= document.getElementById('track-label');
+const activityDot = document.getElementById('activity-dot');
+const volumeSlider = document.getElementById('volume-slider');
+const dropOverlay = document.getElementById('drop-overlay');
+
+function setTrackLabel(text) {
+  trackLabel.innerHTML = text;
+}
+
+// Activity dot callback
+analyzer.onActivityChange = function(val) {
+  if (val > 0.3) activityDot.classList.add('live');
+  else activityDot.classList.remove('live');
+};
+
+// ─── Mic input ───
+btnMic.addEventListener('click', async () => {
+  try {
+    await analyzer.initFromMic();
+    // Stop any file playback
+    if (audioFileEl) {
+      audioFileEl.pause();
+      audioFileEl = null;
+    }
+    btnMic.classList.add('active');
+    btnFile.classList.remove('active');
+    btnPlay.disabled = true;
+    setTrackLabel('麦克风已连接');
+  } catch (err) {
+    console.error('麦克风错误:', err);
+    setTrackLabel('麦克风权限被拒绝');
+  }
+});
+
+// ─── File open ───
+btnFile.addEventListener('click', () => {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'audio/*';
+  input.onchange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    loadAudioFile(file);
+  };
+  input.click();
+});
+
+function loadAudioFile(file) {
+  // Stop mic
+  if (analyzer._stream) {
+    analyzer.dispose();
+  }
+
+  const url = URL.createObjectURL(file);
+  const el = new Audio(url);
+  el.volume = volumeSlider.value / 100;
+  el.addEventListener('canplaythrough', () => {
+    analyzer.initFromElement(el);
+    audioFileEl = el;
+    btnPlay.disabled = false;
+    btnPlay.textContent = '▶ 播放';
+    btnPlay.classList.remove('active');
+    btnMic.classList.remove('active');
+    btnFile.classList.remove('active');
+    const name = file.name.length > 40 ? file.name.slice(0, 37) + '...' : file.name;
+    setTrackLabel(name);
+  });
+  el.load();
+}
+
+// ─── Play/Pause ───
+btnPlay.addEventListener('click', () => {
+  if (!audioFileEl) return;
+  if (audioFileEl.paused) {
+    // Resume AudioContext if suspended
+    if (analyzer.ac && analyzer.ac.state === 'suspended') {
+      analyzer.ac.resume();
+    }
+    audioFileEl.play();
+    btnPlay.textContent = '⏸ 暂停';
+    btnPlay.classList.add('active');
+  } else {
+    audioFileEl.pause();
+    btnPlay.textContent = '▶ 播放';
+    btnPlay.classList.remove('active');
+  }
+});
+
+// ─── Volume ───
+volumeSlider.addEventListener('input', () => {
+  const v = volumeSlider.value / 100;
+  if (audioFileEl) audioFileEl.volume = v;
+});
+
+// ─── Drag-and-drop ───
+let dragCounter = 0;
+document.addEventListener('dragenter', (e) => {
+  e.preventDefault();
+  dragCounter++;
+  if (dragCounter === 1) dropOverlay.classList.add('show');
+});
+document.addEventListener('dragleave', (e) => {
+  e.preventDefault();
+  dragCounter--;
+  if (dragCounter === 0) dropOverlay.classList.remove('show');
+});
+document.addEventListener('dragover', (e) => {
+  e.preventDefault();
+});
+document.addEventListener('drop', (e) => {
+  e.preventDefault();
+  dragCounter = 0;
+  dropOverlay.classList.remove('show');
+  const file = e.dataTransfer.files[0];
+  if (file && file.type.startsWith('audio/')) {
+    loadAudioFile(file);
+  }
+});
+
+// ─── Keyboard shortcuts ───
+document.addEventListener('keydown', (e) => {
+  if (e.code === 'Space' && e.target === document.body) {
+    e.preventDefault();
+    btnPlay.click();
+  }
+});
+
+// ============================================================
+//  Theme switcher
+// ============================================================
+const themeSelect = document.getElementById('theme-select');
+const ctrlBar = document.getElementById('ctrl-bar');
+
+function applyTheme(themeName) {
+  const t = THEMES[themeName];
+  if (!t) return;
+
+  // Update shared theme colors
+  sharedTheme.uBaseColor1.set(t.base1);
+  sharedTheme.uBaseColor2.set(t.base2);
+  sharedTheme.uCoolCore.set(t.cool);
+  sharedTheme.uWarmCore.set(t.warm);
+  sharedTheme.uGlowIntensity = t.glow;
+
+  // Update CSS background to match base1
+  document.body.style.background = t.base1;
+
+  // Update control bar border color to match cool
+  ctrlBar.style.borderTopColor = t.cool + '33';
+}
+
+themeSelect.addEventListener('change', () => {
+  applyTheme(themeSelect.value);
+});
+
+// Apply initial theme (foam_bubble is selected by default)
+applyTheme('foam_bubble');
+
+// ============================================================
+//  Mode toggle (泡沫 / 不规则)
+// ============================================================
+const btnFoam = document.getElementById('btn-foam');
+const btnIrregular = document.getElementById('btn-irregular');
+
+function setMode(mode) {
+  currentMode = mode;
+  if (mode === 'foam') {
+    foamMesh.visible = true;
+    irregularMesh.visible = false;
+    btnFoam.classList.add('mode-active');
+    btnIrregular.classList.remove('mode-active');
+  } else {
+    foamMesh.visible = false;
+    irregularMesh.visible = true;
+    btnIrregular.classList.add('mode-active');
+    btnFoam.classList.remove('mode-active');
+  }
+}
+
+btnFoam.addEventListener('click', () => setMode('foam'));
+btnIrregular.addEventListener('click', () => setMode('irregular'));
+
+// ============================================================
+//  Settings panel (frequency controls)
+// ============================================================
+const btnSettings = document.getElementById('btn-settings');
+const settingsPanel = document.getElementById('settings-panel');
+
+btnSettings.addEventListener('click', () => {
+  settingsPanel.classList.toggle('visible');
+});
+
+// Height scale slider
+const sliderHeight = document.getElementById('slider-height');
+const valHeight = document.getElementById('val-height');
+sliderHeight.addEventListener('input', () => {
+  heightScale = parseFloat(sliderHeight.value);
+  valHeight.textContent = heightScale.toFixed(2);
+});
+
+// Band gain slider (single slider for all bands)
+const sliderBandGain = document.getElementById('slider-bandgain');
+const valBandGain = document.getElementById('val-bandgain');
+sliderBandGain.addEventListener('input', () => {
+  bandGain = parseFloat(sliderBandGain.value);
+  valBandGain.textContent = bandGain.toFixed(2);
+});
+
+// ============================================================
+//  Render loop
+// ============================================================
+const clock = new THREE.Clock();
+
+function animate() {
+  requestAnimationFrame(animate);
+
+  const dt = Math.min(clock.getDelta(), 0.1);
+  terrainTime += dt;
+
+  // Get audio analysis (one call per frame, shared)
+  const bands = analyzer.getAnalysis();
+
+  // Update raindrops (shared)
+  updateRaindrops(dt);
+
+  // Update both mesh uniforms (they share the same audio data, theme, raindrops)
+  // The invisible mesh still gets updated so it's ready when toggled
+  updateFoamUniforms(bands);
+  updateIrregularUniforms(bands);
+
+  // Auto-rotate camera (shared)
+  camera.position.x = Math.cos(terrainTime * 0.18) * 22;
+  camera.position.z = Math.sin(terrainTime * 0.18) * 22;
+  camera.position.y = 24 + Math.sin(terrainTime * 0.10) * 4;
+  camera.lookAt(0, 0.5, 0);
+
+  renderer.render(scene, camera);
+}
+
+// ============================================================
+//  Resize handler
+// ============================================================
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// ============================================================
+//  Start
+// ============================================================
+animate();
+console.log('泡沫 & 不规则 — 准备就绪。拖放音频文件或点击麦克风开始。');
+</script>
+</body>
+</html>
