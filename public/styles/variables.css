@@ -22,6 +22,22 @@
   --font-weight-heading: 700;
   --letter-spacing-body: 0.02em;
   --letter-spacing-heading: 0.04em;
+
+  /* ── z-index layer system ── */
+  --z-canvas-bg: -1;
+  --z-layer-bg: 0;
+  --z-layer-passthrough: 1;
+  --z-edge-trigger: 3;
+  --z-chamber: 4;
+  --z-center-core: 5;
+  --z-controller: 6;
+  --z-overlay-dropdown: 10;
+  --z-settings: 15;
+  --z-tooltip: 20;
+  --z-search: 50;
+  --z-modal: 100;
+  --z-toast: 200;
+  --z-debug: 999;
   --spring-expand: cubic-bezier(0.1, 1.1, 0.1, 1.1);
   --spring-overshoot: cubic-bezier(0.1, 1.5, 0.2, 1.0);
   --spring-collapse: cubic-bezier(0.3, -0.3, 0, 1);

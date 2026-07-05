@@ -18,7 +18,7 @@
     time: 0,
     intensity: 0.8,
     speed: 1.0,
-    colorAccent: new THREE.Color('#1144aa'),
+    colorAccent: new THREE.Color('#334466'),
     initialized: false,
     // GPU downsampling: render bg at 1/2 resolution then upsample
     _renderTarget: null,
@@ -53,7 +53,7 @@
         uResolution: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
         uIntensity: { value: FluidBG.intensity },
         uSpeed: { value: FluidBG.speed },
-        uColorBase: { value: new THREE.Color('#0d0d1a') },
+        uColorBase: { value: new THREE.Color('#080810') },
         uColorAccent: { value: FluidBG.colorAccent },
         uBass: { value: 0 },
         uMid: { value: 0 },
@@ -123,7 +123,7 @@
         'vec3 col=uColorBase;',
         'vec3 rc=mix(uColorBase,uColorAccent*0.4,fv*2.0);col=mix(col,rc,fv*uIntensity);',
         'float cg=exp(-d*2.5)*0.06;col+=uColorAccent*cg;col*=vignette;col+=uEnergy*0.02;',
-        'gl_FragColor=vec4(col,0.2);',
+        'gl_FragColor=vec4(col,0.08);',
         '}',
       ].join('\n');
 

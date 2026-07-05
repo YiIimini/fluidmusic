@@ -13,6 +13,7 @@
   const VISUAL_DEFAULTS = {
     fluidBg: true,        // Fluid background (low GPU)
     particleCover: true,  // 3D particle album cover
+    threeDLyrics: false,  // 3D lyrics scene (heavy — replaces center-core)
   };
 
   let _visualEnabled = { ...VISUAL_DEFAULTS };
@@ -41,13 +42,85 @@
     saveVisualSettings();
     // Sync cover fallback when particle toggle changes
     _syncCoverFallback();
+    // Sync center-core visibility for 3D lyrics mode
+    _syncCenterCore();
   };
 
   function _syncCoverFallback() {
     var fb = document.getElementById('cover-fallback');
     if (fb) {
-      fb.style.display = _visualEnabled.particleCover ? 'none' : 'block';
+      // Show in default mode; hide only in 3D lyrics mode (3D scene takes over)
+      fb.style.display = _visualEnabled.threeDLyrics ? 'none' : 'block';
     }
+  }
+  window._fluidSyncCoverFallback = _syncCoverFallback;
+
+  function _syncCenterCore() {
+  window._fluidSyncCenterCore = _syncCenterCore;
+    var cc = document.getElementById('center-core');
+    var is3D = !!_visualEnabled.threeDLyrics;
+    var bgCanvas = document.getElementById('bg-canvas');
+
+    // [3D-DEBUG] _syncCenterCore called — verbose debug disabled
+    // ' | threeDLyricsEnabled=' + _visualEnabled.threeDLyrics +
+    // ' | fluidBgInit=' + (typeof FluidBackground !== 'undefined' && FluidBackground.initialized) +
+    // ' | TDLinit=' + (typeof ThreeDLyricsScene !== 'undefined' && ThreeDLyricsScene.initialized) +
+    // ' | TDLactive=' + (typeof ThreeDLyricsScene !== 'undefined' && ThreeDLyricsScene._active));
+    // 
+    // 1. Center core visibility
+    if (cc) {
+      cc.style.opacity = is3D ? '0' : '';
+      cc.style.pointerEvents = is3D ? 'none' : '';
+      cc.style.transition = 'opacity 0.5s var(--ease-fluid)';
+      // [3D-DEBUG] center-core opacity=' + (is3D ? '0' : 'default');
+    }
+
+    // 2. Canvas opacity: 3D mode — full canvas, content controls transparency
+    if (bgCanvas) {
+      bgCanvas.style.opacity = is3D ? '1' : '';
+      bgCanvas.style.transition = 'opacity 0.5s var(--ease-fluid)';
+    }
+
+    // 3. Ensure fluidBg is initialized as backdrop for 3D scene
+    if (is3D && typeof FluidBackground !== 'undefined' && !FluidBackground.initialized) {
+      FluidBackground.init();
+    }
+
+    // 4. Ensure 3D lyrics module is initialized AND activated
+    if (typeof ThreeDLyricsScene !== 'undefined') {
+      if (is3D && !ThreeDLyricsScene.initialized) {
+        // [3D-DEBUG] lazy-init ThreeDLyricsScene...');
+        var initResult = ThreeDLyricsScene.init();
+        // [3D-DEBUG] ThreeDLyricsScene.init() returned: ' + initResult);
+        // Feed current track + lyrics if available
+        if (typeof FluidAudio !== 'undefined' && FluidAudio.currentTrack) {
+          var t = FluidAudio.currentTrack;
+          // [3D-DEBUG] feeding current track: ' + (t.title || 'unknown');
+          ThreeDLyricsScene.setTrack(t);
+        }
+        if (typeof window.LyricChamber !== 'undefined' && window.LyricChamber.lyricsLines && window.LyricChamber.lyricsLines.length > 0) {
+          ThreeDLyricsScene.setLyrics(window.LyricChamber.lyricsLines, window.LyricChamber._lastLyricIdx || 0);
+        }
+      }
+      if (ThreeDLyricsScene.initialized) {
+        // [3D-DEBUG] calling setActive(' + is3D + '), current _active=' + ThreeDLyricsScene._active);
+        ThreeDLyricsScene.setActive(is3D);
+        // [3D-DEBUG] after setActive, _active=' + ThreeDLyricsScene._active);
+      }
+    }
+
+    // 5. Toggle RendererManager layers for transparency
+    if (typeof RendererManager !== 'undefined') {
+      if (is3D) {
+        RendererManager.setLayerVisible('bg', false);
+        RendererManager.setLayerVisible('particle', false);
+      } else {
+        RendererManager.setLayerVisible('bg', _visualEnabled.fluidBg);
+        RendererManager.setLayerVisible('particle', _visualEnabled.particleCover);
+      }
+    }
+
+    // 6. 3D lyric chamber is ALWAYS active (replaces old HTML lyrics permanently)
   }
 
 
@@ -82,12 +155,13 @@
       // Update fallback cover image (always show, even if particle cover disabled)
       const fallbackImg = document.getElementById('cover-fallback');
       const coverUrl = track.coverUrl || track.cover || '';
-      if (fallbackImg && coverUrl && String(coverUrl).startsWith('http')) {
-        fallbackImg.src = coverUrl;
-        fallbackImg.style.display = _visualEnabled.particleCover ? 'none' : 'block';
-      } else if (fallbackImg) {
-        fallbackImg.src = 'assets/icon.png';
-        fallbackImg.style.display = _visualEnabled.particleCover ? 'none' : 'block';
+      if (fallbackImg) {
+        if (coverUrl && String(coverUrl).startsWith('http')) {
+          fallbackImg.src = coverUrl;
+        } else {
+          fallbackImg.src = 'assets/FluidMusic.png';
+        }
+        fallbackImg.style.display = _visualEnabled.threeDLyrics ? 'none' : 'block';
       }
 
       if (_visualEnabled.particleCover && typeof ParticleCover !== 'undefined' && ParticleCover.initialized && track) {
@@ -97,6 +171,10 @@
           const fixed = String(coverUrl).replace(/^http:/, 'https:');
           if (fixed.startsWith('https://')) ParticleCover.loadImage(fixed);
         }
+      }
+      // Sync 3D lyrics scene with current track
+      if (_visualEnabled.threeDLyrics && typeof ThreeDLyricsScene !== 'undefined' && ThreeDLyricsScene.initialized && track) {
+        ThreeDLyricsScene.setTrack(track);
       }
       // Sync top chamber queue display + active track highlight
       if (typeof FluidAudio !== 'undefined' && typeof BubbleChamber !== 'undefined') {
@@ -133,6 +211,12 @@
 
             if (lyricText && typeof BubbleChamber !== 'undefined') {
               BubbleChamber.setLyrics(lyricText, 0, transText);
+              // Also feed to 3D lyrics scene
+              if (_visualEnabled.threeDLyrics && typeof ThreeDLyricsScene !== 'undefined' && ThreeDLyricsScene.initialized) {
+                if (window.LyricChamber && window.LyricChamber.lyricsLines && window.LyricChamber.lyricsLines.length > 0) {
+                  ThreeDLyricsScene.setLyrics(window.LyricChamber.lyricsLines, 0);
+                }
+              }
             }
           } catch (e) {
             console.warn('Failed to fetch lyrics:', e);
@@ -150,6 +234,10 @@
       if (typeof BubbleChamber !== 'undefined' && BubbleChamber.findLyricIndex) {
         const idx = BubbleChamber.findLyricIndex(current);
         if (idx >= 0) BubbleChamber.highlightLyric(idx);
+        // Also update 3D lyrics scene current line
+        if (_visualEnabled.threeDLyrics && typeof ThreeDLyricsScene !== 'undefined' && ThreeDLyricsScene.initialized && idx >= 0) {
+          ThreeDLyricsScene.setCurrentLyricIndex(idx);
+        }
       }
     };
   }
@@ -421,7 +509,11 @@
                            ParticleCover.initialized &&
                            typeof ParticleCover._transitioning !== 'undefined' &&
                            ParticleCover._transitioning);
-    return audioIdle && !hasTransition;
+    // Keep ticking if foam/irregular background is still fading out
+    const foamFading = (typeof FoamBG !== 'undefined' &&
+                        FoamBG.getAudioActivity &&
+                        FoamBG.getAudioActivity() > 0.001);
+    return audioIdle && !hasTransition && !foamFading;
   }
 
   function updateLowPowerMode() {
@@ -461,14 +553,10 @@
     // ── Unified visual rendering via shared WebGL context ──
     const V = _visualEnabled;
     if (typeof RendererManager !== 'undefined' && RendererManager.initialized) {
-      // Tick all visual modules (in registration order) — only if enabled
-      if (V.fluidBg && typeof FluidBackground !== 'undefined' && FluidBackground.initialized) {
-        FluidBackground.tick(dt);
-      }
-      if (V.particleCover && typeof ParticleCover !== 'undefined' && ParticleCover.initialized) {
-        ParticleCover.tick(dt);
-      }
-      // Single render call composites all layers
+      // tickAll drives every registered layer's tick (fluidBg, particleCover, threeDLyrics, foamBg)
+      // Layer visibility is handled per-layer — hidden layers skip their tick
+      RendererManager.tickAll(dt);
+      // Single render call composites all visible layers
       RendererManager.render();
     } else {
       // Fallback: legacy per-module rendering
@@ -485,6 +573,9 @@
     // Audio-reactive lyric animation
     if (typeof BubbleChamber !== 'undefined' && BubbleChamber.animateLyrics) {
       BubbleChamber.animateLyrics();
+    }
+    if (typeof ThreeDLyricChamber !== 'undefined' && ThreeDLyricChamber.tick) {
+      ThreeDLyricChamber.tick();
     }
 
     // ── Progress bar + time display update (throttled to 250ms) ──
@@ -561,9 +652,21 @@
       console.log('[init] ParticleCover disabled (toggle in DIY settings)');
     }
 
+    // 4. Init 3D lyrics scene (if enabled — replaces center-core)
+    if (_visualEnabled.threeDLyrics && typeof ThreeDLyricsScene !== 'undefined') {
+      ThreeDLyricsScene.init();
+      ThreeDLyricsScene.setActive(true);
+      // Sync center-core visibility
+      _syncCenterCore();
+    }
+
     // 6. Init bubble chambers
     if (typeof BubbleChamber !== 'undefined') {
       BubbleChamber.init();
+    }
+    // 6.5 Init 3D lyric chamber in right panel
+    if (typeof ThreeDLyricChamber !== 'undefined') {
+      ThreeDLyricChamber.init();
     }
 
     // 7. Init API bridge (populates cookieStore, fetches profiles)
@@ -621,10 +724,47 @@
     const loadingMsg = document.getElementById('loading-msg');
     const loadingSub = document.getElementById('loading-sub');
 
+    // Cute random loading messages (ignores functional msg/sub from callers)
+    var _loadingMsgs = [
+      '♫ 音符正在赶来…', '✦ 星光加载中…', '♪ 旋律泡在咖啡里', '✧ 封面在梳妆打扮',
+      '♩ 节拍器在热身', '✿ 波纹荡漾中…', '◈ 频谱正在涂色', '⁂ 粒子们集合中',
+      '✶ 和弦揉成一团云', '♬ 低音在梦里震动', '✴ 宇宙连线中…', '♫ 等风也等你',
+      '✦ 星光洒了一地', '♪ 音符排队进场', '✧ 封面正在挑滤镜', '♩ 鼓点在打盹',
+      '✿ 泡沫在杯中旋转', '◈ 音轨铺成星河', '⁂ 律动加载中…', '♬ 旋律正在解冻'
+    ];
+    var _loadingIdx = 0;
+    var _loadingTimer = null;
+
+    function _pickCuteMsg() {
+      // Pick a random message different from the last one
+      var pool = _loadingMsgs.filter(function(_, i) { return i !== _loadingIdx; });
+      var pick = pool[Math.floor(Math.random() * pool.length)];
+      _loadingIdx = _loadingMsgs.indexOf(pick);
+      return pick;
+    }
+
+    function _typewrite(el, text, i) {
+      i = i || 0;
+      if (i < text.length) {
+        el.textContent = text.substring(0, i + 1);
+        setTimeout(function() { _typewrite(el, text, i + 1); }, 40 + Math.random() * 40);
+      }
+    }
+
+    function _cycleCuteMsg() {
+      if (!loadingMsg || loadingOverlay.classList.contains('hidden')) return;
+      var cute = _pickCuteMsg();
+      _typewrite(loadingMsg, cute);
+      _loadingTimer = setTimeout(_cycleCuteMsg, 2200 + Math.random() * 1800);
+    }
+
     function updateLoading(msg, sub) {
   window._updateLoading = updateLoading;
-      if (loadingMsg) loadingMsg.textContent = msg;
-      if (loadingSub) loadingSub.textContent = sub || '';
+      // Ignore functional msgs; cycle cute strings
+      if (!_loadingTimer && loadingMsg && !loadingOverlay.classList.contains('hidden')) {
+        _cycleCuteMsg();
+      }
+      if (loadingSub) loadingSub.textContent = '';
     }
 
     // Step A: Show favorites immediately (instant, from localStorage)
@@ -691,7 +831,7 @@
           } else {
             console.log('[Startup] Playlist cache fresh, skipping API refresh');
           }
-          if (loadingOverlay) loadingOverlay.classList.add('hidden');
+          if (loadingOverlay) clearTimeout(_loadingTimer); loadingOverlay.classList.add('hidden');
         }, 2000);
       } else {
         // No cache, first-time login — batch fetch with delays
@@ -759,7 +899,7 @@
           if (typeof DataCache !== 'undefined') {
             setTimeout(() => prefetchAllPlaylistSongs(cachedPlaylists), 1000);
           }
-        if (loadingOverlay) loadingOverlay.classList.add('hidden');
+        if (loadingOverlay) clearTimeout(_loadingTimer); loadingOverlay.classList.add('hidden');
       }
     } else {
       // No login → show cached data or demo
@@ -771,13 +911,13 @@
         // eslint-disable-next-line no-unused-vars
         hasRealPlaylists = true;
         setTimeout(() => {
-          if (loadingOverlay) loadingOverlay.classList.add('hidden');
+          if (loadingOverlay) clearTimeout(_loadingTimer); loadingOverlay.classList.add('hidden');
         }, 500);
       } else {
         updateLoading('准备就绪', '登录后可同步在线歌单');
         loadDemoPlaylist();
         setTimeout(() => {
-          if (loadingOverlay) loadingOverlay.classList.add('hidden');
+          if (loadingOverlay) clearTimeout(_loadingTimer); loadingOverlay.classList.add('hidden');
         }, 800);
       }
     }
@@ -785,7 +925,7 @@
     // Hide overlay after timeout (fallback)
     setTimeout(() => {
       if (loadingOverlay && !loadingOverlay.classList.contains('hidden')) {
-        loadingOverlay.classList.add('hidden');
+        clearTimeout(_loadingTimer); loadingOverlay.classList.add('hidden');
       }
     }, 15000);
 
@@ -874,7 +1014,19 @@
   }
 
   // ── Background pre-fetch all playlist songs into cache ──
+  let _prefetchController = null;
+
+  // Cancel any in-progress pre-fetch before starting a new one
+  function cancelPrefetch() {
+    if (_prefetchController) {
+      _prefetchController.abort();
+      _prefetchController = null;
+    }
+  }
   async function prefetchAllPlaylistSongs(playlists) {
+  cancelPrefetch();
+  _prefetchController = new AbortController();
+  const signal = _prefetchController.signal;
     if (!playlists || typeof ApiBridge === 'undefined' || typeof DataCache === 'undefined') return;
     const allPl = [...(playlists.netease || []), ...(playlists.qq || [])];
     if (allPl.length === 0) return;
@@ -949,7 +1101,7 @@
       }
       // Delay between playlist fetches to avoid rate-limit
       if (i < fetchList.length - 1) {
-        await new Promise(r => setTimeout(r, 1500));
+        if (signal.aborted) break; await new Promise(r => { const id = setTimeout(() => { signal.removeEventListener('abort', onAbort); r(); }, 1500); const onAbort = () => { clearTimeout(id); r(); }; signal.addEventListener('abort', onAbort, { once: true }); });
       }
     }
     console.log('[Prefetch] Complete — all playlist songs cached');

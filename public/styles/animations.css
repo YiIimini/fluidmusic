@@ -20,8 +20,8 @@
 }
 
 @keyframes float-subtle {
-  0%, 100% { transform: translate(-50%, -48%); }
-  50% { transform: translate(-50%, -53%); }
+  0%, 100% { transform: translate(-50%, -32%); }
+  50% { transform: translate(-50%, -37%); }
 }
 
 @keyframes chromatic-drift {
@@ -49,4 +49,16 @@
   from { opacity: 1; transform: scale(1) translateY(0); }
   to { opacity: 0;
    transform: scale(0.8) translateY(4px); }
+}
+
+/* ── Accessibility: disable animations for users who prefer reduced motion ── */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

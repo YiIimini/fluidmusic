@@ -179,7 +179,7 @@
     const fragmentShader = [
       'precision highp float;',
       'uniform sampler2D uDotTex;',
-      'uniform float uAlpha; uniform float uEnergy;',
+      'uniform float uAlpha, uEnergy, uBass;',
       'varying vec3 vColor; varying float vBright; varying float vRipple; varying float vAlpha; varying float vSourceLum;',
       'void main(){',
       'vec4 tex = texture2D(uDotTex, gl_PointCoord);',
@@ -251,7 +251,7 @@
       const useShared = (typeof RendererManager !== 'undefined' && RendererManager.initialized);
       if (!useShared) {
         console.log('[ParticleCover] Creating standalone WebGL renderer (fallback)...');
-        const renderer = new THREE.WebGLRenderer({ canvas: canvas || document.getElementById('particle-canvas'), alpha: true, antialias: true });
+        const renderer = new THREE.WebGLRenderer({ canvas: canvas || undefined, alpha: true, antialias: true });
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         const containerEl = canvas ? canvas.parentElement : document.getElementById('particle-cover-container');
         let cw = containerEl ? containerEl.clientWidth : 0;

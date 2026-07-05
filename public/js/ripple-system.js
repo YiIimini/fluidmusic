@@ -8,6 +8,10 @@
 
   // ── Ripple system: click + hover + audio-reactive with 3D depth ──
   var _rippleEnabled = false;
+  var _rainDropEnabled = true;
+  var _rainDropIntensity = 1.0;
+  var _rainDropMaxSize = 200;
+  var _rainDropColorful = true;
   var _lastRippleTime = 0;
   var _hoverRippleInterval = null;
   // audioRippleInterval unused
@@ -88,32 +92,41 @@
     ring.className = 'audio-ripple';
     ring.style.left = x + 'px';
     ring.style.top = y + 'px';
-    var sizeMap = { bass: 180, mid: 120, treble: 60 };
+    // Base sizes scaled by raindrop maxSize (default 200)
+    var scale = _rainDropMaxSize / 200;
+    var sizeMap = { bass: 180 * scale, mid: 120 * scale, treble: 60 * scale };
     var speedMap = { bass: 2.0, mid: 1.2, treble: 0.6 };
-    var size = sizeMap[band] || 120;
+    var size = sizeMap[band] || 120 * scale;
     var speed = speedMap[band] || 1.0;
     ring.style.setProperty('--ripple-size', size + 'px');
     ring.style.setProperty('--ripple-duration', speed + 's');
-    // Random color
-    var color = randomRippleColor();
-    ring.style.borderColor = color;
-    ring.style.boxShadow = '0 0 ' + (size/6) + 'px ' + color;
+    // Color: colorful random or unified glass tone
+    if (_rainDropColorful) {
+      var color = randomRippleColor();
+      ring.style.borderColor = color;
+      ring.style.boxShadow = '0 0 ' + (size/6) + 'px ' + color;
+    } else {
+      ring.style.borderColor = 'rgba(180,200,255,0.3)';
+      ring.style.boxShadow = '0 0 ' + (size/6) + 'px rgba(180,200,255,0.15)';
+    }
     document.body.appendChild(ring);
     setTimeout(function() { ring.remove(); }, parseFloat(speed) * 2000 + 200);
   }
 
   function tickAudioRipples() {
     _audioRippleRAF = requestAnimationFrame(tickAudioRipples);
-    // Audio ripples always on when music plays (independent of click ripple toggle)
+    // Rain drop toggle controls audio ripples
+    if (!_rainDropEnabled) return;
     if (!isAudioPlaying()) return;
     if (typeof FluidAudio === 'undefined' || !FluidAudio.bands) return;
 
     var bands = FluidAudio.bands;
     _rippleCooldown -= 16; // ~60fps tick
 
-    // Bass triggers big slow ripples — threshold 0.3
-    if (bands.bass > 0.3 && _rippleCooldown <= 0) {
-      var count = Math.floor(bands.bass * 4);
+    // Bass triggers big slow ripples — threshold adjusted by intensity
+    var bassThreshold = 0.3 / Math.max(0.2, _rainDropIntensity);
+    if (bands.bass > bassThreshold && _rippleCooldown <= 0) {
+      var count = Math.floor(bands.bass * 4 * _rainDropIntensity);
       for (var i = 0; i < count; i++) {
         spawnAudioRipple(
           Math.random() * window.innerWidth,
@@ -125,8 +138,9 @@
     }
 
     // Mid triggers medium ripples — continuous at lower threshold
-    if (bands.mid > 0.15) {
-      var mcount = Math.floor(bands.mid * 2);
+    var midThreshold = 0.15 / Math.max(0.2, _rainDropIntensity);
+    if (bands.mid > midThreshold) {
+      var mcount = Math.floor(bands.mid * 2 * _rainDropIntensity);
       for (var j = 0; j < mcount; j++) {
         if (Math.random() < 0.3) {
           spawnAudioRipple(
@@ -139,8 +153,9 @@
     }
 
     // Treble triggers small fast ripples — sparkly, frequent
-    if (bands.treble > 0.1) {
-      if (Math.random() < bands.treble * 0.5) {
+    var trebleThreshold = 0.1 / Math.max(0.2, _rainDropIntensity);
+    if (bands.treble > trebleThreshold) {
+      if (Math.random() < bands.treble * 0.5 * _rainDropIntensity) {
         spawnAudioRipple(
           Math.random() * window.innerWidth,
           Math.random() * window.innerHeight,
@@ -150,7 +165,7 @@
     }
 
     // Energy burst: on strong beats, spawn a cluster
-    if (bands.energy > 0.6 && Math.random() < 0.4) {
+    if (bands.energy > 0.6 && Math.random() < 0.4 * _rainDropIntensity) {
       var cx = window.innerWidth * (0.2 + Math.random() * 0.6);
       var cy = window.innerHeight * (0.2 + Math.random() * 0.6);
       for (var k = 0; k < 3; k++) {
@@ -171,6 +186,11 @@
 
   // Audio ripples always start — independent of click ripple toggle
   startAudioRipple();
+
+  window._rainDropSetEnabled = function(on) { _rainDropEnabled = on; };
+  window._rainDropSetIntensity = function(v) { _rainDropIntensity = Math.max(0.1, Math.min(3.0, v)); };
+  window._rainDropSetMaxSize = function(v) { _rainDropMaxSize = Math.max(60, Math.min(400, v)); };
+  window._rainDropSetColorful = function(on) { _rainDropColorful = on; };
 
   window._rippleSetEnabled = function(on) {
     _rippleEnabled = on;

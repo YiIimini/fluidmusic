@@ -6,20 +6,27 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: http: https:; media-src 'self' http: https: blob:; connect-src 'self' http://127.0.0.1:* https:; font-src 'self' https://fonts.gstatic.com;">
 <meta name="theme-color" content="#0a0a14">
 <title>FluidMusic</title>
-<link rel="stylesheet" href="styles/variables.css?t=1783100700">
-<link rel="stylesheet" href="styles/base.css?t=1783100700">
-<link rel="stylesheet" href="styles/layout.css?t=1783100700">
-<link rel="stylesheet" href="styles/components.css?t=1783100700">
-<link rel="stylesheet" href="styles/animations.css?t=1783100700">
+<link rel="stylesheet" href="styles/variables.css?t=1783231481">
+<link rel="stylesheet" href="styles/base.css?t=1783231481">
+<link rel="stylesheet" href="styles/layout.css?t=1783231481">
+<link rel="stylesheet" href="styles/components.css?t=1783231481">
+<link rel="stylesheet" href="styles/animations.css?t=1783231481">
 </head>
 <body>
 <script src="js/sw-cleanup.js"></script>
 
 <!-- Loading Overlay -->
 <div id="loading-overlay">
-  <div class="loading-spinner-ring"></div>
-  <div class="loading-text" id="loading-msg">正在加载 FluidMusic...</div>
-  <div class="loading-sub" id="loading-sub"></div>
+  <div class="splash-ripple"></div>
+  <div class="splash-logo">
+    <img src="assets/icon.png" alt="FluidMusic" width="72" height="72" style="border-radius:18px;" />
+  </div>
+  <div class="splash-title">FluidMusic</div>
+  <div class="splash-eq">
+    <div class="eq-bar"></div><div class="eq-bar"></div><div class="eq-bar"></div>
+    <div class="eq-bar"></div><div class="eq-bar"></div>
+  </div>
+  <div class="splash-subtitle" id="loading-msg">♫</div>
 </div>
 
 
@@ -66,27 +73,25 @@
 <!-- Layer 1: Pass-through -->
 <div id="layer-passthrough"></div>
 
+<!-- 3D mode title/artist overlay (above 3D scene, below chambers) -->
+<div id="tdl-song-info">
+  <div id="tdl-song-title">FluidMusic</div>
+  <div id="tdl-song-artist">流体动态音乐播放器</div>
+</div>
+
 <!-- Layer 5: Center Core -->
 <div id="center-core">
   <div id="center-core-inner">
 
     <div id="particle-cover-container">
-      <canvas id="particle-canvas" style="position:absolute;top:0;left:0;z-index:5;pointer-events:none;border-radius:14px;"></canvas>
-      <img id="cover-fallback" src="assets/icon.png" alt="专辑封面" style="width:100%;height:100%;object-fit:cover;border-radius:14px;display:none;">
+      <img id="cover-fallback" src="assets/FluidMusic.png" alt="专辑封面" style="width:100%;height:100%;object-fit:cover;border-radius:14px;">
     </div>
     <div id="song-info">
       <div id="song-title">FluidMusic</div>
       <div id="song-artist">流体动态音乐播放器</div>
     </div>
-    <div style="display:flex;align-items:center;gap:6px;width:260px;margin-top:2px;">
-      <span id="time-current" style="font-size:10px;color:var(--text-dim);font-variant-numeric:tabular-nums;min-width:32px;text-align:right;">0:00</span>
-      <div id="progress-bar-container" role="slider" aria-label="播放进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" style="flex:1;height:3px;">
-        <div id="progress-bar-fill"></div>
-        <div id="progress-bar-thumb"></div>
-      </div>
-      <span id="time-duration" style="font-size:10px;color:var(--text-dim);font-variant-numeric:tabular-nums;min-width:32px;">0:00</span>
-    </div>
-    <div id="inline-lyric" style="display:none;font-size:15px;font-weight:600;color:var(--text-primary);text-align:center;margin-top:6px;margin-bottom:4px;padding-bottom:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:260px;line-height:1.4;transition:opacity 0.4s var(--ease-fluid);;">...</div>
+    <!-- progress bar moved to #chamber-top -->
+    <div id="inline-lyric" style="display:none;font-size:15px;font-weight:600;color:var(--text-primary);text-align:center;margin-top:18px;margin-bottom:4px;padding-bottom:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:260px;line-height:1.4;transition:opacity 0.4s var(--ease-fluid);;">...</div>
 
   </div>
 
@@ -137,7 +142,7 @@
 </div>
 
 <!-- Layer 1.5: Search Bar -->
-<div id="search-bar-container" style="position:fixed;top:8px;left:50%;transform:translateX(-50%);z-index:50;
+<div id="search-bar-container" style="position:fixed;top:8px;left:50%;transform:translateX(-50%);z-index:var(--z-search);
   display:flex;align-items:center;gap:6px;opacity:0;pointer-events:none;
   transition:opacity 0.3s var(--spring-expand);">
   <input type="text" id="search-input" aria-label="搜索歌曲" placeholder="搜索音乐..."
@@ -150,7 +155,7 @@
 </div>
 
 <!-- Search Results Overlay -->
-<div id="search-results-overlay" style="position:fixed;top:52px;left:50%;transform:translateX(-50%);z-index:49;
+<div id="search-results-overlay" style="position:fixed;top:52px;left:50%;transform:translateX(-50%);z-index:var(--z-search);
   width:420px;max-height:420px;overflow-y:auto;border-radius:14px;border:1px solid var(--glass-border);
   background:rgba(10,10,24,0.9);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
   display:none;padding:4px 0;">
@@ -183,6 +188,15 @@
       </svg>
     </button>
   </div>
+  <!-- Progress bar at bottom of top chamber -->
+  <div style="display:flex;align-items:center;gap:6px;width:100%;margin-top:4px;padding:0 4px;">
+    <span id="time-current" style="font-size:10px;color:var(--text-dim);font-variant-numeric:tabular-nums;min-width:32px;text-align:right;">0:00</span>
+    <div id="progress-bar-container" role="slider" aria-label="播放进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" style="flex:1;height:4px;background:rgba(255,255,255,0.06);border-radius:2px;cursor:pointer;position:relative;overflow:visible;">
+      <div id="progress-bar-fill"></div>
+      <div id="progress-bar-thumb"></div>
+    </div>
+    <span id="time-duration" style="font-size:10px;color:var(--text-dim);font-variant-numeric:tabular-nums;min-width:32px;">0:00</span>
+  </div>
 </div>
 
 <!-- Layer 4.5: Bottom Controller — three-section layout -->
@@ -204,8 +218,7 @@
     <span data-btn="volume"><button class="controller-btn" id="btn-volume" title="音量" aria-label="音量控制">
       <svg id="icon-vol-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="11,5 6,9 2,9 2,15 6,15 11,19"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
       <svg id="icon-vol-mute" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display:none;"><polygon points="11,5 6,9 2,9 2,15 6,15 11,19"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
-    </button></span>
-    <div id="volume-tooltip"><input type="range" id="volume-slider" min="0" max="100" value="70" aria-label="音量" role="slider" orient="horizontal"></div>
+    </button><div id="volume-tooltip"><input type="range" id="volume-slider" min="0" max="100" value="70" aria-label="音量" role="slider" orient="horizontal"></div></span>
     <span style="width:8px;"></span>
     <span data-btn="prev"><button class="controller-btn" id="btn-prev" title="上一曲" aria-label="上一曲">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
@@ -269,7 +282,7 @@
 <!-- Scripts -->
 <script src="js/error-handler.js"></script>
 <!-- Mini Player Overlay -->
-<div id="mini-player" style="display:none;position:fixed;bottom:20px;right:20px;z-index:100;
+<div id="mini-player" style="display:none;position:fixed;bottom:20px;right:20px;z-index:var(--z-modal);
   width:280px;border-radius:16px;border:1px solid var(--glass-border);
   background:rgba(10,10,24,0.92);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
   box-shadow:0 12px 40px rgba(0,0,0,0.5);overflow:hidden;cursor:move;
@@ -298,33 +311,36 @@
 </div>
 
 <!-- TypeScript Bridge (bundled by Vite) -->
-<script type="module" src="js/ts-loader.js?t=1783100700"></script>
-<script src="vendor/three.min.js?t=1783100700"></script>
-<script type="module" src="js/module-registry.js?t=1783100700"></script>
-<script type="module" src="js/audio-engine.js?t=1783100700"></script>
-<script type="module" src="js/ts-audio-bridge.js?t=1783100700"></script>
-<script type="module" src="js/renderer-manager.js?t=1783100700"></script>
-<script type="module" src="js/fluid-bg.js?t=1783100700"></script>
-<script type="module" src="js/particle-cover.js?t=1783100700"></script>
-<script type="module" src="js/bubble-chamber/chamber-base.js?t=1783100700"></script>
-<script type="module" src="js/bubble-chamber/playlist-chamber.js?t=1783100700"></script>
-<script type="module" src="js/bubble-chamber/lyric-chamber.js?t=1783100700"></script>
-<script type="module" src="js/bubble-chamber/queue-chamber.js?t=1783100700"></script>
-<script type="module" src="js/bubble-chamber/index.js?t=1783100700"></script>
-<script type="module" src="js/lastfm.js?t=1783100700"></script>
-<script type="module" src="js/custom-playlists.js?t=1783100700"></script>
-<script type="module" src="js/favorites.js?t=1783100700"></script>
-<script type="module" src="js/user-panel.js?t=1783100700"></script>
-<script type="module" src="js/api-bridge.js?t=1783100700"></script>
-<script type="module" src="js/i18n.js?t=1783100700"></script>
-<script type="module" src="js/data-cache.js?t=1783100700"></script>
-<script type="module" src="js/search.js?t=1783100700"></script>
-<script type="module" src="js/diy-settings.js?t=1783100700"></script>
-<script type="module" src="js/diy-renderer.js?t=1783100700"></script>
-<script type="module" src="js/visual-contrast.js?t=1783100700"></script>
-<script type="module" src="js/controllers.js?t=1783100700"></script>
-<script type="module" src="js/ripple-system.js?t=1783100700"></script>
-<script type="module" src="js/app.js?t=1783100700"></script>
+<script type="module" src="js/ts-loader.js?t=1783231481"></script>
+<script src="vendor/three.min.js?t=1783231481"></script>
+<script type="module" src="js/module-registry.js?t=1783231481"></script>
+<script type="module" src="js/audio-engine.js?t=1783231481"></script>
+<script type="module" src="js/ts-audio-bridge.js?t=1783231481"></script>
+<script type="module" src="js/renderer-manager.js?t=1783231481"></script>
+<script type="module" src="js/fluid-bg.js?t=1783231481"></script>
+<script type="module" src="js/particle-cover.js?t=1783231481"></script>
+<script type="module" src="js/3d-lyrics-scene.js?t=1783231481"></script>
+<script type="module" src="js/3d-lyric-chamber.js?t=1783231481"></script>
+<script type="module" src="js/bubble-chamber/chamber-base.js?t=1783231481"></script>
+<script type="module" src="js/bubble-chamber/playlist-chamber.js?t=1783231481"></script>
+<script type="module" src="js/bubble-chamber/lyric-chamber.js?t=1783231481"></script>
+<script type="module" src="js/bubble-chamber/queue-chamber.js?t=1783231481"></script>
+<script type="module" src="js/bubble-chamber/index.js?t=1783231481"></script>
+<script type="module" src="js/lastfm.js?t=1783231481"></script>
+<script type="module" src="js/custom-playlists.js?t=1783231481"></script>
+<script type="module" src="js/favorites.js?t=1783231481"></script>
+<script type="module" src="js/user-panel.js?t=1783231481"></script>
+<script type="module" src="js/api-bridge.js?t=1783231481"></script>
+<script type="module" src="js/i18n.js?t=1783231481"></script>
+<script type="module" src="js/data-cache.js?t=1783231481"></script>
+<script type="module" src="js/search.js?t=1783231481"></script>
+<script type="module" src="js/diy-settings.js?t=1783231481"></script>
+<script type="module" src="js/diy-renderer.js?t=1783231481"></script>
+<script type="module" src="js/visual-contrast.js?t=1783231481"></script>
+<script type="module" src="js/controllers.js?t=1783231481"></script>
+<script type="module" src="js/ripple-system.js?t=1783231481"></script>
+<script type="module" src="js/foam-bg.js?t=1783231481"></script>
+<script type="module" src="js/app.js?t=1783231481"></script>
 
 
 
