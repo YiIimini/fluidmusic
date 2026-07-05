@@ -5,3 +5,7 @@ node_modules/
 .qq-cookie
 dist/
 .claude/
+.claude-cli.pid
+.claude-prompt.txt
+dist-renderer/
+public/dist-renderer/
