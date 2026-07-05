@@ -79,17 +79,21 @@
     opts = opts || {};
     // Remove existing layer with same key
     RendererManager.layers = RendererManager.layers.filter(l => l.key !== key);
-    RendererManager.layers.push({
+    const layer = {
       key: key,
       scene: scene,
       camera: camera,
       tickFn: opts.tick || null,
       visible: opts.visible !== false,
-    });
-    console.log('[RendererManager] Registered layer:', key, '| total layers:', RendererManager.layers.length);
+    };
+    // Layers render in array order (first = bottom). Use opts.bottom to insert at front.
+    if (opts.bottom) {
+      RendererManager.layers.unshift(layer);
+    } else {
+      RendererManager.layers.push(layer);
+    }
+    console.log('[RendererManager] Registered layer: ', key, ' | total layers: ', RendererManager.layers.length);
   }
-
-  // Run tick() for all registered layers
   function tickAll(dt) {
     for (const layer of RendererManager.layers) {
       if (layer.tickFn && layer.visible) {
@@ -99,12 +103,23 @@
   }
 
   // Render all visible layers to the shared canvas in Z-order
+  var _RNDR_DEBUG = false;
+  var _renderLogCounter = 0;
   function render() {
     if (!RendererManager.initialized) return;
     const r = RendererManager.renderer;
 
     r.autoClear = true;
     let first = true;
+
+    // Debug: log layer states every 120 frames
+    _renderLogCounter++;
+    if (_RNDR_DEBUG && _renderLogCounter % 120 === 1) {
+      var info = RendererManager.layers.map(function(l) {
+        return l.key + ':' + (l.visible ? 'V' : 'H') + ':' + (l.scene ? 'S' : '-') + ':' + (l.camera ? 'C' : '-');
+      }).join(' ');
+      console.log('[RNDR] frame#' + _renderLogCounter + ' rendering layers: ' + info + ' | canvas=' + r.domElement.width + 'x' + r.domElement.height + ' opacity=' + r.domElement.style.opacity);
+    }
 
     for (const layer of RendererManager.layers) {
       if (!layer.visible) continue;
@@ -122,7 +137,34 @@
         r.setScissorTest(true);
       }
 
-      r.render(layer.scene, layer.camera);
+      // Sanitize: remove any null children from the scene before rendering
+      if (layer.scene && layer.scene.children) {
+        var nullCount = 0;
+        for (var ci = layer.scene.children.length - 1; ci >= 0; ci--) {
+          if (!layer.scene.children[ci]) {
+            console.error('[RNDR] FOUND NULL CHILD in layer "' + layer.key + '" at index ' + ci + ' — removing!');
+            layer.scene.children.splice(ci, 1);
+            nullCount++;
+          }
+        }
+        if (nullCount > 0) {
+          console.error('[RNDR] Removed ' + nullCount + ' null children from layer "' + layer.key + '"');
+        }
+      }
+
+      try {
+        r.render(layer.scene, layer.camera);
+      } catch(e) {
+        console.error('[RNDR] CRASH on layer "' + layer.key + '": ' + e.message);
+        if (layer.scene) {
+          for (var ci2 = 0; ci2 < layer.scene.children.length; ci2++) {
+            var c2 = layer.scene.children[ci2];
+            if (!c2) console.error('[RNDR]   child[' + ci2 + ']: NULL');
+            else console.error('[RNDR]   child[' + ci2 + ']: type=' + (c2.type || '?') + ' geo=' + !!c2.geometry + ' mat=' + !!c2.material);
+          }
+        }
+        throw e;
+      }
 
       if (layer.viewport) {
         r.setScissorTest(false);

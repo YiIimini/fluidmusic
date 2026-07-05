@@ -25,6 +25,22 @@
 
     let html = '';
     config.fields.forEach((field) => {
+      // Condition filter: match against tab-specific setting key
+      if (field.condition) {
+        let mode;
+        if (tabId === 'background') {
+          mode = D.settings.bgType || 'image_video';
+        } else if (tabId === 'particle') {
+          mode = D.settings.displayMode || 'default';
+        } else {
+          mode = D.settings.displayMode || 'default';
+        }
+        if (field.condition !== mode) return;
+      }
+      // Require filter: field only visible when another setting key is truthy
+      if (field.require) {
+        if (!D.settings[field.require]) return;
+      }
       // Section header
       if (field.type === 'section') {
         html += '<div class="diy-section-header">' + field.label + '</div>';
@@ -76,6 +92,7 @@
 // Background tab: Image/video picker + Restore Defaults + Clear Cache (also in system tab)
     if (tabId === 'background') {
       var wpRow = document.createElement('div');
+      wpRow.id = 'bg-wallpaper-row';
       wpRow.className = 'diy-setting-row';
       wpRow.style.flexDirection = 'column';
       wpRow.style.alignItems = 'flex-start';
@@ -89,6 +106,10 @@
         + '<div id="wallpaper-thumb-preview"></div>'
         + '<video id="bg-video-preview" style="display:none;width:120px;height:68px;border-radius:6px;border:1px solid var(--glass-border);object-fit:cover;margin-top:4px;" muted loop></video>';
       container.appendChild(wpRow);
+      // Hide wallpaper upload row when foam/irregular is selected
+      var currentBgType = D.settings.bgType || 'image_video';
+      var wpRowEl = document.getElementById('bg-wallpaper-row');
+      if (wpRowEl) wpRowEl.style.display = (currentBgType === 'image_video') ? '' : 'none';
       // Wire wallpaper/video picker buttons (moved from inline onclick for CSP)
       var btnWallpaper = document.getElementById('btn-pick-wallpaper');
       var btnBgVideo = document.getElementById('btn-pick-bg-video');
@@ -427,6 +448,37 @@
         });
       }
     });
+
+    // When displayMode or bgType changes, re-render the tab
+    if (tabId === 'particle') {
+      const dmSelect = container.querySelector('select[data-key="displayMode"]');
+      if (dmSelect) {
+        dmSelect.addEventListener('change', function () {
+          D._renderTab('particle', D);
+        });
+      }
+    }
+    if (tabId === 'background') {
+      const bgSelect = container.querySelector('select[data-key="bgType"]');
+      if (bgSelect) {
+        bgSelect.addEventListener('change', function () {
+          D.settings.bgType = bgSelect.value;
+          D.saveSettings();
+          D.applySettings();
+          // Hide/show wallpaper upload row based on new bgType
+          var wr = document.getElementById('bg-wallpaper-row');
+          if (wr) wr.style.display = (bgSelect.value === 'image_video') ? '' : 'none';
+          D._renderTab('background', D);
+        });
+      }
+      // Re-render when enableFluidBg toggles (show/hide fluid params)
+      const fluidTog = container.querySelector('input[data-key="enableFluidBg"]');
+      if (fluidTog) {
+        fluidTog.addEventListener('change', function () {
+          D._renderTab('background', D);
+        });
+      }
+    }
 
     // Wire reset buttons
     container.querySelectorAll('.diy-reset-btn').forEach((btn) => {
