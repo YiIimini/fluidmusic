@@ -3,6 +3,15 @@ const net = require('net');
 const path = require('path');
 const fs = require('fs');
 // Disable Chromium disk cache — desktop app doesn't need web caching
+
+// ── Error boundary: prevent silent crashes ──
+process.on('uncaughtException', (error) => {
+  console.error('[Fatal] Uncaught exception:', error.message);
+  console.error(error.stack);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('[Fatal] Unhandled rejection:', reason);
+});
 app.commandLine.appendSwitch('disable-http-cache');
 app.commandLine.appendSwitch('disable-cache');
 

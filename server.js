@@ -43,6 +43,18 @@ const PORT = process.env.PORT || 3000;
 
 // Serve static files from public/
 app.use(express.static(path.join(__dirname, 'public'), { setHeaders: (res) => { res.set('Cache-Control', 'no-store'); }}));
+
+// ── Security headers ──
+app.use((req, res, next) => {
+  res.set({
+    'X-Content-Type-Options': 'nosniff',
+    'X-Frame-Options': 'DENY',
+    'X-XSS-Protection': '1; mode=block',
+    'Referrer-Policy': 'no-referrer',
+    'X-DNS-Prefetch-Control': 'off',
+  });
+  next();
+});
 app.use(express.json());
 
 // ── Background video serving ──
