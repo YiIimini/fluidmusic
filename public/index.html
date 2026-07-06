@@ -282,31 +282,28 @@
 <!-- Scripts -->
 <script src="js/error-handler.js"></script>
 <!-- Mini Player Overlay -->
-<div id="mini-player" style="display:none;position:fixed;bottom:20px;right:20px;z-index:var(--z-modal);
-  width:280px;border-radius:16px;border:1px solid var(--glass-border);
-  background:rgba(10,10,24,0.92);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
-  box-shadow:0 12px 40px rgba(0,0,0,0.5);overflow:hidden;cursor:move;
-  transition:transform 0.3s var(--spring-expand),opacity 0.3s var(--spring-expand);">
-  <div id="mini-player-header" style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;cursor:move;">
-    <span style="font-size:10px;color:var(--text-dim);font-weight:600;">🎵 MINI PLAYER</span>
+<div id="mini-player" style="display:none;">
+  <div id="mini-player-header">
     <div style="display:flex;gap:4px;">
-      <button id="btn-mini-restore" aria-label="还原窗口" title="还原窗口" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:12px;padding:2px 6px;">⬆</button>
-      <button id="btn-mini-close" aria-label="关闭迷你窗口" title="关闭迷你窗口" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:12px;padding:2px 6px;">✕</button>
+      <button class="mini-glass-btn" id="btn-mini-restore" aria-label="还原窗口" title="还原窗口">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+      </button>
+      <button class="mini-glass-btn" id="btn-mini-close" aria-label="关闭迷你窗口" title="关闭迷你窗口">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
     </div>
   </div>
-  <div style="display:flex;align-items:center;gap:10px;padding:4px 12px 12px;">
-    <div id="mini-cover" style="width:52px;height:52px;border-radius:8px;flex-shrink:0;
-      background:rgba(255,255,255,0.05) center/cover;"></div>
+  <div style="display:flex;align-items:center;gap:10px;padding:0 12px 12px;">
+    <div id="mini-cover"></div>
     <div style="flex:1;min-width:0;">
       <div id="mini-title" style="font-size:12px;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">未播放</div>
       <div id="mini-artist" style="font-size:10px;color:var(--text-dim);margin-top:2px;">—</div>
     </div>
   </div>
-  <div style="display:flex;justify-content:center;gap:12px;padding:4px 12px 12px;">
-    <button id="btn-mini-prev" title="上一曲" style="background:none;border:none;color:var(--text-primary);cursor:pointer;font-size:16px;padding:4px 8px;">⏮</button>
-    <button id="btn-mini-play" title="播放/暂停" style="background:var(--accent-color);border:none;color:#fff;cursor:pointer;
-      width:36px;height:36px;border-radius:50%;font-size:14px;display:flex;align-items:center;justify-content:center;">▶</button>
-    <button id="btn-mini-next" title="下一曲" style="background:none;border:none;color:var(--text-primary);cursor:pointer;font-size:16px;padding:4px 8px;">⏭</button>
+  <div style="display:flex;justify-content:center;align-items:center;gap:14px;padding:4px 12px 14px;">
+    <button class="mini-ctrl-btn" id="btn-mini-prev" title="上一曲">⏮</button>
+    <button class="mini-ctrl-btn play" id="btn-mini-play" title="播放/暂停">▶</button>
+    <button class="mini-ctrl-btn" id="btn-mini-next" title="下一曲">⏭</button>
   </div>
 </div>
 
