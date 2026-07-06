@@ -998,6 +998,7 @@
     // 13. Start auto contrast detection
     if (typeof VisualContrast !== "undefined") VisualContrast.startContrastPolling();
 
+    if (typeof AudioParticles !== "undefined") AudioParticles.init();
     appReady = true;
     console.log('FluidMusic ready!');
 
