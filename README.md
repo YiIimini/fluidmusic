@@ -1,14 +1,17 @@
 # FluidMusic — 流体动态音乐播放器
 
 > macOS 桌面音乐播放器，Three.js 3D粒子视觉 + 流体物理特效
+>
+> ⚠️ **GPU性能测试怪，请谨慎使用** — 本应用重度依赖GPU渲染，低配设备可能出现风扇狂转、掉帧或发烫。
 
 📖 [完整文档索引 →](DOCS.md)
 
 ## 特性
 
 - 🎵 网易云音乐 + QQ音乐双平台支持
-- ✨ 3D粒子封面（Mineradio-MacOS风格）
+- ✨ 3D粒子封面（Mineradio-MacOS风格），随播放状态溶解/成型
 - 🌊 全色相音频涟漪特效（频谱驱动，全屏随机位置）
+- 🎚 Canvas音频响应粒子（bass跳/mid摆，无音乐即隐）
 - 🎨 7 Tab DIY设置面板（三段式布局+调色盘+帮助系统）
 - 🖼 图片/视频背景支持
 - 📝 桌面歌词独立窗口 + 迷你播放器
@@ -52,12 +55,19 @@ src/
 └── platform/    # 平台模块（I18N/Favorites/LastFM/CustomPlaylists）
 desktop/         # Electron主进程
 public/          # 前端静态资源
-docs/specs/      # 设计规范文档
 ```
 
-## 版本
+## 作者
 
-v1.1.1 — 全色相音频涟漪 + 7 Tab设置面板
+| 微信 | B站 | 抖音 |
+|---|---|---|
+| ![微信](public/xc/wx.jpg) | ![B站](public/xc/bilibili.png) | ![抖音](public/xc/dy.png) |
+
+## 打赏
+
+| 微信支付 | 支付宝 |
+|---|---|
+| ![微信支付](public/ds/wechat-pay.jpg) | ![支付宝](public/ds/alipay.png) |
 
 ## 许可
 
