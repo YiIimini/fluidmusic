@@ -8,7 +8,7 @@
 
 ## 截图
 
-![FluidMusic 截图](public/show.png)
+![FluidMusic 截图](/public/show.png)
 
 ## 特性
 
@@ -67,7 +67,7 @@ public/          # 前端静态资源
 
 <div align="center">
   <a href="https://www.douyin.com/user/yiilimini" target="_blank">
-    <img src="public/xc/dy.png" width="180" alt="抖音">
+    <img src="/public/xc/dy.png" width="180" alt="抖音">
   </a>
   <br><sub>抖音 · 开发者动态 & 更新预告</sub>
 </div>
@@ -78,7 +78,7 @@ public/          # 前端静态资源
 
 | 微信支付 | 支付宝 |
 |---|---|
-| ![微信支付](public/ds/wechat-pay.jpg) | ![支付宝](public/ds/alipay.png) |
+| ![微信支付](/public/ds/wechat-pay.jpg) | ![支付宝](/public/ds/alipay.png) |
 
 ## 许可
 
