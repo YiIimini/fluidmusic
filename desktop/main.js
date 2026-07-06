@@ -460,14 +460,21 @@ async function createWindow() {
     }
   } catch (_) {}
 
-  localServer = require(path.join(__dirname, '..', 'server.js'));
-  await waitForServer(localServer);
+  // Start Express server with error recovery (packaged ASAR paths may differ)
+  try {
+    localServer = require(path.join(__dirname, '..', 'server.js'));
+    await waitForServer(localServer);
+    console.log('[createWindow] Express server started on port', port);
+  } catch (e) {
+    console.error('[createWindow] Express server failed to start:', e.message);
+    console.error(e.stack);
+  }
 
   // Inject securely stored cookies into the API proxy server
   try {
     const neteaseCookie = secureLoadCookie('netease');
     const qqCookie = secureLoadCookie('qq');
-    if (localServer.setCookies) {
+    if (localServer && localServer.setCookies) {
       localServer.setCookies(neteaseCookie, qqCookie);
     }
     // Also populate in-memory store
@@ -568,16 +575,39 @@ async function createWindow() {
     }
   });
 
-  mainWindow.once('ready-to-show', () => {
-    console.log('[createWindow] ready-to-show fired — showing window');
+  // Window show safety net: multi-layered fallback for packaged apps
+  // ready-to-show may never fire in ASAR; force-show on timeout + did-finish-load
+  let windowShown = false;
+  let showTimeout = null;
+  const safeShow = () => {
+    if (windowShown) return;
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    windowShown = true;
+    if (showTimeout) clearTimeout(showTimeout);
     mainWindow.show();
     mainWindow.focus();
+  };
+  showTimeout = setTimeout(() => {
+    if (!windowShown && mainWindow && !mainWindow.isDestroyed()) {
+      console.warn('[createWindow] ready-to-show timed out — forcing show');
+      safeShow();
+    }
+  }, 6000);
+
+  mainWindow.once('ready-to-show', () => {
+    console.log('[createWindow] ready-to-show fired — showing window');
+    safeShow();
   });
   mainWindow.webContents.on('did-finish-load', () => {
     console.log('[createWindow] did-finish-load — page loaded');
+    if (!windowShown) {
+      console.log('[createWindow] showing on did-finish-load (before ready-to-show)');
+      safeShow();
+    }
   });
-  mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
-    console.error('[createWindow] did-fail-load:', errorCode, errorDescription);
+  mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
+    console.error('[createWindow] did-fail-load:', errorCode, errorDescription, '| URL:', validatedURL);
+    safeShow();
   });
 
   // Renderer crash recovery — reload the page if the renderer process dies
