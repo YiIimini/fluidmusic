@@ -13,7 +13,6 @@
 
 | 文件 | 说明 |
 |---|---|
-| [docs/CLAUDE_CLI_SPEC.md](docs/CLAUDE_CLI_SPEC.md) | Claude CLI 协作规范 |
 
 ## 关键源码
 
