@@ -679,7 +679,7 @@ async function createWindow() {
   } catch(e) {}
 
   // Enable DevTools in development
-  mainWindow.webContents.openDevTools({ mode: 'detach' });
+  if (!app.isPackaged) mainWindow.webContents.openDevTools({ mode: "detach" });
 
   console.log('[createWindow] Loading URL: http://127.0.0.1:' + port);
   try {
