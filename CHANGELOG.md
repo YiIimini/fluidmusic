@@ -1,5 +1,18 @@
 # Changelog
 
+## v1.1.1 (2026-07-06)
+
+### 修复
+- **窗口不显示**: electron-updater 在 devDependencies → 打包后 ASAR 缺模块 → main.js 加载崩溃 → 仅 Dock 图标无窗口。修复: 移入 dependencies + require 容错降级
+- **窗口显示安全网**: ready-to-show 超时兜底(6s) + did-finish-load/did-fail-load 次级保险
+- **打包版 DevTools**: openDevTools 仅 app.isPackaged=false 时打开
+- **Vite 构建**: layout.css 多余括号 + index.html aria-label 语法错误
+
+### 新增
+- **音频响应粒子**: Canvas 100粒子随音乐跳动(bass跳/mid摆)，无音乐渐隐，弹簧物理回弹
+- **粒子封面播放联动**: ParticleCover 随 FluidAudio.playing 平滑溶解/成型
+
+
 ## v1.1.0 (2026-07-03)
 
 ### 新增
