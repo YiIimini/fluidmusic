@@ -63,11 +63,18 @@ public/          # 前端静态资源
 
 ## 作者
 
-| 微信 | B站 | 抖音 |
-|---|---|---|
-| ![微信](public/xc/wx.jpg) | ![B站](public/xc/bilibili.png) | ![抖音](public/xc/dy.png) |
+抖音 · 开发者动态 & 更新预告
+
+<div align="center">
+  <a href="https://www.douyin.com/user/yiilimini" target="_blank">
+    <img src="public/xc/dy.png" width="180" alt="抖音">
+  </a>
+  <br><sub>抖音 · 开发者动态 & 更新预告</sub>
+</div>
 
 ## 打赏
+
+欢迎请作者喝杯咖啡 ☕
 
 | 微信支付 | 支付宝 |
 |---|---|
