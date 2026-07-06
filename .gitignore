@@ -9,3 +9,11 @@ dist/
 .claude-prompt.txt
 dist-renderer/
 public/dist-renderer/
+
+# ── Internal development docs (not public) ──
+docs/ANALYSIS.md
+docs/SOLUTION.md
+docs/specs/
+docs/superpowers/
+PRD.md
+REQUIREMENTS.md
