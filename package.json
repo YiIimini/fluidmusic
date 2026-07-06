@@ -1,7 +1,7 @@
 {
   "name": "fluidmusic",
   "version": "1.1.0",
-  "description": "FluidMusic — 流体动态音乐播放器",
+  "description": "FluidMusic \u2014 \u6d41\u4f53\u52a8\u6001\u97f3\u4e50\u64ad\u653e\u5668",
   "main": "desktop/main.js",
   "scripts": {
     "start": "electron --disable-http-cache --disable-cache .",
@@ -49,7 +49,8 @@
     }
   },
   "dependencies": {
-    "express": "^4.21.0"
+    "express": "^4.21.0",
+    "electron-updater": "^6.8.9"
   },
   "devDependencies": {
     "@types/node": "^26.1.0",
@@ -57,7 +58,6 @@
     "concurrently": "^10.0.3",
     "electron": "^33.4.0",
     "electron-builder": "^25.1.0",
-    "electron-updater": "^6.8.9",
     "eslint": "^8.57.1",
     "fake-indexeddb": "^6.2.5",
     "jsdom": "^29.1.1",
