@@ -13,7 +13,7 @@
 ## 特性
 
 - 🎵 网易云音乐 + QQ音乐双平台支持
-- ✨ 3D粒子封面（Mineradio-MacOS风格），随播放状态溶解/成型
+- ✨ 3D粒子封面（Mineradio风格：[XxHuberrr/Mineradio](https://github.com/XxHuberrr/Mineradio)），随播放状态溶解/成型
 - 🌊 全色相音频涟漪特效（频谱驱动，全屏随机位置）
 - 🎚 Canvas音频响应粒子（bass跳/mid摆，无音乐即隐）
 - 🎨 7 Tab DIY设置面板（三段式布局+调色盘+帮助系统）
