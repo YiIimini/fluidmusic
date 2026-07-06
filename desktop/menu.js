@@ -94,6 +94,25 @@ function createApplicationMenu(mainWindow) {
         { label: '关闭窗口', accelerator: 'Cmd+W', role: 'close' },
         { label: '最小化', accelerator: 'Cmd+M', role: 'minimize' },
         { label: '缩放', role: 'zoom' },
+        { type: "separator" },
+        {
+          label: "桌面歌词",
+          accelerator: "Cmd+Shift+L",
+          click: () => {
+            if (mainWindow && !mainWindow.isDestroyed()) {
+              mainWindow.webContents.send("media-control", "toggle-lyrics");
+            }
+          }
+        },
+        {
+          label: "迷你播放器",
+          accelerator: "Cmd+Shift+M",
+          click: () => {
+            if (mainWindow && !mainWindow.isDestroyed()) {
+              mainWindow.webContents.send("media-control", "toggle-mini");
+            }
+          }
+        },
         { type: 'separator' },
         { label: '进入全屏', accelerator: 'Cmd+Ctrl+F', role: 'togglefullscreen' },
         { type: 'separator' },

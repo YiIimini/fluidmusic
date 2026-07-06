@@ -978,6 +978,16 @@
                 FluidAudio.setVolume(Math.max(0, FluidAudio.volume - 0.05));
               }
               break;
+            case 'toggle-lyrics':
+              if (typeof fluidmusic !== 'undefined' && fluidmusic.toggleLyrics) {
+                fluidmusic.toggleLyrics();
+              }
+              break;
+            case 'toggle-mini':
+              if (typeof window.toggleMiniPlayer !== 'undefined') {
+                window.toggleMiniPlayer();
+              }
+              break;
           }
         });
       }
