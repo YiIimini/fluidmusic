@@ -378,6 +378,11 @@
     if (!ParticleCover.texture || !ParticleCover.geometry) return;
     ParticleCover.time += dt || 0.016;
 
+    // Play-state driven visibility: dissolve when silent, form when playing
+    if (typeof FluidAudio !== 'undefined') {
+      ParticleCover.targetTransition = FluidAudio.playing ? 1 : 0;
+    }
+
     // Smooth transition
     ParticleCover.transition += (ParticleCover.targetTransition - ParticleCover.transition) * (ParticleCover.transitionSpeed || 0.8);
     ParticleCover.material.uniforms.uTime.value = ParticleCover.time;
