@@ -25,7 +25,16 @@ process.stderr.write = function(chunk, encoding, cb) {
 };
 const { createApplicationMenu } = require('./menu');
 const { saveCookie: secureSaveCookie, loadCookie: secureLoadCookie, deleteCookie: secureDeleteCookie } = require('./cookie-store');
-const { initAutoUpdater, stopAutoUpdater } = require('./updater');
+// Auto-updater: optional module, graceful fallback if not available
+let initAutoUpdater = () => {};
+let stopAutoUpdater = () => {};
+try {
+  const updater = require('./updater');
+  initAutoUpdater = updater.initAutoUpdater;
+  stopAutoUpdater = updater.stopAutoUpdater;
+} catch (e) {
+  console.warn('[startup] Auto-updater not available:', e.message);
+}
 
 let mainWindow = null;
 let localServer = null;
