@@ -46,7 +46,7 @@ npm run dev           # Vite开发服务器
 npm test              # 运行测试
 npm run lint          # ESLint检查
 npm run build:renderer # 构建前端
-npm run build         # 打包macOS DMG
+npm run build:mac -- --arm64 --x64  # macOS DMG+ZIP 双架构
 ```
 
 ## 项目结构
@@ -63,8 +63,6 @@ public/          # 前端静态资源
 
 ## 作者
 
-抖音 · 开发者动态 & 更新预告
-
 <div align="center">
   <a href="https://www.douyin.com/user/yiilimini" target="_blank">
     <img src="/public/xc/dy.png" width="180" alt="抖音">
@@ -76,9 +74,29 @@ public/          # 前端静态资源
 
 欢迎请作者喝杯咖啡 ☕
 
-| 微信支付 | 支付宝 |
-|---|---|
-| ![微信支付](/public/ds/wechat-pay.jpg) | ![支付宝](/public/ds/alipay.png) |
+<div align="center">
+  <table>
+    <tr>
+      <td align="center" width="300">
+        <img src="/public/ds/wechat-pay.jpg" width="200" alt="微信赞赏"><br>
+        <sub>微信赞赏</sub>
+      </td>
+      <td align="center" width="300">
+        <img src="/public/ds/alipay.png" width="200" alt="支付宝"><br>
+        <sub>支付宝</sub>
+      </td>
+    </tr>
+  </table>
+</div>
+
+
+## 第三方音乐平台
+
+本项目不是任何音乐平台的官方客户端。第三方平台接入仅用于个人学习、本地体验和自有账号播放辅助。请遵守对应平台的用户协议与版权规则。详见 [PRIVACY.md](./PRIVACY.md)。
+
+## 用户数据与隐私
+
+登录 Cookie、搜索历史、自定义封面、自定义歌词、节奏分析缓存等仅保存在本机。
 
 ## 许可
 
