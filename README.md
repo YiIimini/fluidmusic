@@ -6,6 +6,10 @@
 
 📖 [完整文档索引 →](DOCS.md)
 
+## 截图
+
+![FluidMusic 截图](public/show.png)
+
 ## 特性
 
 - 🎵 网易云音乐 + QQ音乐双平台支持
