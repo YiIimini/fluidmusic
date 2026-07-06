@@ -82,4 +82,5 @@ public/          # 前端静态资源
 
 ## 许可
 
-MIT
+Apache 2.0 — 详见 [LICENSE](LICENSE)
+
