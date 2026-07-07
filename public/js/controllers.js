@@ -672,13 +672,13 @@
   }
 
   // ── Expose to global scope for backward compat ──
-  window.showMiniPlayer = showMiniPlayer;
-  window.hideMiniPlayer = hideMiniPlayer;
+  window.showMiniPlayer = window._showMiniPlayer;
+  window.hideMiniPlayer = window._hideMiniPlayer;
   window.toggleMiniPlayer = function () {
     if (miniPlayer && miniPlayer.style.display !== "none") {
-      hideMiniPlayer();
+      window._hideMiniPlayer();
     } else {
-      showMiniPlayer();
+      window._showMiniPlayer();
     }
   };
 
