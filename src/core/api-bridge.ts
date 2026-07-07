@@ -16,6 +16,7 @@ import { AppStore } from './app-store';
 type Platform = MusicPlatform;
 
 interface PlaylistMap {
+  qishui: Playlist[];
   netease: Playlist[];
   qq: Playlist[];
 }
@@ -26,10 +27,7 @@ interface PlaylistMap {
 interface FluidMusicIPC {
   loginPlatform(platform: string): Promise<{ ok: boolean; cookie?: string }>;
   logoutPlatform(platform: string): Promise<void>;
-  getLoginStatus(): Promise<{
-    netease?: { loggedIn: boolean; cookie: string };
-    qq?: { loggedIn: boolean; cookie: string };
-  }>;
+  getLoginStatus(): Promise<Record<string, { loggedIn: boolean; cookie: string }>>;
   onLoginStateChanged(
     callback: (state: { platform: string; loggedIn: boolean; cookie: string }) => void
   ): () => void;
@@ -183,6 +181,7 @@ export class ApiBridge {
   private cookieStore = new Map<Platform, string>();
   private neteaseProfile: UserProfile | null = null;
   private qqProfile: UserProfile | null = null;
+  private qishuiProfile: UserProfile | null = null;
 
   // --- Dependencies ---
   private bus: EventBus;
@@ -225,6 +224,10 @@ export class ApiBridge {
 
   get isQQLoggedIn(): boolean {
     return this.cookieStore.has('qq') && this.cookieStore.get('qq')!.length > 0;
+  }
+
+  get isQishuiLoggedIn(): boolean {
+    return this.cookieStore.has('qishui') && this.cookieStore.get('qishui')!.length > 0;
   }
 
   getUserProfile(platform: Platform): UserProfile | null {
@@ -309,6 +312,7 @@ export class ApiBridge {
 
         if (this.isNeteaseLoggedIn) await this.fetchNeteaseUserDetail();
         if (this.isQQLoggedIn) await this.fetchQQUserDetail();
+        if (this.isQishuiLoggedIn) await this.fetchQishuiUserDetail();
       } catch (e) {
         console.warn('[ApiBridge] Failed to get login status:', e);
       }
@@ -322,9 +326,10 @@ export class ApiBridge {
           this.cookieStore.set(platform as Platform, cookie);
           if (platform === 'netease') this.fetchNeteaseUserDetail();
           else if (platform === 'qq') this.fetchQQUserDetail();
+          else if (platform === 'qishui') this.fetchQishuiUserDetail();
         } else {
           this.cookieStore.delete(platform as Platform);
-          this.store.setUser(platform as Platform, null);
+          (this.store as any).setUser(platform, null);
         }
       });
     }
@@ -366,8 +371,10 @@ export class ApiBridge {
         try {
           if (platform === 'netease') {
             profile = await this.fetchNeteaseUserDetail();
-          } else {
+          } else if (platform === 'qq') {
             profile = await this.fetchQQUserDetail();
+          } else if (platform === 'qishui') {
+            profile = await this.fetchQishuiUserDetail();
           }
         } catch (e) {
           console.warn(
@@ -416,7 +423,7 @@ export class ApiBridge {
     if (ipc) {
       try {
         const status = await ipc.getLoginStatus();
-        const platforms: Platform[] = platform ? [platform] : ['netease', 'qq'];
+        const platforms: Platform[] = platform ? [platform] : ['netease', 'qq', 'qishui'];
         return platforms.map((p) => ({
           platform: p,
           isLoggedIn: status[p]?.loggedIn ?? false,
@@ -429,7 +436,7 @@ export class ApiBridge {
     }
 
     // Fallback: check local state
-    const platforms: Platform[] = platform ? [platform] : ['netease', 'qq'];
+    const platforms: Platform[] = platform ? [platform] : ['netease', 'qq', 'qishui'];
     return platforms.map((p) => ({
       platform: p,
       isLoggedIn: this.cookieStore.has(p) && this.cookieStore.get(p)!.length > 0,
@@ -447,7 +454,7 @@ export class ApiBridge {
    * Merges NetEase + QQ results into a typed PlaylistMap.
    */
   async fetchUserPlaylists(): Promise<PlaylistMap> {
-    const playlists: PlaylistMap = { netease: [], qq: [] };
+    const playlists: PlaylistMap = { netease: [], qq: [], qishui: [] };
 
     if (this.isNeteaseLoggedIn) {
       try {
@@ -497,6 +504,31 @@ export class ApiBridge {
       }
     }
 
+
+    if (this.isQishuiLoggedIn) {
+      try {
+        const data = await this.fetchApi(
+          '/api/qishui/user/playlist',
+          {},
+          'qishui'
+        ) as any;
+        if (data?.code === 0 && data?.data?.disslist) {
+          playlists.qishui = data.data.disslist.map(
+            (pl: any): Playlist => ({
+              id: String(pl.dissid ?? pl.tid ?? pl.id ?? ''),
+              name: pl.diss_name ?? pl.name ?? pl.title ?? pl.dirname ?? '',
+              coverUrl: (
+                pl.diss_cover ?? pl.logo ?? pl.picurl ?? pl.cover ?? ''
+              ).replace(/^http:/, 'https:'),
+              trackCount: pl.song_cnt ?? pl.songnum ?? pl.song_count ?? 0,
+              platform: 'qishui',
+            })
+          );
+        }
+      } catch (e) {
+        console.warn('[ApiBridge] Failed to fetch Qishui playlists:', e);
+      }
+    }
     return playlists;
   }
 
@@ -559,10 +591,11 @@ export class ApiBridge {
         : this.searchQQAsResult(query, limit);
     }
 
-    // Cross-platform: search both, merge results
-    const [neteaseResult, qqResult] = await Promise.allSettled([
+    // Cross-platform: search all, merge results
+    const [neteaseResult, qqResult, qishuiResult] = await Promise.allSettled([
       this.searchNeteaseAsResult(query, limit),
       this.searchQQAsResult(query, limit),
+      this.searchQishuiAsResult(query, limit),
     ]);
 
     const tracks: Track[] = [];
@@ -576,11 +609,15 @@ export class ApiBridge {
       tracks.push(...qqResult.value.tracks);
       total += qqResult.value.total;
     }
+    if (qishuiResult.status === 'fulfilled') {
+      tracks.push(...qishuiResult.value.tracks);
+      total += qishuiResult.value.total;
+    }
 
     return {
       tracks,
       total,
-      hasMore: tracks.length >= limit * 2,
+      hasMore: tracks.length >= limit * 3,
     };
   }
 
@@ -798,6 +835,88 @@ export class ApiBridge {
       tracks,
       total: data?.data?.song?.totalnum ?? tracks.length,
       hasMore: tracks.length >= limit,
+    };
+  }
+
+  // ============================================================
+  // Qishui / Luna Platform Methods
+  // ============================================================
+
+  private async fetchQishuiUserDetail(): Promise<UserProfile | null> {
+    try {
+      const data = await this.fetchApi(
+        '/api/qishui/user/detail',
+        {},
+        'qishui'
+      ) as any;
+      if (data?.code === 0 && data?.data) {
+        const d = data.data;
+        this.qishuiProfile = {
+          userId: String(d.userId ?? d.uid ?? ''),
+          nickname: d.nickname ?? d.nick ?? '汽水用户',
+          avatarUrl: (d.avatarUrl ?? d.avatar ?? d.headpic ?? '').replace(/^http:/, 'https:'),
+          platform: 'qishui',
+          vipType: 0,
+          followCount: d.followCount ?? d.followings ?? 0,
+          fanCount: d.fanCount ?? d.followers ?? 0,
+          playlistCount: d.playlistCount ?? d.dissnum ?? 0,
+        };
+        this.store.setUser('qishui', this.qishuiProfile);
+        return this.qishuiProfile;
+      }
+      return null;
+    } catch (e) {
+      console.warn('[ApiBridge] Failed to fetch Qishui user detail:', e);
+      return null;
+    }
+  }
+
+  async searchQishui(keywords: string, limit: number = 20): Promise<unknown> {
+    return this.fetchApi('/api/qishui/search', { keywords, limit }, 'qishui');
+  }
+
+  async getQishuiTrackDetail(id: string | number): Promise<unknown> {
+    return this.fetchApi('/api/qishui/track/detail', { id }, 'qishui');
+  }
+
+  async getQishuiLyric(id: string | number): Promise<unknown> {
+    return this.fetchApi('/api/qishui/lyric', { id }, 'qishui');
+  }
+
+  async getQishuiSongUrl(id: string | number): Promise<unknown> {
+    return this.fetchApi('/api/qishui/song/url', { id }, 'qishui');
+  }
+
+  private async searchQishuiAsResult(keywords: string, limit: number): Promise<SearchResult> {
+    const data = await this.fetchApi(
+      '/api/qishui/search',
+      { keywords, limit },
+      'qishui'
+    ) as any;
+
+    const items = data?.result_groups?.[0]?.data ?? [];
+    const tracks: Track[] = items.map((item: any) => {
+      const t = item?.entity?.track ?? {};
+      const artists = (t.artists || []).map((a: any) => a.name || '');
+      const cover = t.album?.url_cover || {};
+      const coverUrl = cover.urls && cover.uri
+        ? cover.urls[0] + cover.uri + '~tplv-b829550vbb-c5_375x375.webp'
+        : undefined;
+      return {
+        id: String(t.id || ''),
+        name: t.name || '',
+        artist: artists.join('/') || '未知艺术家',
+        album: t.album?.name,
+        coverUrl,
+        duration: Math.round((t.duration ?? 0) / 1000),
+        platform: 'qishui' as const,
+      };
+    });
+
+    return {
+      tracks,
+      total: items.length,
+      hasMore: items.length >= limit,
     };
   }
 }

@@ -17,7 +17,7 @@
         lyrics: { title: '歌词', empty: '暂无歌词', loading: '加载歌词中...' },
         settings: { title: 'DIY 设置', particle: '粒子封面', foam: '泡沫特效', lyrics: '歌词设置', playlist: '歌单设置', spectrum: '频谱设置', controller: '控制器', background: '背景流体', chambers: '气泡仓', account: '账号', language: '语言设置', equalizer: '均衡器' },
         player: { play: '播放', pause: '暂停', prev: '上一曲', next: '下一曲', shuffle: '随机播放', loop: '循环模式', loopOff: '关闭循环', loopList: '列表循环', loopSingle: '单曲循环', like: '收藏', unlike: '取消收藏', lyrics: '歌词', fx: '特效', volume: '音量' },
-        login: { netease: '网易云音乐', qq: 'QQ音乐', logging: '登录中...', logged: '已登录', logout: '退出', vip: 'VIP', blackVip: '黑胶VIP', luxVip: '豪华VIP', },
+        login: { netease: '网易云音乐', qq: 'QQ音乐', qishui: '汽水音乐', logging: '登录中...', logged: '已登录', logout: '退出', vip: 'VIP', blackVip: '黑胶VIP', luxVip: '豪华VIP', },
         account: { followers: '粉丝', following: '关注', playlists: '歌单' },
         language: { name: '语言 / Language', zhCN: '中文', enUS: 'English' },
         common: { on: '已开启', off: '已关闭', close: '关闭', save: '保存', cancel: '取消', yes: '是', no: '否' },
@@ -28,7 +28,7 @@
         lyrics: { title: 'Lyrics', empty: 'No lyrics', loading: 'Loading lyrics...' },
         settings: { title: 'DIY Settings', particle: 'Particle Cover', foam: 'Foam FX', lyrics: 'Lyrics', playlist: 'Playlist', spectrum: 'Spectrum', controller: 'Controller', background: 'Background Fluid', chambers: 'Bubble Chambers', account: 'Account', language: 'Language', equalizer: 'Equalizer' },
         player: { play: 'Play', pause: 'Pause', prev: 'Previous', next: 'Next', shuffle: 'Shuffle', loop: 'Loop Mode', loopOff: 'Loop Off', loopList: 'Loop List', loopSingle: 'Loop Single', like: 'Like', unlike: 'Unlike', lyrics: 'Lyrics', fx: 'Effects', volume: 'Volume' },
-        login: { netease: 'NetEase Music', qq: 'QQ Music', logging: 'Logging in...', logged: 'Logged in', logout: 'Logout', vip: 'VIP', blackVip: 'Black VIP', luxVip: 'Lux VIP', },
+        login: { netease: 'NetEase Music', qq: 'QQ Music', qishui: 'Qishui Music', logging: 'Logging in...', logged: 'Logged in', logout: 'Logout', vip: 'VIP', blackVip: 'Black VIP', luxVip: 'Lux VIP', },
         account: { followers: 'Followers', following: 'Following', playlists: 'Playlists' },
         language: { name: 'Language', zhCN: '中文', enUS: 'English' },
         common: { on: 'On', off: 'Off', close: 'Close', save: 'Save', cancel: 'Cancel', yes: 'Yes', no: 'No' },
@@ -109,7 +109,7 @@
       if (rightTitle) rightTitle.textContent = '📝 ' + this.t('lyrics.title');
 
       // Update login buttons if not logged in
-      ['netease', 'qq'].forEach((platform) => {
+      ['netease', 'qq', 'qishui'].forEach((platform) => {
         const btn = document.getElementById('btn-' + platform + '-login');
         if (btn && !btn.classList.contains('logged-in')) {
           const iconMap = { netease: '🎧', qq: '🎵' };

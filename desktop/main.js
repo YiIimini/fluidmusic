@@ -42,7 +42,7 @@ let mainServerPort = 0;
 let activeLoginWindows = [];
 
 // In-memory cookie store for API proxy — survives across IPC calls
-const cookieStore = { netease: '', qq: '' };
+const cookieStore = { netease: '', qq: '', qishui: '' };
 
 const APP_NAME = 'FluidMusic';
 const APP_USER_MODEL_ID = 'com.fluidmusic.desktop';
@@ -53,6 +53,8 @@ const NETEASE_LOGIN_PARTITION = 'persist:fluidmusic-netease-login';
 const NETEASE_LOGIN_URL = 'https://music.163.com/#/login';
 const QQ_LOGIN_PARTITION = 'persist:fluidmusic-qqmusic-login';
 const QQ_LOGIN_URL = 'https://y.qq.com/n/ryqq/profile';  // music-specific domain triggers qqmusic_key cookie
+const QISHUI_LOGIN_PARTITION = 'persist:fluidmusic-qishui-login';
+const QISHUI_LOGIN_URL = 'https://www.douyin.com/passport/web/login/';
 const WINDOW_WIDTH = 1700;
 const WINDOW_HEIGHT = 980;
 
@@ -79,6 +81,12 @@ const QQ_LOGIN_COOKIE_PRIORITY = [
   'wxskey', 'p_uin', 'ptcz', 'RK',
   'superuin', 'supertoken', 'superkey', 'pt4_token', 'pt_oauth_token',
   'pt_local_token', 'pt_login_type',
+];
+const QISHUI_LOGIN_COOKIE_PRIORITY = [
+  'sessionid', 'passport_csrf_token', 'sid_guard', 'uid_tt', 'uid_tt_ss',
+  'sid_tt', 'sid_ucp_v1', 'ssid_ucp_v1', 'odin_tt',
+  'store_session', 'store-country', 'store-idc',
+  'ttwid', 'passport_auth_status', 'sso_uid_tt', 'sso_uid_tt_ss',
 ];
 
 const NETEASE_LOGIN_COOKIE_PRIORITY = [
@@ -138,6 +146,13 @@ function isNeteaseCookieDomain(domain) {
   return normalized === '163.com' || normalized.endsWith('.163.com') ||
     normalized === 'music.163.com' || normalized.endsWith('.music.163.com') ||
     normalized === 'netease.com' || normalized.endsWith('.netease.com');
+}
+
+
+// Generic: read cookies from session, filter by domain, order by priority
+async function readCookiesForDomain(cookieSession, isAllowedDomain, priority) {
+  const cookies = await cookieSession.cookies.get({});
+  return buildCookieHeaderFor(cookies, isAllowedDomain, priority);
 }
 
 function buildCookieHeaderFor(cookies, isAllowedDomain, priority) {
@@ -206,6 +221,22 @@ function neteaseCookieHasLogin(cookieText) {
   return !!(obj.MUSIC_U && obj.__csrf);
 }
 
+function isQishuiCookieDomain(domain) {
+  const normalized = String(domain || '').replace(/^\./, '').toLowerCase();
+  return normalized === 'douyin.com' || normalized.endsWith('.douyin.com') ||
+    normalized === 'qishui.com' || normalized.endsWith('.qishui.com');
+}
+
+function qishuiCookieHasLogin(cookieText) {
+  if (!cookieText) return false;
+  const obj = parseCookieHeader(cookieText);
+  return !!(obj.sessionid && obj.passport_csrf_token);
+}
+
+function buildQishuiCookieHeader(cookieSession) {
+  return readCookiesForDomain(cookieSession, isQishuiCookieDomain, QISHUI_LOGIN_COOKIE_PRIORITY);
+}
+
 // Verify Kugou login by making a lightweight API call (cookie presence alone is unreliable)
 
 // ── Login windows ──
@@ -225,6 +256,14 @@ async function openQQMusicLoginWindow(owner) {
 
   return createLoginWindow(owner, QQ_LOGIN_PARTITION, QQ_LOGIN_URL, 'QQ 音乐登录',
     readQQLoginCookieHeader, qqCookieHasLogin, qqCookieHasPlaybackLogin, 'https://y.qq.com/n/ryqq/player');
+}
+async function openQishuiLoginWindow(owner) {
+  const cookieSession = session.fromPartition(QISHUI_LOGIN_PARTITION);
+  const initialCookie = await buildQishuiCookieHeader(cookieSession);
+  if (qishuiCookieHasLogin(initialCookie)) return { ok: true, cookie: initialCookie, reused: true };
+
+  return createLoginWindow(owner, QISHUI_LOGIN_PARTITION, QISHUI_LOGIN_URL, '汽水音乐登录',
+    buildQishuiCookieHeader, qishuiCookieHasLogin);
 }
 
 // ── Kugou Internal API Sniffer ──
@@ -424,6 +463,19 @@ async function clearQQMusicLoginSession() {
   return { ok: true };
 }
 
+async function clearQishuiLoginSession() {
+  const cookieSession = session.fromPartition(QISHUI_LOGIN_PARTITION);
+  await cookieSession.clearStorageData({
+    storages: ['cookies', 'localstorage', 'indexdb', 'cachestorage'],
+  });
+  cookieStore.qishui = '';
+  secureDeleteCookie('qishui');
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('login-state-changed', { platform: 'qishui', loggedIn: false, cookie: '' });
+  }
+  return { ok: true };
+}
+
 async function clearNeteaseMusicLoginSession() {
   const cookieSession = session.fromPartition(NETEASE_LOGIN_PARTITION);
   await cookieSession.clearStorageData({
@@ -483,12 +535,14 @@ async function createWindow() {
   try {
     const neteaseCookie = secureLoadCookie('netease');
     const qqCookie = secureLoadCookie('qq');
+  cookieStore.qishui = secureLoadCookie('qishui');;
     if (localServer && localServer.setCookies) {
       localServer.setCookies(neteaseCookie, qqCookie);
     }
     // Also populate in-memory store
     if (neteaseCookie) cookieStore.netease = neteaseCookie;
     if (qqCookie) cookieStore.qq = qqCookie;
+  cookieStore.qishui = qishuiCookie;
   } catch (e) {
     console.warn('[startup] Failed to load encrypted cookies:', e.message);
   }
@@ -823,6 +877,7 @@ ipcMain.handle('fluidmusic-login-platform', async (event, platform) => {
   switch (platform) {
     case 'netease': result = await openNeteaseMusicLoginWindow(win); break;
     case 'qq': result = await openQQMusicLoginWindow(win); break;
+    case 'qishui': result = await openQishuiLoginWindow(win); break;
     default: return { ok: false, error: 'Unknown platform: ' + platform };
   }
 
@@ -851,20 +906,26 @@ ipcMain.handle('fluidmusic-get-login-status', async () => {
   const qqSession = session.fromPartition(QQ_LOGIN_PARTITION);
   const neteaseCookie = await readNeteaseLoginCookieHeader(neteaseSession);
   const qqCookie = await readQQLoginCookieHeader(qqSession);
+  const qishuiSession = session.fromPartition(QISHUI_LOGIN_PARTITION);
+  const qishuiCookie = await buildQishuiCookieHeader(qishuiSession);
 
   const neteaseLoggedIn = neteaseCookieHasLogin(neteaseCookie);
   const qqLoggedIn = qqCookieHasLogin(qqCookie);
+  const qishuiLoggedIn = qishuiCookieHasLogin(qishuiCookie);
 
   // Update in-memory store
   cookieStore.netease = neteaseCookie;
   cookieStore.qq = qqCookie;
+  cookieStore.qishui = qishuiCookie;
 
   console.log('[getLoginStatus] netease:', neteaseLoggedIn, '| qq:', qqLoggedIn);
 
   return {
     netease: { loggedIn: neteaseLoggedIn, cookie: neteaseCookie },
     qq: { loggedIn: qqLoggedIn, cookie: qqCookie },
+    qishui: { loggedIn: qishuiLoggedIn, cookie: qishuiCookie },
     kugou: { loggedIn: false, cookie: '' },
+    qishui: { loggedIn: false, cookie: '' },
   };
 });
 
@@ -883,6 +944,7 @@ ipcMain.handle('fluidmusic-logout-platform', async (_event, platform) => {
   switch (platform) {
     case 'netease': result = await clearNeteaseMusicLoginSession(); break;
     case 'qq': result = await clearQQMusicLoginSession(); break;
+    case 'qishui': result = await clearQishuiLoginSession(); break;
     default: return { ok: false, error: 'Unknown platform' };
   }
 

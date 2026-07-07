@@ -4,7 +4,7 @@
 // Replaces window.X variable reads between modules.
 // ============================================================
 
-import { Track } from '../types/track';
+import { Track, MusicPlatform } from '../types/track';
 import { PlayMode } from '../types/audio';
 import { UserProfile } from '../types/user';
 import { DIYSettings } from '../types/settings';
@@ -27,6 +27,7 @@ interface UIState {
 }
 
 interface UserState {
+  qishui: UserProfile | null;
   netease: UserProfile | null;
   qq: UserProfile | null;
 }
@@ -50,7 +51,7 @@ const DEFAULT_UI: UIState = {
   pinnedChambers: { left: false, right: false, top: true },
 };
 
-const DEFAULT_USER: UserState = { netease: null, qq: null };
+const DEFAULT_USER: UserState = { netease: null, qq: null, qishui: null };
 
 export class AppStore {
   private state: AppState;
@@ -119,7 +120,7 @@ export class AppStore {
   }
 
   // User actions
-  setUser(platform: 'netease' | 'qq', profile: UserProfile | null): void {
+  setUser(platform: keyof UserState, profile: UserProfile | null): void {
     this.state.user[platform] = profile;
     this.notify();
     if (profile) this.bus.emit(EventNames.LOGIN_COMPLETE, { platform, profile });

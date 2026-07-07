@@ -7,7 +7,7 @@ const fs = require('fs');
 // ── Persistent cookie store (survives server restarts) ──
 // Cookies are injected by the Electron main process via setCookies()
 // Falls back to legacy plaintext files if running standalone
-let persistentCookies = { netease: '', qq: '' };
+let persistentCookies = { netease: '', qq: '', qishui: '' };
 
 // Legacy fallback: read plaintext files (only used when running without Electron)
 const COOKIE_FILE = path.join(__dirname, '.cookie');
@@ -18,10 +18,11 @@ try { if (fs.existsSync(QQ_COOKIE_FILE) && !persistentCookies.qq) persistentCook
 catch (e) { /* ignore */ }
 
 // Called by main.js to inject decrypted cookies at startup
-function setCookies(netease, qq) {
+function setCookies(netease, qq, qishui) {
   if (netease) persistentCookies.netease = netease;
   if (qq) persistentCookies.qq = qq;
-  console.log('[CookieStore] Cookies injected from main process | netease:', !!netease, '| qq:', !!qq);
+  if (qishui) persistentCookies.qishui = qishui;
+  console.log('[CookieStore] Cookies injected from main process | netease:', !!netease, '| qq:', !!qq, '| qishui:', !!qishui);
 }
 
 function savePersistentCookie(platform, cookie) {
@@ -516,6 +517,217 @@ app.get('/api/qq/lyric', (req, res) => {
   proxyRequest(url, res, { cookie: req.headers['x-cookie'] || '', referer: 'https://y.qq.com' });
 });
 
+
+
+// ── 汽水音乐 (Qishui / Luna) API Proxy ──
+
+// KRC → LRC 歌词格式转换
+function krcToLrc(krcContent) {
+  if (!krcContent) return '';
+  const lines = String(krcContent).split('\n');
+  const result = [];
+  for (const line of lines) {
+    const match = line.match(/^\[(\d+),(\d+)\](.*)/);
+    if (!match) continue;
+    const startTime = parseInt(match[1], 10);
+    const minutes = Math.floor(startTime / 60000);
+    const seconds = Math.floor((startTime % 60000) / 1000);
+    const centiseconds = Math.floor((startTime % 1000) / 10);
+    const text = match[3].replace(/<[^>]*>/g, '');
+    result.push(
+      '[' +
+        String(minutes).padStart(2, '0') +
+        ':' +
+        String(seconds).padStart(2, '0') +
+        '.' +
+        String(centiseconds).padStart(2, '0') +
+        ']' +
+        text
+    );
+  }
+  return result.join('\n');
+}
+
+// 汽水音乐 API 固定请求头（设备签名）
+const QISHUI_SEARCH_HEADERS = {
+  'Host': 'api.qishui.com',
+  'Connection': 'keep-alive',
+  'X-Helios': 'ZH4AADUIdsFOZKI+I/R9GFEfafOXE16cupq5lr2RdaL/+Ozc',
+  'X-Medusa': 'lThnaWHQOJNB77tSQBKvGcH3BnEaPgMB/rdRF2BAASQzmXknPjtHC6qU31dVz6//UYTj6HthKEE8kz89+eKtBL0eYfyk2aNNseLQp+GPKWv75libC4u/pwbJlX1iy+iCM/7+cwUuyzmAiOVotYq2bu1ynlUachONh848M3BcYSA6RFiNLGTRyypqDXojtsw/Vk0O95NHyRF6/RXP6era0ChXVh6KZKh41HJfsqz721CuoXatRf818erCcV4+OJAxlDNiNQ5W28gRwWLcziR7Z/IJRN+pfg5SJU9bUcmSZSAvlms4ciyV6WjHxZrHo0Jy/CeEmvvMv6lnfm5pdZYU6rmYLt9N6jfnEjqNDBgbS+g3y1kslRofNmjRrs+I3g6H9a2v8my9XnzSjoSAcSaJ0Uen0fuGPRxg/zWgmIOmDyEYNYkGF8CyjoVYzKQHxxVQ0Z+V3ueasYwYxioCfbeR37VtgFHN9dI2sXJFwVrgYEv8GvCAH53fzwH/Zs4LECgyYNUkiyfvXNrPQ2Exc6i4tla6uL2Xui2C4GKgGZkOVUCQFzoI91kZUaFc5IOGkwDyU51YMz306tdtkGHO2t4EUWl9dbmgtyHTzZeJbAJUGTJwaBvYMALnUU+1PHuAEBPhP3XwzOdb5vEOD5GWrIXLYALowVjG+yf5mkN1vi0JoUe9959YV/MJ2rSCiGxA0/FmbNom++4yAJ/rbfhv8PU8JaYiZMToypUhLZS/C9kXnDCwqxF0qCJjYhPu69MJ74GLL2lPrT/r11OvLW/Nv83lZQl/yB4+7q+eP52Y1renj64eZSfXH4kXFLmdjd5x59kP517Qum9nZQnkI5xoldAHKB5l+////+///v8AAA==',
+  'user-agent': 'LunaPC/3.0.0(290101097)',
+  'x-luna-background-type': 'foreground',
+  'x-luna-is-background-req': '0',
+  'x-luna-is-local-user': '1',
+};
+
+// 搜索
+app.get('/api/qishui/search', (req, res) => {
+  const { keywords, limit = 20 } = req.query;
+  const cursor = req.query.offset ? Math.floor(Number(req.query.offset) / 20) * 20 : 0;
+  const searchId = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
+  });
+  const params = new URLSearchParams({
+    aid: '386088',
+    app_name: 'luna_pc',
+    region: 'cn',
+    device_platform: 'windows',
+    device_type: 'Windows',
+    os_version: 'Windows 11 Home China',
+    fp: '1088932190113307',
+    q: keywords,
+    cursor: String(cursor),
+    search_id: searchId,
+    search_method: 'input',
+    version_name: '3.0.0',
+    version_code: '30000000',
+    channel: 'official',
+    ac: 'wifi',
+    tz_name: 'Asia/Shanghai',
+  });
+  const url = 'https://api.qishui.com/luna/pc/search/track?' + params.toString();
+  proxyRequest(url, res, {
+    cookie: req.headers['x-cookie'] || persistentCookies.qishui || '',
+    headers: QISHUI_SEARCH_HEADERS,
+    referer: 'https://www.qishui.com/',
+    platform: 'qishui',
+  });
+});
+
+// 曲目详情 + 歌词 + 播放链接（通过 SEO 端点，无需认证）
+app.get('/api/qishui/track/detail', async (req, res) => {
+  const { id } = req.query;
+  if (!id) return res.json({ code: -1, error: 'Missing track id' });
+  const url = 'https://beta-luna.douyin.com/luna/h5/seo_track?track_id=' + id + '&device_platform=web';
+  try {
+    const data = await proxyRequestAsync(url, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36' },
+      referer: 'https://www.qishui.com/',
+    });
+    if (!data) return res.json({ code: -1, error: 'Failed to fetch track detail' });
+
+    // 解析播放 URL
+    let playUrl = null;
+    const tp = data.track_player || {};
+    if (tp.video_model) {
+      try {
+        const vm = typeof tp.video_model === 'string' ? JSON.parse(tp.video_model) : tp.video_model;
+        const videoList = vm.video_list || [];
+        if (videoList.length > 0) {
+          playUrl = videoList[0].main_url || videoList[0].backup_url || null;
+        }
+      } catch (e) { /* ignore parse errors */ }
+    }
+
+    // 转换歌词
+    const rawLyric = (data.lyric && data.lyric.content) ? data.lyric.content : '';
+    const lrc = krcToLrc(rawLyric);
+
+    const track = data.seo_track && data.seo_track.track ? data.seo_track.track : {};
+
+    res.json({
+      code: 0,
+      data: {
+        id: track.id || id,
+        name: track.name || '',
+        artists: (track.artists || []).map((a) => ({ name: a.name || '' })),
+        album: track.album ? { name: track.album.name || '' } : {},
+        duration: track.duration || 0,
+        playUrl: playUrl,
+        lyric: lrc,
+        url_player_info: tp.url_player_info || null,
+      },
+    });
+  } catch (e) {
+    res.json({ code: -1, error: e.message });
+  }
+});
+
+// 歌词（LRC 格式返回）
+app.get('/api/qishui/lyric', async (req, res) => {
+  const { id } = req.query;
+  if (!id) return res.json({ code: -1, error: 'Missing track id' });
+  const url = 'https://beta-luna.douyin.com/luna/h5/seo_track?track_id=' + id + '&device_platform=web';
+  try {
+    const data = await proxyRequestAsync(url, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36' },
+      referer: 'https://www.qishui.com/',
+    });
+    const raw = data && data.lyric && data.lyric.content ? data.lyric.content : '';
+    const lrc = krcToLrc(raw);
+    res.json({ code: 0, data: { lyric: lrc } });
+  } catch (e) {
+    res.json({ code: -1, error: e.message });
+  }
+});
+
+// 播放 URL
+app.get('/api/qishui/song/url', async (req, res) => {
+  const { id } = req.query;
+  if (!id) return res.json({ code: -1, error: 'Missing track id' });
+  const url = 'https://beta-luna.douyin.com/luna/h5/seo_track?track_id=' + id + '&device_platform=web';
+  try {
+    const data = await proxyRequestAsync(url, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36' },
+      referer: 'https://www.qishui.com/',
+    });
+    if (!data) return res.json({ code: -1, error: 'Failed to fetch' });
+
+    let playUrl = null;
+    const tp = data.track_player || {};
+    if (tp.video_model) {
+      try {
+        const vm = typeof tp.video_model === 'string' ? JSON.parse(tp.video_model) : tp.video_model;
+        const vl = vm.video_list || [];
+        if (vl.length > 0) playUrl = vl[0].main_url || vl[0].backup_url || null;
+      } catch (e) { /* ignore */ }
+    }
+
+    res.json({ code: 0, data: { url: playUrl, url_player_info: tp.url_player_info || null } });
+  } catch (e) {
+    res.json({ code: -1, error: e.message });
+  }
+});
+
+// 用户详情（需要登录 Cookie）
+app.get('/api/qishui/user/detail', (req, res) => {
+  const cookie = req.headers['x-cookie'] || persistentCookies.qishui || '';
+  if (!cookie) return res.json({ code: -1, error: 'Not logged in' });
+  // 汽水音乐使用抖音账号体系，用户信息通过抖音 API 获取
+  const url = 'https://www.douyin.com/passport/web/user/info/';
+  proxyRequest(url, res, {
+    cookie,
+    headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36' },
+    referer: 'https://www.douyin.com/',
+    platform: 'qishui',
+  });
+});
+
+// 用户歌单（需要登录 Cookie — 端点待验证）
+app.get('/api/qishui/user/playlist', (req, res) => {
+  const cookie = req.headers['x-cookie'] || persistentCookies.qishui || '';
+  if (!cookie) return res.json({ code: -1, error: 'Not logged in' });
+  // 汽水音乐歌单 API（需登录后验证）
+  const params = new URLSearchParams({
+    aid: '386088',
+    app_name: 'luna_pc',
+    region: 'cn',
+    device_platform: 'windows',
+    version_name: '3.0.0',
+    version_code: '30000000',
+    channel: 'official',
+    ac: 'wifi',
+    tz_name: 'Asia/Shanghai',
+  });
+  const url = 'https://api.qishui.com/luna/pc/user/playlist?' + params.toString();
+  proxyRequest(url, res, {
+    cookie,
+    headers: { ...QISHUI_SEARCH_HEADERS, Cookie: cookie },
+    referer: 'https://www.qishui.com/',
+    platform: 'qishui',
+  });
+});
 
 // ── Cover image proxy (avoids CORS tainting for particle cover pixel reading) ──
 app.get('/api/cover-proxy', (req, res) => {
