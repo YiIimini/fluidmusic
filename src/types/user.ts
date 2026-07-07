@@ -2,11 +2,13 @@
 // FluidMusic — User & Login type definitions
 // ============================================================
 
+import { MusicPlatform } from './track';
+
 export interface UserProfile {
   userId: string;
   nickname: string;
   avatarUrl?: string;
-  platform: 'netease' | 'qq';
+  platform: MusicPlatform;
   vipType?: number;
   followCount?: number;
   fanCount?: number;
@@ -14,7 +16,7 @@ export interface UserProfile {
 }
 
 export interface LoginState {
-  platform: 'netease' | 'qq';
+  platform: MusicPlatform;
   isLoggedIn: boolean;
   profile: UserProfile | null;
   cookie: string;

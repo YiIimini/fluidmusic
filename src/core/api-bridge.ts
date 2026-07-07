@@ -4,7 +4,7 @@
 // Migrated from public/js/api-bridge.js (IIFE → TypeScript class).
 // ============================================================
 
-import { Track, Playlist, SearchResult } from '../types/track';
+import { Track, Playlist, SearchResult, MusicPlatform } from '../types/track';
 import { UserProfile, LoginState } from '../types/user';
 import { EventBus } from './event-bus';
 import { AppStore } from './app-store';
@@ -13,7 +13,7 @@ import { AppStore } from './app-store';
 // Types
 // ============================================================
 
-type Platform = 'netease' | 'qq';
+type Platform = MusicPlatform;
 
 interface PlaylistMap {
   netease: Playlist[];
