@@ -54,7 +54,7 @@ const NETEASE_LOGIN_URL = 'https://music.163.com/#/login';
 const QQ_LOGIN_PARTITION = 'persist:fluidmusic-qqmusic-login';
 const QQ_LOGIN_URL = 'https://y.qq.com/n/ryqq/profile';  // music-specific domain triggers qqmusic_key cookie
 const QISHUI_LOGIN_PARTITION = 'persist:fluidmusic-qishui-login';
-const QISHUI_LOGIN_URL = 'https://www.douyin.com/passport/web/login/';
+const QISHUI_LOGIN_URL = 'https://www.qishui.com/';
 const WINDOW_WIDTH = 1700;
 const WINDOW_HEIGHT = 980;
 

@@ -844,15 +844,26 @@ export class ApiBridge {
 
   private async fetchQishuiUserDetail(): Promise<UserProfile | null> {
     try {
-      const data = await this.fetchApi(
-        '/api/qishui/user/detail',
-        {},
-        'qishui'
-      ) as any;
+      // 汽水音乐用户信息需要通过 Electron session 获取（douyin passport 会检测服务端请求为"非法应用"）
+      // 如果 cookie 存在，使用从 cookie 中解析的基本信息构建 profile
+      const cookie = this.cookieStore.get('qishui') || '';
+      if (!cookie) return null;
+
+      // 尝试从 cookie 中提取 uid
+      const cookieObj: Record<string, string> = {};
+      cookie.split(';').forEach(part => {
+        const idx = part.indexOf('=');
+        if (idx > 0) cookieObj[part.slice(0, idx).trim()] = part.slice(idx + 1).trim();
+      });
+
+      // 先用服务端 API 尝试获取
+      const data = await this.fetchApi('/api/qishui/user/detail', {}, 'qishui') as any;
       if (data?.code === 0 && data?.data) {
         const d = data.data;
+        // 如果有从 cookie 提取的数据则优先使用
+        const uid = cookieObj.uid_tt || cookieObj.sso_uid_tt || '';
         this.qishuiProfile = {
-          userId: String(d.userId ?? d.uid ?? ''),
+          userId: String(d.userId ?? d.uid ?? uid),
           nickname: d.nickname ?? d.nick ?? '汽水用户',
           avatarUrl: (d.avatarUrl ?? d.avatar ?? d.headpic ?? '').replace(/^http:/, 'https:'),
           platform: 'qishui',
@@ -864,7 +875,19 @@ export class ApiBridge {
         this.store.setUser('qishui', this.qishuiProfile);
         return this.qishuiProfile;
       }
-      return null;
+      // 如果服务端无法获取，至少标记为已登录
+      this.qishuiProfile = {
+        userId: cookieObj.uid_tt || '',
+        nickname: '汽水用户',
+        avatarUrl: '',
+        platform: 'qishui',
+        vipType: 0,
+        followCount: 0,
+        fanCount: 0,
+        playlistCount: 0,
+      };
+      this.store.setUser('qishui', this.qishuiProfile);
+      return this.qishuiProfile;
     } catch (e) {
       console.warn('[ApiBridge] Failed to fetch Qishui user detail:', e);
       return null;

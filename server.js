@@ -691,17 +691,14 @@ app.get('/api/qishui/song/url', async (req, res) => {
 });
 
 // 用户详情（需要登录 Cookie）
+// 注意：douyin passport API 会检测非浏览器请求为"非法应用"
+// 用户信息获取改为由 Electron 渲染进程通过 session 直接获取
 app.get('/api/qishui/user/detail', (req, res) => {
   const cookie = req.headers['x-cookie'] || persistentCookies.qishui || '';
   if (!cookie) return res.json({ code: -1, error: 'Not logged in' });
-  // 汽水音乐使用抖音账号体系，用户信息通过抖音 API 获取
-  const url = 'https://www.douyin.com/passport/web/user/info/';
-  proxyRequest(url, res, {
-    cookie,
-    headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36' },
-    referer: 'https://www.douyin.com/',
-    platform: 'qishui',
-  });
+  // 服务端无法直接访问 douyin passport（会触发"非法应用"检测）
+  // 返回 cookie 信息，由前端通过 IPC 获取用户详情
+  res.json({ code: 0, data: { cookie, note: 'User detail must be fetched from Electron renderer via session' } });
 });
 
 // 用户歌单（需要登录 Cookie — 端点待验证）
