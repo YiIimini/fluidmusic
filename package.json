@@ -46,7 +46,14 @@
       "provider": "github",
       "owner": "YiIimini",
       "repo": "fluidmusic"
-    }
+    },
+    "files": [
+      "desktop/**",
+      "public/**",
+      "server.js",
+      "package.json"
+    ],
+    "asar": true
   },
   "dependencies": {
     "express": "^4.21.0",
