@@ -38,9 +38,9 @@
         if (platform === 'netease' && typeof ApiBridge !== 'undefined' && ApiBridge.neteaseLoggedIn) {
           ApiBridge.fetchNeteaseUserDetail().then(() => switchTab(platform));
         } else if (platform === 'qq' && typeof ApiBridge !== 'undefined' && ApiBridge.qqLoggedIn) {
+          ApiBridge.fetchQQUserDetail().then(() => switchTab(platform));
         } else if (platform === 'qishui' && typeof ApiBridge !== 'undefined' && ApiBridge.qishuiLoggedIn) {
           ApiBridge.fetchQishuiUserDetail().then(() => switchTab(platform));
-          ApiBridge.fetchQQUserDetail().then(() => switchTab(platform));
         } else {
           switchTab(platform);
         }
@@ -100,7 +100,7 @@
 
     const loggedIn = typeof ApiBridge !== 'undefined' ? ApiBridge[platform + 'LoggedIn'] : false;
     const user = typeof ApiBridge !== 'undefined' ? ApiBridge[platform + 'User'] : null;
-    const cssClass = platform === 'qq' ? 'qq' : 'net';
+    const cssClass = platform === 'qq' ? 'qq' : (platform === 'qishui' ? 'qishui' : 'net');
     const names = { netease: '网易云音乐', qq: 'QQ音乐', qishui: '汽水音乐' };
     const icons = { netease: '🎧', qq: '🎵', qishui: '🎼' };
 
