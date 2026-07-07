@@ -98,6 +98,8 @@
     const content = document.getElementById('user-content');
     if (!content) return;
 
+    if (platform === 'import') { renderImportTab(); return; }
+
     const loggedIn = typeof ApiBridge !== 'undefined' ? ApiBridge[platform + 'LoggedIn'] : false;
     const user = typeof ApiBridge !== 'undefined' ? ApiBridge[platform + 'User'] : null;
     const cssClass = platform === 'qq' ? 'qq' : (platform === 'qishui' ? 'qishui' : 'net');
@@ -144,6 +146,7 @@
           </div>
         </div>
         <div class="user-panel-section-title">📋 我的歌单</div>
+
         <div id="user-playlist-list-${platform}" class="user-playlist-list">
           <div class="playlist-loading"><div class="playlist-loading-spinner"></div>加载中...</div>
         </div>
@@ -171,6 +174,7 @@
           </div>
         </div>
         <div class="user-panel-section-title">📋 我的歌单</div>
+
         <div id="user-playlist-list-${platform}" class="user-playlist-list">
           <div class="playlist-loading"><div class="playlist-loading-spinner"></div>加载中...</div>
         </div>
@@ -201,6 +205,201 @@
   }
 
   // Fetch playlists for a platform and render in user panel
+  // ── 导入歌单 Tab ──
+  let _importTabRendered = false;
+
+  function renderImportTab() {
+    const content = document.getElementById('user-content');
+    if (!content) return;
+
+    if (_importTabRendered) {
+      renderImportList();
+      return;
+    }
+    _importTabRendered = true;
+
+    content.innerHTML = '<div style="padding:12px 16px;">'
+      + '<div class="user-panel-section-title">🔗 粘贴歌单链接</div>'
+      + '<div style="display:flex;gap:8px;margin-bottom:4px;">'
+      + '<input id="import-url-input" type="text" placeholder="粘贴歌单链接（支持12个平台）" style="flex:1;padding:8px 12px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);border-radius:8px;color:#fff;font-size:13px;outline:none;min-width:0;">'
+      + '<button id="import-url-btn" style="padding:8px 16px;background:var(--color-accent);border:none;border-radius:8px;color:#fff;font-size:13px;cursor:pointer;white-space:nowrap;">解析导入</button>'
+      + '</div>'
+      + '<div id="import-msg" style="font-size:12px;color:var(--text-dim);min-height:18px;margin-bottom:12px;"></div>'
+      + '<div class="user-panel-section-title">📥 已导入的歌单</div>'
+      + '<div id="import-list" style="max-height:360px;overflow-y:auto;"></div>'
+      + '</div>';
+
+    // Wire import button
+    const input = document.getElementById('import-url-input');
+    const btn = document.getElementById('import-url-btn');
+    const msg = document.getElementById('import-msg');
+    const names = { netease: '🎧 网易云', qq: '🎵 QQ', qishui: '🎼 汽水', kugou: '🎤 酷狗', kuwo: '🎶 酷我', migu: '📻 咪咕', bilibili: '📺 B站', fivesing: '🎙 5Sing', qianqian: '🎶 千千', joox: '🌏 JOOX', jamendo: '🎸 Jamendo', apple: '🍎 Apple Music' };
+
+    const doImport = async () => {
+      const url = input.value.trim();
+      if (!url) return;
+      btn.disabled = true; btn.textContent = '解析中...';
+      msg.textContent = '正在获取歌单信息...'; msg.style.color = '';
+      try {
+        const result = await ApiBridge.importPlaylistByUrl(url);
+        if (result.ok) {
+          const pl = result.playlist;
+          msg.innerHTML = '✅ 已导入: <b>' + escHtml(pl.name) + '</b> (' + (names[pl.platform] || pl.platform) + ')';
+          msg.style.color = '#4ade80';
+          input.value = '';
+          renderImportList();
+        } else {
+          msg.textContent = '❌ ' + (result.error || '导入失败');
+          msg.style.color = '#f87171';
+        }
+      } catch (e) {
+        msg.textContent = '❌ ' + e.message;
+        msg.style.color = '#f87171';
+      } finally {
+        btn.disabled = false; btn.textContent = '解析导入';
+      }
+    };
+    btn.addEventListener('click', doImport);
+    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') doImport(); });
+
+    // Paste handler — works natively with Cmd+V / right-click Paste
+    input.addEventListener('paste', (e) => {
+      // Let the default paste behavior work (fills input.value)
+      // Then trigger import after a short delay
+      setTimeout(() => {
+        const pasted = input.value.trim();
+        if (pasted) {
+          msg.textContent = '📋 已粘贴链接，点击「解析导入」或按 Enter';
+          msg.style.color = '';
+        }
+      }, 50);
+    });
+
+    // Right-click context menu — simple native-like paste option
+    input.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      // Remove any existing custom menu
+      const existing = document.getElementById('ctx-paste-menu');
+      if (existing) existing.remove();
+      const menu = document.createElement('div');
+      menu.id = 'ctx-paste-menu';
+      menu.style.cssText = 'position:fixed;z-index:99999;background:#1e1e2e;border:1px solid rgba(255,255,255,0.12);border-radius:6px;padding:4px 0;min-width:100px;box-shadow:0 4px 12px rgba(0,0,0,0.5);';
+      menu.style.left = e.clientX + 'px';
+      menu.style.top = e.clientY + 'px';
+      menu.innerHTML = '<div id="ctx-paste-btn" style="padding:6px 12px;color:#fff;cursor:pointer;font-size:12px;">📋 粘贴</div>';
+      document.body.appendChild(menu);
+      const close = () => {
+        if (menu.parentNode) menu.remove();
+        document.removeEventListener('click', close, true);
+      };
+      // Use setTimeout to let this click finish before adding listener
+      setTimeout(() => document.addEventListener('click', close, true), 0);
+      const pasteBtn = document.getElementById('ctx-paste-btn');
+      if (pasteBtn) {
+        pasteBtn.addEventListener('click', async (ev) => {
+          ev.stopPropagation();
+          try {
+            const text = await navigator.clipboard.readText();
+            if (text) {
+              input.value = text;
+              input.focus();
+              msg.textContent = '📋 已粘贴链接，点击「解析导入」或按 Enter';
+              msg.style.color = '';
+            }
+          } catch(ex) {
+            // Clipboard API might not be available; just focus the input
+            input.focus();
+          }
+          close();
+        });
+      }
+    });
+
+    renderImportList();
+  }
+  function renderImportList() {
+    const list = document.getElementById('import-list');
+    if (!list) return;
+    const imported = typeof ApiBridge !== 'undefined' && ApiBridge.getImportedPlaylists ? ApiBridge.getImportedPlaylists() : {};
+    const entries = Object.values(imported);
+    const names = { netease: '🎧 网易云', qq: '🎵 QQ', qishui: '🎼 汽水', kugou: '🎤 酷狗', kuwo: '🎶 酷我', migu: '📻 咪咕', bilibili: '📺 B站', fivesing: '🎙 5Sing', qianqian: '🎶 千千', joox: '🌏 JOOX', jamendo: '🎸 Jamendo', apple: '🍎 Apple Music' };
+
+    if (entries.length === 0) {
+      list.innerHTML = '<div style="color:var(--text-dim);font-size:12px;text-align:center;padding:20px;">暂无导入歌单，在上方粘贴链接</div>';
+      return;
+    }
+
+    let syncedIds = {};
+    try { syncedIds = JSON.parse(localStorage.getItem('fluidmusic_synced_playlists') || '{}'); } catch(e) {}
+
+    list.innerHTML = entries.map(pl => {
+      const isSynced = !!(syncedIds[pl.platform] && syncedIds[pl.platform][pl.id]);
+      let coverHtml = '<span style="display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);font-size:16px;width:36px;height:36px;border-radius:6px;flex-shrink:0;">📋</span>';
+      if (pl.coverUrl) {
+        coverHtml = '<img src="' + escHtml(pl.coverUrl) + '" alt="" style="width:36px;height:36px;border-radius:6px;object-fit:cover;flex-shrink:0;">';
+      }
+      return '<div class="user-playlist-item" style="display:flex;align-items:center;gap:8px;padding:6px 0;">'
+        + coverHtml
+        + '<div style="flex:1;min-width:0;">'
+        + '<div style="font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + escHtml(pl.name) + '</div>'
+        + '<div style="font-size:10px;color:var(--text-dim);">' + (names[pl.platform] || pl.platform) + ' · ' + (pl.trackCount || '?') + '首</div>'
+        + '</div>'
+        + (isSynced
+          ? '<button class="import-pl-rm-btn" data-pid="' + pl.id + '" data-platform="' + pl.platform + '" style="padding:4px 8px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:5px;color:var(--text-dim);cursor:pointer;font-size:11px;white-space:nowrap;">移除</button>'
+          : '<button class="import-pl-add-btn" data-pid="' + pl.id + '" data-platform="' + pl.platform + '" data-name="' + escHtml(pl.name) + '" style="padding:4px 8px;background:var(--color-accent);border:none;border-radius:5px;color:#fff;cursor:pointer;font-size:11px;white-space:nowrap;">添加到应用</button>')
+        + '<button class="import-pl-del-btn" data-pid="' + pl.id + '" data-platform="' + pl.platform + '" style="padding:4px 6px;background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:12px;opacity:0.5;flex-shrink:0;" title="删除">✕</button>'
+        + '</div>';
+    }).join('');
+
+    // Wire buttons (delegated via class selectors)
+    list.querySelectorAll('.import-pl-add-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const pid = btn.dataset.pid, pplatform = btn.dataset.platform;
+        try { syncedIds = JSON.parse(localStorage.getItem('fluidmusic_synced_playlists') || '{}'); } catch(e) { syncedIds = {}; }
+        if (!syncedIds[pplatform]) syncedIds[pplatform] = {};
+        syncedIds[pplatform][pid] = true;
+        localStorage.setItem('fluidmusic_synced_playlists', JSON.stringify(syncedIds));
+        renderImportList();
+        if (typeof showToast !== 'undefined') showToast('✅ 已添加到应用歌单');
+        window.dispatchEvent(new CustomEvent('playlists-updated', { detail: { platform: pplatform } }));
+      });
+    });
+    list.querySelectorAll('.import-pl-rm-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const pid = btn.dataset.pid, pplatform = btn.dataset.platform;
+        try { syncedIds = JSON.parse(localStorage.getItem('fluidmusic_synced_playlists') || '{}'); } catch(e) { syncedIds = {}; }
+        if (syncedIds[pplatform]) delete syncedIds[pplatform][pid];
+        localStorage.setItem('fluidmusic_synced_playlists', JSON.stringify(syncedIds));
+        renderImportList();
+        if (typeof showToast !== 'undefined') showToast('已从应用歌单移除');
+        window.dispatchEvent(new CustomEvent('playlists-updated', { detail: { platform: pplatform } }));
+      });
+    });
+    list.querySelectorAll('.import-pl-del-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const pid = btn.dataset.pid, pplatform = btn.dataset.platform;
+        if (typeof ApiBridge !== 'undefined' && ApiBridge.removeImportedPlaylist) {
+          ApiBridge.removeImportedPlaylist(pplatform, pid);
+        }
+        try { syncedIds = JSON.parse(localStorage.getItem('fluidmusic_synced_playlists') || '{}'); } catch(e) { syncedIds = {}; }
+        if (syncedIds[pplatform]) delete syncedIds[pplatform][pid];
+        localStorage.setItem('fluidmusic_synced_playlists', JSON.stringify(syncedIds));
+        renderImportList();
+        if (typeof showToast !== 'undefined') showToast('已删除导入歌单');
+        window.dispatchEvent(new CustomEvent('playlists-updated', { detail: { platform: pplatform } }));
+      });
+    });
+  }
+
+  // Reset import tab state when switching away
+  const _origSwitchTab = switchTab;
+  switchTab = function(platform) {
+    if (platform !== 'import') _importTabRendered = false;
+    _origSwitchTab(platform);
+  };
+
+  // ── Fetch playlists ──  // ── Fetch playlists ──
   async function fetchAndShowPlaylists(platform) {
     const container = document.getElementById('user-playlist-list-' + platform);
     if (!container || typeof ApiBridge === 'undefined') return;
@@ -229,6 +428,7 @@
         }
       
       }
+
 
       if (playlists.length === 0) {
         container.innerHTML = '<div class="user-panel-not-logged">暂无歌单</div>';
@@ -267,6 +467,7 @@
           + '<span style="color:var(--text-dim);font-size:10px;white-space:nowrap;flex-shrink:0;">' + (isSynced ? '显示' : '隐藏') + '</span>'
           + '</div>';
       }).join('');
+
 
       // Wire checkboxes
       container.querySelectorAll('.user-pl-check').forEach(cb => {

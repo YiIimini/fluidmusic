@@ -477,6 +477,11 @@
     img.onload = function () {
       try {
         // Update texture
+        // Dispose old texture to prevent GPU memory leak
+        if (ParticleCover.texture) {
+          ParticleCover.texture.dispose();
+          ParticleCover.texture = null;
+        }
         const texCanvas2 = document.createElement('canvas');
         texCanvas2.width = img.width;
         texCanvas2.height = img.height;

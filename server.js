@@ -182,8 +182,9 @@ function proxyRequestAsync(targetUrl, options = {}) {
         try {
           resolve(JSON.parse(data));
         } catch (e) {
-          console.log('[ProxyAsync] Non-JSON response (' + data.length + ' bytes):', JSON.stringify(data.substring(0, 200)));
-          resolve(null);
+          // Return raw string for HTML/text responses (needed by 5sing, b23.tv, etc.)
+          console.log('[ProxyAsync] Non-JSON response (' + data.length + ' bytes), returning as string');
+          resolve(data);
         }
       });
     });
@@ -380,34 +381,50 @@ app.get('/api/qq/search', (req, res) => {
   proxyRequest(url, res, { cookie: req.headers['x-cookie'] || '', referer: 'https://y.qq.com' });
 });
 
+// ── QQ 歌单详情（优化：fcg_ucc_getcdinfo_byids_cp 为主端点，来自 Superheroff/musicapi 验证）──
 app.get('/api/qq/playlist/detail', async (req, res) => {
   const { id } = req.query;
-  const cookie = req.headers['x-cookie'] || '';
-  const uin = extractUinFromCookies(cookie);
+  const cookie = req.headers['x-cookie'] || persistentCookies.qq || '';
+  const uin = extractUinFromCookies(cookie) || '0';
+  const skey = parseCookieString(cookie).p_skey || '';
+  const gtk = getGTK(skey);
   console.log('[QQ PlaylistDetail] id:', id, '| uin:', uin, '| hasCookie:', !!cookie);
 
-  // Try primary QQ Music playlist detail API (v8) first — more reliable song data
+  // Primary: fcg_ucc_getcdinfo_byids_cp (proven stable, returns full song list in one call)
   try {
-    const primaryUrl = `https://c.y.qq.com/v8/fcg-bin/fcg_v8_playlist_cp.fcg?id=${id}&uin=${uin || 0}&format=json&inCharset=utf8&outCharset=utf-8&notice=0&platform=h5&needNewCode=1&tpl=3&page=1&limit=500`;
-    const data = await proxyRequestAsync(primaryUrl, { cookie, referer: 'https://y.qq.com/n/yqq/playlist/' + id });
-    console.log('[QQ PlaylistDetail] v8 response keys:', data ? Object.keys(data).join(', ') : 'null');
-    if (data && data.code === 0 && data.data && data.data.cdlist) {
-      console.log('[QQ PlaylistDetail] v8 cdlist length:', data.data.cdlist.length);
-      return res.json({ cdlist: data.data.cdlist });
+    const uccUrl = `https://c.y.qq.com/qzone/fcg-bin/fcg_ucc_getcdinfo_byids_cp.fcg?type=1&json=1&utf8=1&onlysong=0&disstid=${id}&format=json&g_tk=${gtk}&loginUin=${uin}&hostUin=0&inCharset=utf8&outCharset=utf-8&notice=0&platform=yqq.json&needNewCode=0`;
+    const data = await proxyRequestAsync(uccUrl, {
+      cookie,
+      referer: 'https://y.qq.com/n/yqq/playlist/' + id,
+      headers: { 'Referer': 'https://y.qq.com/n/yqq/playlist/' + id }
+    });
+    console.log('[QQ PlaylistDetail] ucc response keys:', data ? Object.keys(data).join(', ') : 'null');
+    if (data && data.cdlist && data.cdlist.length > 0) {
+      console.log('[QQ PlaylistDetail] ucc cdlist[0].songlist length:', data.cdlist[0].songlist?.length);
+      return res.json({ cdlist: data.cdlist });
     }
-    // Try alternate v8 format
-    if (data && data.code === 0 && data.cdlist) {
-      console.log('[QQ PlaylistDetail] v8 direct cdlist length:', data.cdlist.length);
-      return res.json(data);
+    console.log('[QQ PlaylistDetail] ucc returned no cdlist, trying v8...');
+  } catch (e) {
+    console.warn('[QQ PlaylistDetail] ucc failed:', e.message);
+  }
+
+  // Fallback: v8 playlist detail API
+  try {
+    const v8Url = `https://c.y.qq.com/v8/fcg-bin/fcg_v8_playlist_cp.fcg?id=${id}&uin=${uin}&format=json&inCharset=utf8&outCharset=utf-8&notice=0&platform=h5&needNewCode=1&tpl=3&page=1&limit=500`;
+    const data = await proxyRequestAsync(v8Url, {
+      cookie,
+      referer: 'https://y.qq.com/n/yqq/playlist/' + id,
+      headers: { 'Referer': 'https://y.qq.com/n/yqq/playlist/' + id }
+    });
+    if (data && data.code === 0) {
+      if (data.data && data.data.cdlist) return res.json({ cdlist: data.data.cdlist });
+      if (data.cdlist) return res.json(data);
     }
-    console.log('[QQ PlaylistDetail] v8 returned unexpected format, trying fallback...');
   } catch (e) {
     console.warn('[QQ PlaylistDetail] v8 failed:', e.message);
   }
 
-  // Fallback: QZone playlist detail API
-  const fallbackUrl = `https://c.y.qq.com/qzone/fcg-bin/fcg_ucc_getcdinfo_byids_cp.fcg?type=1&utf8=1&disstid=${id}&loginUin=${uin || 0}&format=json&inCharset=utf8&outCharset=utf-8&notice=0&platform=yqq.json&needNewCode=0`;
-  proxyRequest(fallbackUrl, res, { cookie, referer: 'https://y.qq.com/n/yqq/playlist' });
+  res.json({ cdlist: [] });
 });
 
 
@@ -518,215 +535,373 @@ app.get('/api/qq/lyric', (req, res) => {
 });
 
 
-
-// ── 汽水音乐 (Qishui / Luna) API Proxy ──
-
-// KRC → LRC 歌词格式转换
-function krcToLrc(krcContent) {
-  if (!krcContent) return '';
-  const lines = String(krcContent).split('\n');
-  const result = [];
-  for (const line of lines) {
-    const match = line.match(/^\[(\d+),(\d+)\](.*)/);
-    if (!match) continue;
-    const startTime = parseInt(match[1], 10);
-    const minutes = Math.floor(startTime / 60000);
-    const seconds = Math.floor((startTime % 60000) / 1000);
-    const centiseconds = Math.floor((startTime % 1000) / 10);
-    const text = match[3].replace(/<[^>]*>/g, '');
-    result.push(
-      '[' +
-        String(minutes).padStart(2, '0') +
-        ':' +
-        String(seconds).padStart(2, '0') +
-        '.' +
-        String(centiseconds).padStart(2, '0') +
-        ']' +
-        text
-    );
+// ── Qishui 歌单详情（SEO，无需登录）──
+app.get('/api/qishui/playlist/detail', async (req, res) => {
+  const { id } = req.query;
+  if (!id) return res.json({ code: -1, error: 'Missing id' });
+  try {
+    const url = `https://beta-luna.douyin.com/luna/h5/seo_playlist?playlist_id=${encodeURIComponent(id)}&device_platform=web`;
+    const data = await proxyRequestAsync(kgUrl, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36' },
+    });
+    if (data && data.seo_playlist && data.seo_playlist.playlist) {
+      const pl = data.seo_playlist.playlist;
+      res.json({ code: 0, data: { id, name: pl.name || '汽水歌单', coverUrl: (pl.cover_url || '').replace(/^http:/, 'https:'), trackCount: pl.track_count || 0 } });
+    } else {
+      res.json({ code: -1, error: 'Failed to fetch qishui playlist' });
+    }
+  } catch (e) {
+    console.error('[Qishui Playlist] Error:', e.message);
+    res.json({ code: -1, error: e.message });
   }
-  return result.join('\n');
-}
-
-// 汽水音乐 API 固定请求头（设备签名）
-const QISHUI_SEARCH_HEADERS = {
-  'Host': 'api.qishui.com',
-  'Connection': 'keep-alive',
-  'X-Helios': 'ZH4AADUIdsFOZKI+I/R9GFEfafOXE16cupq5lr2RdaL/+Ozc',
-  'X-Medusa': 'lThnaWHQOJNB77tSQBKvGcH3BnEaPgMB/rdRF2BAASQzmXknPjtHC6qU31dVz6//UYTj6HthKEE8kz89+eKtBL0eYfyk2aNNseLQp+GPKWv75libC4u/pwbJlX1iy+iCM/7+cwUuyzmAiOVotYq2bu1ynlUachONh848M3BcYSA6RFiNLGTRyypqDXojtsw/Vk0O95NHyRF6/RXP6era0ChXVh6KZKh41HJfsqz721CuoXatRf818erCcV4+OJAxlDNiNQ5W28gRwWLcziR7Z/IJRN+pfg5SJU9bUcmSZSAvlms4ciyV6WjHxZrHo0Jy/CeEmvvMv6lnfm5pdZYU6rmYLt9N6jfnEjqNDBgbS+g3y1kslRofNmjRrs+I3g6H9a2v8my9XnzSjoSAcSaJ0Uen0fuGPRxg/zWgmIOmDyEYNYkGF8CyjoVYzKQHxxVQ0Z+V3ueasYwYxioCfbeR37VtgFHN9dI2sXJFwVrgYEv8GvCAH53fzwH/Zs4LECgyYNUkiyfvXNrPQ2Exc6i4tla6uL2Xui2C4GKgGZkOVUCQFzoI91kZUaFc5IOGkwDyU51YMz306tdtkGHO2t4EUWl9dbmgtyHTzZeJbAJUGTJwaBvYMALnUU+1PHuAEBPhP3XwzOdb5vEOD5GWrIXLYALowVjG+yf5mkN1vi0JoUe9959YV/MJ2rSCiGxA0/FmbNom++4yAJ/rbfhv8PU8JaYiZMToypUhLZS/C9kXnDCwqxF0qCJjYhPu69MJ74GLL2lPrT/r11OvLW/Nv83lZQl/yB4+7q+eP52Y1renj64eZSfXH4kXFLmdjd5x59kP517Qum9nZQnkI5xoldAHKB5l+////+///v8AAA==',
-  'user-agent': 'LunaPC/3.0.0(290101097)',
-  'x-luna-background-type': 'foreground',
-  'x-luna-is-background-req': '0',
-  'x-luna-is-local-user': '1',
-};
-
-// 搜索
-app.get('/api/qishui/search', (req, res) => {
-  const { keywords, limit = 20 } = req.query;
-  const cursor = req.query.offset ? Math.floor(Number(req.query.offset) / 20) * 20 : 0;
-  const searchId = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-    const r = (Math.random() * 16) | 0;
-    return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
-  });
-  const params = new URLSearchParams({
-    aid: '386088',
-    app_name: 'luna_pc',
-    region: 'cn',
-    device_platform: 'windows',
-    device_type: 'Windows',
-    os_version: 'Windows 11 Home China',
-    fp: '1088932190113307',
-    q: keywords,
-    cursor: String(cursor),
-    search_id: searchId,
-    search_method: 'input',
-    version_name: '3.0.0',
-    version_code: '30000000',
-    channel: 'official',
-    ac: 'wifi',
-    tz_name: 'Asia/Shanghai',
-  });
-  const url = 'https://api.qishui.com/luna/pc/search/track?' + params.toString();
-  proxyRequest(url, res, {
-    cookie: req.headers['x-cookie'] || persistentCookies.qishui || '',
-    headers: QISHUI_SEARCH_HEADERS,
-    referer: 'https://www.qishui.com/',
-    platform: 'qishui',
-  });
 });
 
-// 曲目详情 + 歌词 + 播放链接（通过 SEO 端点，无需认证）
-app.get('/api/qishui/track/detail', async (req, res) => {
-  const { id } = req.query;
-  if (!id) return res.json({ code: -1, error: 'Missing track id' });
-  const url = 'https://beta-luna.douyin.com/luna/h5/seo_track?track_id=' + id + '&device_platform=web';
+
+// ── Kugou t.kugou.com 短链解析 ──
+app.get('/api/kugou/resolve-short', async (req, res) => {
+  const { code } = req.query;
+  if (!code) return res.json({ code: -1, error: 'Missing code' });
   try {
-    const data = await proxyRequestAsync(url, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36' },
-      referer: 'https://www.qishui.com/',
+    const shortUrl = `https://t.kugou.com/${encodeURIComponent(code)}`;
+    const result = await proxyRequestAsync(shortUrl, {
+      referer: 'https://www.kugou.com/',
+      headers: { 'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15' }
     });
-    if (!data) return res.json({ code: -1, error: 'Failed to fetch track detail' });
-
-    // 解析播放 URL
-    let playUrl = null;
-    const tp = data.track_player || {};
-    if (tp.video_model) {
-      try {
-        const vm = typeof tp.video_model === 'string' ? JSON.parse(tp.video_model) : tp.video_model;
-        const videoList = vm.video_list || [];
-        if (videoList.length > 0) {
-          playUrl = videoList[0].main_url || videoList[0].backup_url || null;
-        }
-      } catch (e) { /* ignore parse errors */ }
+    const resultStr = String(result || '');
+    // Extract ID from redirected HTML or meta
+    const specialMatch = resultStr.match(/specialid=(\d+)/) || resultStr.match(/special\/single\/(\d+)/);
+    const songlistMatch = resultStr.match(/songlistid=([A-Za-z0-9_]+)/) || resultStr.match(/songlist\/([A-Za-z0-9_]+)/);
+    const id = specialMatch ? specialMatch[1] : (songlistMatch ? songlistMatch[1] : null);
+    if (id) {
+      return res.json({ code: 0, data: { id, name: '酷狗歌单', coverUrl: '', trackCount: 0 } });
     }
+    res.json({ code: -1, error: 'Could not resolve kugou short link' });
+  } catch (e) {
+    res.json({ code: -1, error: e.message });
+  }
+});
 
-    // 转换歌词
-    const rawLyric = (data.lyric && data.lyric.content) ? data.lyric.content : '';
-    const lrc = krcToLrc(rawLyric);
+// ── Kugou 歌单详情 ──
+app.get('/api/kugou/playlist/detail', async (req, res) => {
+  const { id } = req.query;
+  if (!id) return res.json({ code: -1, error: 'Missing id' });
+  try {
+    // Kugou: gcid_ IDs use songlist API, numeric IDs use special API
+    const isGcid = String(id).startsWith('gcid_');
+    const kgUrl = isGcid
+      ? `https://www.kugou.com/api/v3/songlist/info?songlistid=${encodeURIComponent(id)}`
+      : `https://www.kugou.com/api/v3/special/songList?specialid=${encodeURIComponent(id)}`;
+    const data = await proxyRequestAsync(url, {
+      referer: 'https://www.kugou.com/',
+      headers: { 'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15' }
+    });
+    if (data && data.status === 1 && data.data && data.data.info) {
+      res.json({
+        code: 0,
+        data: {
+          id,
+          name: data.data.info.specialname || data.data.info.name || data.data.info.listname || '酷狗歌单',
+          coverUrl: (data.data.info.imgurl || data.data.info.img || data.data.info.pic || '').replace(/^http:/, 'https:'),
+          trackCount: data.data.info.songcount || data.data.info.count || data.data.info.song_count || 0,
+        }
+      });
+    } else {
+      // Fallback: try mobile API
+      const mUrl = `https://m.kugou.com/api/v3/special/songList?specialid=${encodeURIComponent(id)}`;
+      const mData = await proxyRequestAsync(mUrl, {
+        referer: 'https://m.kugou.com/',
+        headers: { 'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15' }
+      });
+      if (mData && mData.status === 1 && mData.data && mData.data.info) {
+        res.json({
+          code: 0,
+          data: {
+            id,
+            name: mData.data.info.specialname || mData.data.info.name || '酷狗歌单',
+            coverUrl: (mData.data.info.imgurl || mData.data.info.img || '').replace(/^http:/, 'https:'),
+            trackCount: mData.data.info.songcount || mData.data.info.count || 0,
+          }
+        });
+      } else {
+        res.json({ code: -1, error: 'Failed to fetch kugou playlist' });
+      }
+    }
+  } catch (e) {
+    console.error('[Kugou Playlist] Error:', e.message);
+    res.json({ code: -1, error: e.message });
+  }
+});
 
-    const track = data.seo_track && data.seo_track.track ? data.seo_track.track : {};
+// ── Kuwo 歌单详情 ──
+app.get('/api/kuwo/playlist/detail', async (req, res) => {
+  const { id } = req.query;
+  if (!id) return res.json({ code: -1, error: 'Missing id' });
+  try {
+    const url = `http://www.kuwo.cn/api/www/playlist/playListInfo?pid=${encodeURIComponent(id)}&pn=1&rn=1&httpsStatus=1`;
+    const data = await proxyRequestAsync(url, {
+      referer: 'http://www.kuwo.cn/',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15',
+        'csrf': '0',
+        'Cookie': 'kw_token=0',
+      }
+    });
+    if (data && data.code === 200 && data.data) {
+      res.json({
+        code: 0,
+        data: {
+          id,
+          name: data.data.name || data.data.title || '酷我歌单',
+          coverUrl: (data.data.img || data.data.pic || '').replace(/^http:/, 'https:'),
+          trackCount: data.data.total || data.data.musicListCount || 0,
+        }
+      });
+    } else {
+      res.json({ code: -1, error: 'Failed to fetch kuwo playlist' });
+    }
+  } catch (e) {
+    console.error('[Kuwo Playlist] Error:', e.message);
+    res.json({ code: -1, error: e.message });
+  }
+});
 
+// ── Migu 歌单详情 ──
+app.get('/api/migu/playlist/detail', async (req, res) => {
+  const { id } = req.query;
+  if (!id) return res.json({ code: -1, error: 'Missing id' });
+  try {
+    const url = `https://music.migu.cn/v3/api/music/audio/playlist?playlistId=${encodeURIComponent(id)}`;
+    const data = await proxyRequestAsync(url, {
+      referer: 'https://music.migu.cn/',
+      headers: { 'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15' }
+    });
+    if (data && data.code === '000000' && data.data) {
+      res.json({
+        code: 0,
+        data: {
+          id,
+          name: data.data.playlistName || data.data.name || '咪咕歌单',
+          coverUrl: (data.data.coverUrl || data.data.imageUrl || data.data.pic || '').replace(/^http:/, 'https:'),
+          trackCount: data.data.musicNum || data.data.trackCount || 0,
+        }
+      });
+    } else {
+      res.json({ code: -1, error: 'Failed to fetch migu playlist' });
+    }
+  } catch (e) {
+    console.error('[Migu Playlist] Error:', e.message);
+    res.json({ code: -1, error: e.message });
+  }
+});
+
+
+
+// ── Bilibili b23.tv 短链解析 ──
+app.get('/api/bilibili/resolve-short', async (req, res) => {
+  const { code } = req.query;
+  if (!code) return res.json({ code: -1, error: 'Missing code' });
+  try {
+    const shortUrl = `https://b23.tv/${encodeURIComponent(code)}`;
+    const result = await proxyRequestAsync(shortUrl, {
+      referer: 'https://www.bilibili.com/',
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
+
+    });
+    // Try to extract BV from redirected URL or response
+    // result is now a string (HTML) thanks to proxyRequestAsync fix
+    const resultStr = String(result || '');
+    const bvMatch = resultStr.match(/(BV[A-Za-z0-9]+)/);
+    if (bvMatch) {
+      return res.json({ code: 0, data: { id: bvMatch[1], name: 'B站合集', coverUrl: '', trackCount: 0 } });
+    }
+    res.json({ code: -1, error: 'Could not resolve b23.tv link' });
+  } catch (e) {
+    res.json({ code: -1, error: e.message });
+  }
+});
+
+// ── Bilibili 合集详情 ──
+app.get('/api/bilibili/playlist/detail', async (req, res) => {
+  const { id } = req.query;
+  if (!id) return res.json({ code: -1, error: 'Missing id' });
+  try {
+    // BV号格式: BVxxxxx, bangumi: ss/ep + 数字
+    const url = `https://api.bilibili.com/x/web-interface/view?bvid=${encodeURIComponent(id)}`;
+    const data = await proxyRequestAsync(url, {
+      referer: 'https://www.bilibili.com/',
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }
+    });
+    if (data && data.code === 0 && data.data) {
+      const v = data.data;
+      res.json({
+        code: 0,
+        data: {
+          id,
+          name: (v.ugc_season && v.ugc_season.title) || v.title || 'B站合集',
+          coverUrl: (v.pic || '').replace(/^http:/, 'https:'),
+          trackCount: v.videos || 1,
+        }
+      });
+    } else {
+      res.json({ code: -1, error: 'Failed to fetch bilibili video' });
+    }
+  } catch (e) {
+    console.error('[Bilibili Playlist] Error:', e.message);
+    res.json({ code: -1, error: e.message });
+  }
+});
+
+// ── 5Sing 歌单详情 ──
+app.get('/api/fivesing/playlist/detail', async (req, res) => {
+  const { id } = req.query;
+  if (!id) return res.json({ code: -1, error: 'Missing id' });
+  try {
+    const url = `https://5sing.kugou.com/subject/dj/${encodeURIComponent(id)}`;
+    const data = await proxyRequestAsync(url, {
+      referer: 'https://5sing.kugou.com/',
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }
+    });
+    // 5Sing returns HTML page — try to extract title from meta tags
+    const titleMatch = (typeof data === 'string' ? data : JSON.stringify(data)).match(/<meta[^>]*name="description"[^>]*content="([^"]*)"/);
+    const name = titleMatch ? titleMatch[1].split('，')[0] : '5Sing歌单';
     res.json({
       code: 0,
       data: {
-        id: track.id || id,
-        name: track.name || '',
-        artists: (track.artists || []).map((a) => ({ name: a.name || '' })),
-        album: track.album ? { name: track.album.name || '' } : {},
-        duration: track.duration || 0,
-        playUrl: playUrl,
-        lyric: lrc,
-        url_player_info: tp.url_player_info || null,
-      },
+        id,
+        name,
+        coverUrl: '',
+        trackCount: 0,
+      }
     });
   } catch (e) {
-    res.json({ code: -1, error: e.message });
+    // Fallback with basic info
+    res.json({ code: 0, data: { id, name: '5Sing歌单', coverUrl: '', trackCount: 0 } });
   }
 });
 
-// 歌词（LRC 格式返回）
-app.get('/api/qishui/lyric', async (req, res) => {
+// ── 千千音乐 歌单详情 ──
+app.get('/api/qianqian/playlist/detail', async (req, res) => {
   const { id } = req.query;
-  if (!id) return res.json({ code: -1, error: 'Missing track id' });
-  const url = 'https://beta-luna.douyin.com/luna/h5/seo_track?track_id=' + id + '&device_platform=web';
+  if (!id) return res.json({ code: -1, error: 'Missing id' });
   try {
+    const url = `https://music.91q.com/v1/songlist/info?songlistId=${encodeURIComponent(id)}`;
     const data = await proxyRequestAsync(url, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36' },
-      referer: 'https://www.qishui.com/',
+      referer: 'https://music.91q.com/',
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }
     });
-    const raw = data && data.lyric && data.lyric.content ? data.lyric.content : '';
-    const lrc = krcToLrc(raw);
-    res.json({ code: 0, data: { lyric: lrc } });
-  } catch (e) {
-    res.json({ code: -1, error: e.message });
-  }
-});
-
-// 播放 URL
-app.get('/api/qishui/song/url', async (req, res) => {
-  const { id } = req.query;
-  if (!id) return res.json({ code: -1, error: 'Missing track id' });
-  const url = 'https://beta-luna.douyin.com/luna/h5/seo_track?track_id=' + id + '&device_platform=web';
-  try {
-    const data = await proxyRequestAsync(url, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36' },
-      referer: 'https://www.qishui.com/',
-    });
-    if (!data) return res.json({ code: -1, error: 'Failed to fetch' });
-
-    let playUrl = null;
-    const tp = data.track_player || {};
-    if (tp.video_model) {
-      try {
-        const vm = typeof tp.video_model === 'string' ? JSON.parse(tp.video_model) : tp.video_model;
-        const vl = vm.video_list || [];
-        if (vl.length > 0) playUrl = vl[0].main_url || vl[0].backup_url || null;
-      } catch (e) { /* ignore */ }
+    if (data && data.data) {
+      res.json({
+        code: 0,
+        data: {
+          id,
+          name: data.data.title || data.data.name || '千千歌单',
+          coverUrl: (data.data.pic || data.data.cover || '').replace(/^http:/, 'https:'),
+          trackCount: data.data.songCount || data.data.trackCount || 0,
+        }
+      });
+    } else {
+      res.json({ code: 0, data: { id, name: '千千歌单', coverUrl: '', trackCount: 0 } });
     }
-
-    res.json({ code: 0, data: { url: playUrl, url_player_info: tp.url_player_info || null } });
   } catch (e) {
-    res.json({ code: -1, error: e.message });
+    console.error('[Qianqian Playlist] Error:', e.message);
+    res.json({ code: 0, data: { id, name: '千千歌单', coverUrl: '', trackCount: 0 } });
   }
 });
 
-// 用户详情（需要登录 Cookie）
-// 注意：douyin passport API 会检测非浏览器请求为"非法应用"
-// 用户信息获取改为由 Electron 渲染进程通过 session 直接获取
-app.get('/api/qishui/user/detail', (req, res) => {
-  const cookie = req.headers['x-cookie'] || persistentCookies.qishui || '';
-  if (!cookie) return res.json({ code: -1, error: 'Not logged in' });
-  // 服务端无法直接访问 douyin passport（会触发"非法应用"检测）
-  // 返回 cookie 信息，由前端通过 IPC 获取用户详情
-  res.json({ code: 0, data: { cookie, note: 'User detail must be fetched from Electron renderer via session' } });
+// ── JOOX 歌单详情 ──
+app.get('/api/joox/playlist/detail', async (req, res) => {
+  const { id } = req.query;
+  if (!id) return res.json({ code: -1, error: 'Missing id' });
+  try {
+    const url = `https://api-jooxtt.sanook.com/openjoox/v3/playlist/get_item?playlistid=${encodeURIComponent(id)}`;
+    const data = await proxyRequestAsync(url, {
+      referer: 'https://www.joox.com/',
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }
+    });
+    if (data && data.items) {
+      res.json({
+        code: 0,
+        data: {
+          id,
+          name: data.title || data.name || 'JOOX歌单',
+          coverUrl: (data.image || data.cover || '').replace(/^http:/, 'https:'),
+          trackCount: (data.items && data.items.length) || 0,
+        }
+      });
+    } else {
+      res.json({ code: 0, data: { id, name: 'JOOX歌单', coverUrl: '', trackCount: 0 } });
+    }
+  } catch (e) {
+    res.json({ code: 0, data: { id, name: 'JOOX歌单', coverUrl: '', trackCount: 0 } });
+  }
 });
 
-// 用户歌单（需要登录 Cookie — 端点待验证）
-app.get('/api/qishui/user/playlist', (req, res) => {
-  const cookie = req.headers['x-cookie'] || persistentCookies.qishui || '';
-  if (!cookie) return res.json({ code: -1, error: 'Not logged in' });
-  // 汽水音乐歌单 API（需登录后验证）
-  const params = new URLSearchParams({
-    aid: '386088',
-    app_name: 'luna_pc',
-    region: 'cn',
-    device_platform: 'windows',
-    version_name: '3.0.0',
-    version_code: '30000000',
-    channel: 'official',
-    ac: 'wifi',
-    tz_name: 'Asia/Shanghai',
-  });
-  const url = 'https://api.qishui.com/luna/pc/user/playlist?' + params.toString();
-  proxyRequest(url, res, {
-    cookie,
-    headers: { ...QISHUI_SEARCH_HEADERS, Cookie: cookie },
-    referer: 'https://www.qishui.com/',
-    platform: 'qishui',
-  });
+// ── Jamendo 歌单详情 ──
+app.get('/api/jamendo/playlist/detail', async (req, res) => {
+  const { id } = req.query;
+  if (!id) return res.json({ code: -1, error: 'Missing id' });
+  try {
+    const url = `https://api.jamendo.com/v3.0/playlists/tracks/?client_id=560bba20&format=json&id=${encodeURIComponent(id)}`;
+    const data = await proxyRequestAsync(url, {
+      referer: 'https://www.jamendo.com/',
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }
+    });
+    if (data && data.results && data.results.length > 0) {
+      const pl = data.results[0];
+      res.json({
+        code: 0,
+        data: {
+          id,
+          name: pl.name || 'Jamendo歌单',
+          coverUrl: (pl.image || '').replace(/^http:/, 'https:'),
+          trackCount: pl.tracks_count || 0,
+        }
+      });
+    } else {
+      res.json({ code: 0, data: { id, name: 'Jamendo歌单', coverUrl: '', trackCount: 0 } });
+    }
+  } catch (e) {
+    res.json({ code: 0, data: { id, name: 'Jamendo歌单', coverUrl: '', trackCount: 0 } });
+  }
+});
+
+// ── Apple Music 歌单详情 ──
+app.get('/api/apple/playlist/detail', async (req, res) => {
+  const { id } = req.query;
+  if (!id) return res.json({ code: -1, error: 'Missing id' });
+  try {
+    const url = `https://api.music.apple.com/v1/catalog/cn/playlists/${encodeURIComponent(id)}`;
+    const data = await proxyRequestAsync(url, {
+      referer: 'https://music.apple.com/',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Origin': 'https://music.apple.com',
+        // Note: Apple Music requires a valid developer JWT token for full API access
+      }
+    });
+    if (data && data.data && data.data.length > 0) {
+      const pl = data.data[0];
+      res.json({
+        code: 0,
+        data: {
+          id,
+          name: pl.attributes && pl.attributes.name || 'Apple Music歌单',
+          coverUrl: (pl.attributes && pl.attributes.artwork ? pl.attributes.artwork.url.replace('{w}', '300').replace('{h}', '300') : '').replace(/^http:/, 'https:'),
+          trackCount: 0,
+        }
+      });
+    } else {
+      res.json({ code: 0, data: { id, name: 'Apple Music歌单', coverUrl: '', trackCount: 0 } });
+    }
+  } catch (e) {
+    res.json({ code: 0, data: { id, name: 'Apple Music歌单', coverUrl: '', trackCount: 0 } });
+  }
 });
 
 // ── Cover image proxy (avoids CORS tainting for particle cover pixel reading) ──
+const coverAgent = new (require('https').Agent)({ keepAlive: true, maxSockets: 10, timeout: 10000 });
+const coverHttpAgent = new (require('http').Agent)({ keepAlive: true, maxSockets: 10, timeout: 10000 });
+
 app.get('/api/cover-proxy', (req, res) => {
   const targetUrl = req.query.url;
   if (!targetUrl || !/^https?:\/\//.test(targetUrl)) {
@@ -735,6 +910,7 @@ app.get('/api/cover-proxy', (req, res) => {
 
   const parsed = new URL(targetUrl);
   const transport = parsed.protocol === 'https:' ? https : http;
+  const agent = parsed.protocol === 'https:' ? coverAgent : coverHttpAgent;
 
   const proxyReq = transport.request({
     hostname: parsed.hostname,
@@ -745,6 +921,7 @@ app.get('/api/cover-proxy', (req, res) => {
       'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
       'Referer': parsed.protocol + '//' + parsed.hostname + '/',
     },
+    agent,
   }, (proxyRes) => {
     // Forward CORS headers so canvas can read pixel data
     res.set({

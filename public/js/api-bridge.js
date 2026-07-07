@@ -325,11 +325,26 @@ function _makeNeteaseUser(profile) {
       ApiBridge.qishuiUser = { avatarUrl: '', nickname: '汽水用户', vipType: 0, followers: 0, followings: 0, playlistCount: 0 };
     }
     try {
-      const data = await fetchApi('/api/qishui/user/detail', {}, 'qishui');
-      if (data && data.code === 0 && data.data) {
-        const d = data.data;
-        if (d.nickname) ApiBridge.qishuiUser.nickname = d.nickname;
-        if (d.avatarUrl) ApiBridge.qishuiUser.avatarUrl = d.avatarUrl;
+      // Use Electron IPC when available (bypasses douyin anti-bot)
+      if (window.fluidmusic && window.fluidmusic.qishuiApi) {
+        const result = await window.fluidmusic.qishuiApi('user/detail');
+        _apilog('[QishuiUser] IPC result:', result);
+        if (result && result.code === 0 && result.data) {
+          const d = result.data;
+          // douyin passport response: { data: { nickname, avatar_url, ... } }
+          if (d.nickname || d.nick_name) ApiBridge.qishuiUser.nickname = d.nickname || d.nick_name;
+          if (d.avatarUrl || d.avatar_url || d.avatar_medium) ApiBridge.qishuiUser.avatarUrl = d.avatarUrl || d.avatar_url || d.avatar_medium;
+          if (d.follower_count !== undefined) ApiBridge.qishuiUser.followers = d.follower_count;
+          if (d.following_count !== undefined) ApiBridge.qishuiUser.followings = d.following_count;
+        }
+      } else {
+        // Fallback: server proxy (limited — douyin will block)
+        const data = await fetchApi('/api/qishui/user/detail', {}, 'qishui');
+        if (data && data.code === 0 && data.data) {
+          const d = data.data;
+          if (d.nickname) ApiBridge.qishuiUser.nickname = d.nickname;
+          if (d.avatarUrl) ApiBridge.qishuiUser.avatarUrl = d.avatarUrl;
+        }
       }
       return ApiBridge.qishuiUser;
     } catch (e) {
@@ -380,9 +395,28 @@ function _makeNeteaseUser(profile) {
 
     if (ApiBridge.qishuiLoggedIn) {
       try {
-        const data = await fetchApi('/api/qishui/user/playlist', {}, 'qishui');
-        if (data && data.code === 0 && data.data && Array.isArray(data.data.disslist)) {
+        // Use Electron IPC when available
+        let data;
+        if (window.fluidmusic && window.fluidmusic.qishuiApi) {
+          const result = await window.fluidmusic.qishuiApi('user/playlist');
+          _apilog('[QishuiPlaylist] IPC result:', result ? result.code : 'null');
+          if (result && result.code === 0 && result.data) {
+            data = result.data;
+          }
+        } else {
+          data = await fetchApi('/api/qishui/user/playlist', {}, 'qishui');
+        }
+        // Luna PC playlist response: { data: { disslist: [...] } }
+        if (data && data.data && Array.isArray(data.data.disslist)) {
           playlists.qishui = data.data.disslist.map((pl) => ({
+            id: pl.dissid || pl.tid || String(pl.id || ''),
+            name: pl.diss_name || pl.name || pl.title || pl.dirname || '',
+            coverUrl: (pl.diss_cover || pl.logo || pl.picurl || pl.cover || '').replace(/^http:/, 'https:'),
+            trackCount: pl.song_cnt || pl.songnum || pl.song_count || 0,
+            platform: 'qishui',
+          }));
+        } else if (data && Array.isArray(data.disslist)) {
+          playlists.qishui = data.disslist.map((pl) => ({
             id: pl.dissid || pl.tid || String(pl.id || ''),
             name: pl.diss_name || pl.name || pl.title || pl.dirname || '',
             coverUrl: (pl.diss_cover || pl.logo || pl.picurl || pl.cover || '').replace(/^http:/, 'https:'),
@@ -395,6 +429,21 @@ function _makeNeteaseUser(profile) {
       }
     }
 
+
+    // Merge imported playlists marked as synced (from import tab)
+    try {
+      const synced = JSON.parse(localStorage.getItem('fluidmusic_synced_playlists') || '{}');
+      const imported = JSON.parse(localStorage.getItem('fluidmusic_imported_playlists') || '{}');
+      for (const [key, pl] of Object.entries(imported)) {
+        const platform = pl.platform;
+        if (synced[platform] && synced[platform][pl.id]) {
+          if (!playlists[platform]) playlists[platform] = [];
+          if (!playlists[platform].find(p => String(p.id) === String(pl.id))) {
+            playlists[platform].push({ ...pl, _imported: true });
+          }
+        }
+      }
+    } catch(e) { /* ignore parse errors */ }
     return playlists;
   }
 
@@ -431,16 +480,292 @@ function _makeNeteaseUser(profile) {
 
   // ── Qishui API ──
   async function searchQishui(keywords, limit = 20) {
+    if (window.fluidmusic && window.fluidmusic.qishuiApi) {
+      const result = await window.fluidmusic.qishuiApi('search', { keywords, limit });
+      if (result && result.code === 0) return result.data;
+      return null;
+    }
     return fetchApi('/api/qishui/search', { keywords, limit }, 'qishui');
   }
   async function getQishuiTrackDetail(id) {
+    if (window.fluidmusic && window.fluidmusic.qishuiApi) {
+      const result = await window.fluidmusic.qishuiApi('track/detail', { id });
+      if (result && result.code === 0) return { code: 0, data: result.data };
+      return result;
+    }
     return fetchApi('/api/qishui/track/detail', { id }, 'qishui');
   }
   async function getQishuiSongUrl(id) {
+    if (window.fluidmusic && window.fluidmusic.qishuiApi) {
+      const result = await window.fluidmusic.qishuiApi('song/url', { id });
+      if (result && result.code === 0) return { code: 0, data: result.data };
+      return result;
+    }
     return fetchApi('/api/qishui/song/url', { id }, 'qishui');
   }
   async function getQishuiLyric(id) {
+    if (window.fluidmusic && window.fluidmusic.qishuiApi) {
+      const result = await window.fluidmusic.qishuiApi('lyric', { id });
+      if (result && result.code === 0) return { code: 0, data: result.data };
+      return result;
+    }
     return fetchApi('/api/qishui/lyric', { id }, 'qishui');
+  }
+
+  // ── 导入歌单（通过分享链接）──
+  function parsePlaylistUrl(url) {
+    if (!url) return null;
+    const raw = String(url).trim();
+    if (!raw) return null;
+
+    // Auto-extract URL from mixed text (e.g. "歌单｜… https://qishui.douyin.com/s/xxx/ [@xx]")
+    const urlMatch = raw.match(/https?:\/\/[^\s<>"'\])]*/);
+    const u = urlMatch ? urlMatch[0] : raw;
+
+    // ── Netease ──
+    let m = u.match(/music\.163\.com.*playlist[?&\/]id=(\d+)/);
+    if (m) return { platform: 'netease', id: m[1] };
+    m = u.match(/music\.163\.com\/playlist\/(\d+)/);
+    if (m) return { platform: 'netease', id: m[1] };
+
+    // ── QQ ──
+    m = u.match(/y\.qq\.com\/n\/(?:ryqq|yqq)\/playlist\/(\d+)/);
+    if (m) return { platform: 'qq', id: m[1] };
+    m = u.match(/y\.qq\.com\/n\/(?:ryqq|yqq)\/playsquare\/(\d+)/);
+    if (m) return { platform: 'qq', id: m[1] };
+    m = u.match(/y\.qq\.com.*taoge.*[?&]id=(\d+)/);
+    if (m) return { platform: 'qq', id: m[1] };
+    m = u.match(/y\.qq\.com.*(?:playlist|taoge).*[?&]id=(\d+)/);
+    if (m) return { platform: 'qq', id: m[1] };
+
+    // ── Qishui ──
+    m = u.match(/qishui\..*\/(?:playlist|album|music\/playlist)\/(\d+)/);
+    if (m) return { platform: 'qishui', id: m[1] };
+    m = u.match(/qishui\..*\/s\/([A-Za-z0-9]+)/);
+    if (m) return { platform: 'qishui', id: m[1], _short: true };
+    // music.douyin.com share: /qishui/share/playlist?playlist_id=xxx
+    m = u.match(/douyin\.com.*playlist_id=(\d+)/);
+    if (m) return { platform: 'qishui', id: m[1] };
+    // Douyin share: camelCase playlistId=
+    m = u.match(/douyin\.com.*playlistId=(\d+)/);
+    if (m) return { platform: 'qishui', id: m[1] };
+
+    // ── Kugou ──
+    // https://www.kugou.com/yy/special/single/xxxxx.html (MOST COMMON)
+    m = u.match(/kugou\.com\/yy\/special\/single\/(\d+)/);
+    if (m) return { platform: 'kugou', id: m[1] };
+    // https://www.kugou.com/mixsong/xxxxx.html
+    m = u.match(/kugou\.com\/mixsong\/([A-Za-z0-9]+)/);
+    if (m) return { platform: 'kugou', id: m[1] };
+    // https://www.kugou.com/songlist/xxxxx or /share/xxxxx.html
+    m = u.match(/kugou\.com\/(?:songlist|share)\/([A-Za-z0-9]+)/);
+    if (m) return { platform: 'kugou', id: m[1] };
+    // Kugou short link: t.kugou.com/xxxxx or t3.kugou.com/xxxxx
+    m = u.match(/t\d*\.kugou\.com\/([A-Za-z0-9]+)/);
+    if (m) return { platform: 'kugou', id: m[1], _short: true };
+
+    // ── Bilibili ──
+    // https://www.bilibili.com/video/BVxxxxx or b23.tv/xxxxx
+    m = u.match(/bilibili\.com\/video\/(BV[A-Za-z0-9]+)/);
+    if (m) return { platform: 'bilibili', id: m[1] };
+    // b23.tv short link (needs resolution) or direct BV
+    m = u.match(/b23\.tv\/([A-Za-z0-9]+)/);
+    if (m) return { platform: 'bilibili', id: m[1], _short: m[1].startsWith('BV') ? false : true };
+    m = u.match(/bilibili\.com\/bangumi\/play\/(?:ss|ep)(\d+)/);
+    if (m) return { platform: 'bilibili', id: m[1] };
+
+    // ── 5Sing ──
+    // https://5sing.kugou.com/12345678/dj/xxxxx.html
+    m = u.match(/5sing\.kugou\.com.*\/(?:dj|fc|song)\/([A-Za-z0-9]+)/);
+    if (m) return { platform: 'fivesing', id: m[1] };
+
+    // ── Qianqian (千千音乐) ──
+    // https://music.91q.com/songlist/xxx or ?songlistid=xxx
+    m = u.match(/91q\.com\/(?:songlist|tracklist|playlist)\/([A-Za-z0-9]+)/);
+    if (m) return { platform: 'qianqian', id: m[1] };
+    m = u.match(/91q\.com.*(?:songlistid|tracklistid|playlistid)=([A-Za-z0-9]+)/);
+    if (m) return { platform: 'qianqian', id: m[1] };
+
+    // ── JOOX ──
+    // https://www.joox.com/.../playlist/xxx
+    m = u.match(/joox\.com.*\/playlist\/([^/?#]+)/);
+    if (m) return { platform: 'joox', id: m[1] };
+    m = u.match(/joox\.com.*(?:playlistid|playlist_id)=([^&]+)/);
+    if (m) return { platform: 'joox', id: m[1] };
+
+    // ── Jamendo ──
+    // https://www.jamendo.com/playlist/123456
+    m = u.match(/jamendo\.com\/playlist\/(\d+)/);
+    if (m) return { platform: 'jamendo', id: m[1] };
+
+    // ── Apple Music ──
+    // https://music.apple.com/.../playlist/.../pl.xxx
+    m = u.match(/(?:music|itunes)\.apple\.com.*\/playlist\/[^/]+\/(pl\.[A-Za-z0-9._-]+)/);
+    if (m) return { platform: 'apple', id: m[1] };
+    m = u.match(/(?:music|itunes)\.apple\.com.*\/playlists?\/([A-Za-z0-9._-]+)/);
+    if (m) return { platform: 'apple', id: m[1] };
+
+    // ── Kuwo ──
+    // http://www.kuwo.cn/playlist_detail/xxxxx
+    m = u.match(/kuwo\.cn\/playlist_detail\/(\d+)/);
+    if (m) return { platform: 'kuwo', id: m[1] };
+
+    // ── Migu ──
+    // https://music.migu.cn/v3/music/playlist/xxxxx
+    m = u.match(/migu\.cn.*\/playlist\/(\d+)/);
+    if (m) return { platform: 'migu', id: m[1] };
+    // https://music.migu.cn/...?musicListId=xxx
+    m = u.match(/migu\.cn.*musicListId=(\d+)/);
+    if (m) return { platform: 'migu', id: m[1] };
+
+    return null;
+  }
+
+  async function resolveQishuiShortLink(shortCode) {
+    if (window.fluidmusic?.qishuiApi) {
+      const result = await window.fluidmusic.qishuiApi('resolve-short-link', { code: shortCode });
+      if (result?.code === 0 && result.data?.id) {
+        return { platform: 'qishui', id: result.data.id, name: result.data.name, coverUrl: result.data.coverUrl, trackCount: result.data.trackCount };
+      }
+    }
+    return null;
+  }
+
+  async function importPlaylistByUrl(url) {
+    let parsed = parsePlaylistUrl(url);
+    if (!parsed) return { ok: false, error: '无法识别链接格式，支持：网易云/QQ/汽水/酷狗/酷我/咪咕/B站/5Sing/千千/JOOX/Jamendo/Apple Music' };
+
+    // Resolve short links — qishui via IPC, bilibili via server, kugou via server proxy
+    if (parsed._short) {
+      // bilibili b23.tv short link resolution
+      // kugou short link: t.kugou.com → resolve via server redirect
+      if (parsed.platform === 'kugou') {
+        const resolvedResult = await fetchApi('/api/kugou/resolve-short', { code: parsed.id }, 'kugou');
+        if (resolvedResult?.code === 0 && resolvedResult.data?.id) {
+          const resolved = resolvedResult.data;
+          const imported = getImportedPlaylists();
+          const key = 'kugou_' + resolved.id;
+          imported[key] = { id: resolved.id, name: resolved.name || '酷狗歌单', coverUrl: resolved.coverUrl || '', trackCount: resolved.trackCount || 0, platform: 'kugou' };
+          try { localStorage.setItem('fluidmusic_imported_playlists', JSON.stringify(imported)); } catch(e) {}
+          return { ok: true, playlist: imported[key] };
+        }
+        return { ok: false, error: '无法解析酷狗短链接，请使用完整歌单链接' };
+      }
+
+      if (parsed.platform === 'bilibili') {
+        const resolvedResult = await fetchApi('/api/bilibili/resolve-short', { code: parsed.id }, 'bilibili');
+        if (resolvedResult?.code === 0 && resolvedResult.data?.id) {
+          const resolved = resolvedResult.data;
+          const imported = getImportedPlaylists();
+          const key = 'bilibili_' + resolved.id;
+          imported[key] = { id: resolved.id, name: resolved.name || 'B站合集', coverUrl: resolved.coverUrl || '', trackCount: resolved.trackCount || 0, platform: 'bilibili' };
+          try { localStorage.setItem('fluidmusic_imported_playlists', JSON.stringify(imported)); } catch(e) {}
+          return { ok: true, playlist: imported[key] };
+        }
+        return { ok: false, error: '无法解析B站短链接，请使用完整BV号链接' };
+      }
+
+      const shortCode = parsed.id;
+      const resolved = await resolveQishuiShortLink(shortCode);
+      if (resolved) {
+        const imported = getImportedPlaylists();
+        const key = 'qishui_' + resolved.id;
+        imported[key] = { id: resolved.id, name: resolved.name || '汽水歌单', coverUrl: resolved.coverUrl || '', trackCount: resolved.trackCount || 0, platform: 'qishui' };
+        try { localStorage.setItem('fluidmusic_imported_playlists', JSON.stringify(imported)); } catch(e) {}
+        return { ok: true, playlist: imported[key] };
+      }
+      return { ok: false, error: '无法解析汽水短链接（链接可能已失效），请尝试在浏览器中打开后复制完整歌单链接' };
+    }
+
+    _apilog('[Import] Parsed:', parsed.platform, parsed.id);
+
+    let meta = null;
+    if (parsed.platform === 'netease') {
+      const data = await fetchApi('/api/netease/playlist/detail', { id: parsed.id }, 'netease');
+      if (data?.playlist) {
+        meta = { id: parsed.id, name: data.playlist.name, coverUrl: (data.playlist.coverImgUrl || '').replace(/^http:/, 'https:'), trackCount: data.playlist.trackCount || 0, platform: 'netease' };
+      } else if (data?.result?.name) {
+        meta = { id: parsed.id, name: data.result.name, coverUrl: (data.result.coverImgUrl || '').replace(/^http:/, 'https:'), trackCount: data.result.trackCount || 0, platform: 'netease' };
+      }
+    } else if (parsed.platform === 'qq') {
+      const data = await fetchApi('/api/qq/playlist/detail', { id: parsed.id }, 'qq', 'GET');
+      if (data?.cdlist?.[0]) {
+        const pl = data.cdlist[0];
+        meta = { id: parsed.id, name: pl.dissname || pl.diss_name || '', coverUrl: (pl.logo || pl.diss_cover || '').replace(/^http:/, 'https:'), trackCount: pl.songnum || pl.total_song_num || 0, platform: 'qq' };
+      }
+    } else if (parsed.platform === 'qishui') {
+      // qishui playlist detail via IPC or SEO fallback
+      const qsData = await fetchApi('/api/qishui/playlist/detail', { id: parsed.id }, 'qishui');
+      if (qsData?.code === 0 && qsData.data) {
+        meta = { id: parsed.id, name: qsData.data.name || '汽水歌单', coverUrl: (qsData.data.coverUrl || '').replace(/^http:/, 'https:'), trackCount: qsData.data.trackCount || 0, platform: 'qishui' };
+      }
+    } else if (parsed.platform === 'kugou') {
+      const data = await fetchApi('/api/kugou/playlist/detail', { id: parsed.id }, 'kugou');
+      if (data?.code === 0 && data.data) {
+        meta = { id: parsed.id, name: data.data.name || '酷狗歌单', coverUrl: (data.data.coverUrl || '').replace(/^http:/, 'https:'), trackCount: data.data.trackCount || 0, platform: 'kugou' };
+      }
+    } else if (parsed.platform === 'kuwo') {
+      const data = await fetchApi('/api/kuwo/playlist/detail', { id: parsed.id }, 'kuwo');
+      if (data?.code === 0 && data.data) {
+        meta = { id: parsed.id, name: data.data.name || '酷我歌单', coverUrl: (data.data.coverUrl || '').replace(/^http:/, 'https:'), trackCount: data.data.trackCount || 0, platform: 'kuwo' };
+      }
+    } else if (parsed.platform === 'migu') {
+      const data = await fetchApi('/api/migu/playlist/detail', { id: parsed.id }, 'migu');
+      if (data?.code === 0 && data.data) {
+        meta = { id: parsed.id, name: data.data.name || '咪咕歌单', coverUrl: (data.data.coverUrl || '').replace(/^http:/, 'https:'), trackCount: data.data.trackCount || 0, platform: 'migu' };
+      }
+    } else if (parsed.platform === 'bilibili') {
+      const data = await fetchApi('/api/bilibili/playlist/detail', { id: parsed.id }, 'bilibili');
+      if (data?.code === 0 && data.data) {
+        meta = { id: parsed.id, name: data.data.name || 'B站合集', coverUrl: (data.data.coverUrl || '').replace(/^http:/, 'https:'), trackCount: data.data.trackCount || 0, platform: 'bilibili' };
+      }
+    } else if (parsed.platform === 'fivesing') {
+      const data = await fetchApi('/api/fivesing/playlist/detail', { id: parsed.id }, 'fivesing');
+      if (data?.code === 0 && data.data) {
+        meta = { id: parsed.id, name: data.data.name || '5Sing歌单', coverUrl: (data.data.coverUrl || '').replace(/^http:/, 'https:'), trackCount: data.data.trackCount || 0, platform: 'fivesing' };
+      }
+    } else if (parsed.platform === 'qianqian') {
+      const data = await fetchApi('/api/qianqian/playlist/detail', { id: parsed.id }, 'qianqian');
+      if (data?.code === 0 && data.data) {
+        meta = { id: parsed.id, name: data.data.name || '千千歌单', coverUrl: (data.data.coverUrl || '').replace(/^http:/, 'https:'), trackCount: data.data.trackCount || 0, platform: 'qianqian' };
+      }
+    } else if (parsed.platform === 'joox') {
+      const data = await fetchApi('/api/joox/playlist/detail', { id: parsed.id }, 'joox');
+      if (data?.code === 0 && data.data) {
+        meta = { id: parsed.id, name: data.data.name || 'JOOX歌单', coverUrl: (data.data.coverUrl || '').replace(/^http:/, 'https:'), trackCount: data.data.trackCount || 0, platform: 'joox' };
+      }
+    } else if (parsed.platform === 'jamendo') {
+      const data = await fetchApi('/api/jamendo/playlist/detail', { id: parsed.id }, 'jamendo');
+      if (data?.code === 0 && data.data) {
+        meta = { id: parsed.id, name: data.data.name || 'Jamendo歌单', coverUrl: (data.data.coverUrl || '').replace(/^http:/, 'https:'), trackCount: data.data.trackCount || 0, platform: 'jamendo' };
+      }
+    } else if (parsed.platform === 'apple') {
+      const data = await fetchApi('/api/apple/playlist/detail', { id: parsed.id }, 'apple');
+      if (data?.code === 0 && data.data) {
+        meta = { id: parsed.id, name: data.data.name || 'Apple Music歌单', coverUrl: (data.data.coverUrl || '').replace(/^http:/, 'https:'), trackCount: data.data.trackCount || 0, platform: 'apple' };
+      }
+    }
+
+    if (!meta) return { ok: false, error: '获取歌单信息失败，请确认链接有效' };
+
+    // Save to localStorage
+    const imported = getImportedPlaylists();
+    const key = meta.platform + '_' + meta.id;
+    imported[key] = meta;
+    try { localStorage.setItem('fluidmusic_imported_playlists', JSON.stringify(imported)); } catch(e) {}
+
+    return { ok: true, playlist: meta };
+  }
+
+  function getImportedPlaylists() {
+    try { return JSON.parse(localStorage.getItem('fluidmusic_imported_playlists') || '{}'); }
+    catch(e) { return {}; }
+  }
+
+  function removeImportedPlaylist(platform, id) {
+    const imported = getImportedPlaylists();
+    delete imported[platform + '_' + id];
+    try { localStorage.setItem('fluidmusic_imported_playlists', JSON.stringify(imported)); } catch(e) {}
   }
 
   // ── Exports ──
@@ -467,6 +792,10 @@ function _makeNeteaseUser(profile) {
   ApiBridge.getQishuiTrackDetail = getQishuiTrackDetail;
   ApiBridge.getQishuiSongUrl = getQishuiSongUrl;
   ApiBridge.getQishuiLyric = getQishuiLyric;
+  ApiBridge.parsePlaylistUrl = parsePlaylistUrl;
+  ApiBridge.importPlaylistByUrl = importPlaylistByUrl;
+  ApiBridge.getImportedPlaylists = getImportedPlaylists;
+  ApiBridge.removeImportedPlaylist = removeImportedPlaylist;
 
   if (typeof __FM !== 'undefined') __FM.register('apiBridge', [], function () { return ApiBridge; }, { priority: 5 });
   window.ApiBridge = ApiBridge;

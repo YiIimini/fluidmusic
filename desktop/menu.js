@@ -34,6 +34,21 @@ function createApplicationMenu(mainWindow) {
       ]
     }] : []),
 
+
+    // Edit menu — required for Cmd+C/V/X/A/Z shortcuts to work
+    {
+      label: '编辑',
+      submenu: [
+        { label: '撤销', accelerator: 'Cmd+Z', role: 'undo' },
+        { label: '重做', accelerator: 'Cmd+Shift+Z', role: 'redo' },
+        { type: 'separator' },
+        { label: '剪切', accelerator: 'Cmd+X', role: 'cut' },
+        { label: '复制', accelerator: 'Cmd+C', role: 'copy' },
+        { label: '粘贴', accelerator: 'Cmd+V', role: 'paste' },
+        { label: '全选', accelerator: 'Cmd+A', role: 'selectAll' },
+      ]
+    },
+
     // Playback menu
     {
       label: '播放',

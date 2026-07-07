@@ -507,13 +507,15 @@ export class ApiBridge {
 
     if (this.isQishuiLoggedIn) {
       try {
-        const data = await this.fetchApi(
-          '/api/qishui/user/playlist',
-          {},
-          'qishui'
-        ) as any;
-        if (data?.code === 0 && data?.data?.disslist) {
-          playlists.qishui = data.data.disslist.map(
+        const ipcResult = await this.qishuiIPC('user/playlist');
+        let data: any = ipcResult?.data;
+        // Fallback to server proxy if IPC not available
+        if (!data) {
+          data = await this.fetchApi('/api/qishui/user/playlist', {}, 'qishui') as any;
+        }
+        const items = data?.data?.disslist ?? data?.disslist;
+        if (items && Array.isArray(items)) {
+          playlists.qishui = items.map(
             (pl: any): Playlist => ({
               id: String(pl.dissid ?? pl.tid ?? pl.id ?? ''),
               name: pl.diss_name ?? pl.name ?? pl.title ?? pl.dirname ?? '',
@@ -842,6 +844,17 @@ export class ApiBridge {
   // Qishui / Luna Platform Methods
   // ============================================================
 
+  // Qishui IPC helper — calls through Electron session to bypass douyin anti-bot
+  private async qishuiIPC(endpoint: string, params?: Record<string, unknown>): Promise<{ code: number; data?: unknown } | null> {
+    try {
+      const win = (window as any).fluidmusic;
+      if (win?.qishuiApi) {
+        return await win.qishuiApi(endpoint, params || {});
+      }
+    } catch (e) { /* not in Electron */ }
+    return null;
+  }
+
   private async fetchQishuiUserDetail(): Promise<UserProfile | null> {
     try {
       // 汽水音乐用户信息需要通过 Electron session 获取（douyin passport 会检测服务端请求为"非法应用"）
@@ -856,20 +869,19 @@ export class ApiBridge {
         if (idx > 0) cookieObj[part.slice(0, idx).trim()] = part.slice(idx + 1).trim();
       });
 
-      // 先用服务端 API 尝试获取
-      const data = await this.fetchApi('/api/qishui/user/detail', {}, 'qishui') as any;
-      if (data?.code === 0 && data?.data) {
-        const d = data.data;
-        // 如果有从 cookie 提取的数据则优先使用
+      // 通过 Electron IPC 获取用户信息（绕过 douyin 服务端反爬）
+      const ipcResult = await this.qishuiIPC('user/detail');
+      if (ipcResult?.code === 0 && ipcResult.data) {
+        const d = ipcResult.data as any;
         const uid = cookieObj.uid_tt || cookieObj.sso_uid_tt || '';
         this.qishuiProfile = {
           userId: String(d.userId ?? d.uid ?? uid),
-          nickname: d.nickname ?? d.nick ?? '汽水用户',
-          avatarUrl: (d.avatarUrl ?? d.avatar ?? d.headpic ?? '').replace(/^http:/, 'https:'),
+          nickname: d.nickname ?? d.nick_name ?? d.nick ?? '汽水用户',
+          avatarUrl: (d.avatarUrl ?? d.avatar_url ?? d.avatar_medium ?? d.headpic ?? '').replace(/^http:/, 'https:'),
           platform: 'qishui',
           vipType: 0,
-          followCount: d.followCount ?? d.followings ?? 0,
-          fanCount: d.fanCount ?? d.followers ?? 0,
+          followCount: d.followCount ?? d.following_count ?? d.followings ?? 0,
+          fanCount: d.fanCount ?? d.follower_count ?? d.followers ?? 0,
           playlistCount: d.playlistCount ?? d.dissnum ?? 0,
         };
         this.store.setUser('qishui', this.qishuiProfile);
@@ -895,18 +907,26 @@ export class ApiBridge {
   }
 
   async searchQishui(keywords: string, limit: number = 20): Promise<unknown> {
+    const ipc = await this.qishuiIPC('search', { keywords, limit });
+    if (ipc?.code === 0) return ipc.data;
     return this.fetchApi('/api/qishui/search', { keywords, limit }, 'qishui');
   }
 
   async getQishuiTrackDetail(id: string | number): Promise<unknown> {
+    const ipc = await this.qishuiIPC('track/detail', { id });
+    if (ipc?.code === 0) return { code: 0, data: ipc.data };
     return this.fetchApi('/api/qishui/track/detail', { id }, 'qishui');
   }
 
   async getQishuiLyric(id: string | number): Promise<unknown> {
+    const ipc = await this.qishuiIPC('lyric', { id });
+    if (ipc?.code === 0) return { code: 0, data: ipc.data };
     return this.fetchApi('/api/qishui/lyric', { id }, 'qishui');
   }
 
   async getQishuiSongUrl(id: string | number): Promise<unknown> {
+    const ipc = await this.qishuiIPC('song/url', { id });
+    if (ipc?.code === 0) return { code: 0, data: ipc.data };
     return this.fetchApi('/api/qishui/song/url', { id }, 'qishui');
   }
 

@@ -157,6 +157,7 @@
       const coverUrl = track.coverUrl || track.cover || '';
       if (fallbackImg) {
         if (coverUrl && String(coverUrl).startsWith('http')) {
+          fallbackImg.onerror = function () { this.src = 'assets/FluidMusic.png'; };
           fallbackImg.src = coverUrl;
         } else {
           fallbackImg.src = 'assets/FluidMusic.png';

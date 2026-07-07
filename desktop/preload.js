@@ -31,6 +31,9 @@ contextBridge.exposeInMainWorld('fluidmusic', {
   getLoginStatus: () => ipcRenderer.invoke('fluidmusic-get-login-status'),
   getCookies: () => ipcRenderer.invoke('fluidmusic-get-cookies'),
 
+  // Qishui API — calls through Electron session (bypasses douyin anti-bot)
+  qishuiApi: (endpoint, params) => ipcRenderer.invoke('fluidmusic-qishui-api', { endpoint, params }),
+
   // Login state change events (pushed by main process after login/logout)
   onLoginStateChanged: (callback) => {
     if (typeof callback !== 'function') return () => {};

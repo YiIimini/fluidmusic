@@ -54,7 +54,7 @@ const NETEASE_LOGIN_URL = 'https://music.163.com/#/login';
 const QQ_LOGIN_PARTITION = 'persist:fluidmusic-qqmusic-login';
 const QQ_LOGIN_URL = 'https://y.qq.com/n/ryqq/profile';  // music-specific domain triggers qqmusic_key cookie
 const QISHUI_LOGIN_PARTITION = 'persist:fluidmusic-qishui-login';
-const QISHUI_LOGIN_URL = 'https://www.douyin.com/';
+const QISHUI_LOGIN_URL = 'https://www.qishui.com/';
 const WINDOW_WIDTH = 1700;
 const WINDOW_HEIGHT = 980;
 
@@ -922,15 +922,14 @@ ipcMain.handle('fluidmusic-get-login-status', async () => {
   // Update in-memory store
   cookieStore.netease = neteaseCookie;
   cookieStore.qq = qqCookie;
+  cookieStore.qishui = qishuiCookie;
 
-  console.log('[getLoginStatus] netease:', neteaseLoggedIn, '| qq:', qqLoggedIn);
+  console.log('[getLoginStatus] netease:', neteaseLoggedIn, '| qq:', qqLoggedIn, '| qishui:', qishuiLoggedIn);
 
   return {
     netease: { loggedIn: neteaseLoggedIn, cookie: neteaseCookie },
     qq: { loggedIn: qqLoggedIn, cookie: qqCookie },
     qishui: { loggedIn: qishuiLoggedIn, cookie: qishuiCookie },
-    kugou: { loggedIn: false, cookie: '' },
-    qishui: { loggedIn: false, cookie: '' },
   };
 });
 
@@ -965,6 +964,260 @@ ipcMain.handle('fluidmusic-logout-platform', async (_event, platform) => {
   }
 
   return result;
+});
+
+// ── KRC → LRC 歌词转换（供 qishui API 使用）──
+function krcToLrc(krcContent) {
+  if (!krcContent) return '';
+  const lines = String(krcContent).split('\n');
+  const result = [];
+  for (const line of lines) {
+    const match = line.match(/^\[(\d+),(\d+)\](.*)/);
+    if (!match) continue;
+    const startTime = parseInt(match[1], 10);
+    const minutes = Math.floor(startTime / 60000);
+    const seconds = Math.floor((startTime % 60000) / 1000);
+    const centiseconds = Math.floor((startTime % 1000) / 10);
+    const text = match[3].replace(/<[^>]*>/g, '');
+    result.push('[' + String(minutes).padStart(2, '0') + ':' + String(seconds).padStart(2, '0') + '.' + String(centiseconds).padStart(2, '0') + ']' + text);
+  }
+  return result.join('\n');
+}
+
+// ── HTTPS fetch helper ──
+function httpsFetchJson(url, headers, timeoutMs = 15000) {
+  return new Promise((resolve, reject) => {
+    const https = require('https');
+    const parsed = new URL(url);
+    const req = https.request({
+      hostname: parsed.hostname, port: parsed.port || 443,
+      path: parsed.pathname + parsed.search, method: 'GET',
+      headers, timeout: timeoutMs,
+    }, (res) => {
+      let body = '';
+      res.on('data', chunk => body += chunk);
+      res.on('end', () => {
+        try { resolve(JSON.parse(body)); }
+        catch (e) { resolve(body); }
+      });
+    });
+    req.on('error', reject);
+    req.on('timeout', () => { req.destroy(); reject(new Error('Request timeout')); });
+    req.end();
+  });
+}
+
+// ── Qishui API handler — calls Luna/抖音 API from Electron session (bypasses server proxy anti-bot) ──
+ipcMain.handle('fluidmusic-qishui-api', async (_event, { endpoint, params }) => {
+  try {
+    const cookieSession = session.fromPartition(QISHUI_LOGIN_PARTITION);
+    const cookieText = await buildQishuiCookieHeader(cookieSession);
+    const baseHeaders = {
+      'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+      'Referer': 'https://www.qishui.com/',
+    };
+
+    let url = '';
+    let headers = { ...baseHeaders };
+    let result;
+
+    // ── SEO 端点（无需认证）──
+    if (endpoint === 'track/detail' || endpoint === 'lyric' || endpoint === 'song/url' || endpoint === 'playlist/detail') {
+      if (endpoint === 'playlist/detail') {
+        const plId = (params || {}).id;
+        if (!plId) return { code: -1, error: 'Missing playlist id' };
+        url = 'https://beta-luna.douyin.com/luna/h5/seo_playlist?playlist_id=' + plId + '&device_platform=web';
+      } else {
+      const trackId = (params || {}).id;
+      if (!trackId) return { code: -1, error: 'Missing track id' };
+      url = 'https://beta-luna.douyin.com/luna/h5/seo_track?track_id=' + trackId + '&device_platform=web';
+      }
+      headers = {
+        'User-Agent': 'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36',
+        'Referer': 'https://www.qishui.com/',
+      };
+    }
+    // ── 需要认证的端点 ──
+    else if (endpoint === 'user/detail') {
+      if (!cookieText) return { code: -1, error: 'Not logged in' };
+      url = 'https://www.douyin.com/passport/web/user/info/';
+      headers = { ...baseHeaders, Cookie: cookieText };
+    }
+    else if (endpoint === 'user/playlist') {
+      if (!cookieText) return { code: -1, error: 'Not logged in' };
+      const sp = new URLSearchParams({
+        aid: '386088', app_name: 'luna_pc', region: 'cn',
+        device_platform: 'windows', version_name: '3.0.0',
+        version_code: '30000000', channel: 'official', ac: 'wifi',
+        tz_name: 'Asia/Shanghai',
+        ...(params || {})
+      });
+      url = 'https://api.qishui.com/luna/pc/user/playlist?' + sp.toString();
+      headers = { ...baseHeaders, Cookie: cookieText };
+    }
+    else if (endpoint === 'search') {
+      const { keywords, limit = 20, offset = 0 } = (params || {});
+      if (!keywords) return { code: -1, error: 'Missing keywords' };
+      const cursor = Math.floor(Number(offset) / 20) * 20;
+      const searchId = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+        const r = (Math.random() * 16) | 0;
+        return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
+      });
+      const sp = new URLSearchParams({
+        aid: '386088', app_name: 'luna_pc', region: 'cn',
+        device_platform: 'windows', device_type: 'Windows',
+        os_version: 'Windows 11 Home China', fp: '1088932190113307',
+        q: keywords, cursor: String(cursor), search_id: searchId,
+        search_method: 'input', version_name: '3.0.0',
+        version_code: '30000000', channel: 'official',
+        ac: 'wifi', tz_name: 'Asia/Shanghai',
+      });
+      url = 'https://api.qishui.com/luna/pc/search/track?' + sp.toString();
+      headers = { ...baseHeaders, Cookie: cookieText || '' };
+    }
+    else if (endpoint === 'resolve-short-link') {
+      const shortCode = (params || {}).code;
+      if (!shortCode) return { code: -1, error: 'Missing short code' };
+      const shortUrl = 'https://qishui.douyin.com/s/' + shortCode + '/';
+      console.log('[QishuiAPI] Resolving short link:', shortUrl);
+
+      // Manual redirect follower using raw https (handles 301/302/303/307/308, up to 10 hops)
+      const resolvedUrl = await (async () => {
+        const https = require('https');
+        let url = shortUrl;
+        for (let hop = 0; hop < 10; hop++) {
+          const result = await new Promise((resolve) => {
+            const parsed = new URL(url);
+            const req = https.get({
+              hostname: parsed.hostname, port: 443,
+              path: parsed.pathname + parsed.search,
+              headers: {
+                'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+              },
+              timeout: 5000,
+              rejectUnauthorized: false,
+            }, (res) => {
+              let body = '';
+              res.on('data', chunk => body += chunk);
+              res.on('end', () => {
+                if (res.statusCode >= 300 && res.statusCode < 400) {
+                  const loc = res.headers.location;
+                  if (loc) {
+                    resolve({ redirect: new URL(loc, url).href });
+                  } else {
+                    resolve({ redirect: null });
+                  }
+                } else {
+                  resolve({ final: url, body });
+                }
+              });
+            });
+            req.on('error', () => resolve({ redirect: null }));
+            req.on('timeout', () => { req.destroy(); resolve({ redirect: null }); });
+          });
+          if (result.redirect) {
+            url = result.redirect;
+            console.log('[QishuiAPI] Redirect hop', hop + 1, '→', url.substring(0, 80));
+          } else {
+            return result.final || url;
+          }
+        }
+        return url;
+      })();
+
+      console.log('[QishuiAPI] Final URL:', (resolvedUrl || '').substring(0, 120));
+      if (resolvedUrl) {
+        let idMatch = String(resolvedUrl).match(/\/(?:playlist|album|music\/playlist)\/(\d+)/);
+        if (!idMatch) idMatch = String(resolvedUrl).match(/[?&]id=(\d+)/);
+        if (idMatch) {
+          const plId = idMatch[1];
+          const seoUrl = 'https://beta-luna.douyin.com/luna/h5/seo_playlist?playlist_id=' + plId + '&device_platform=web';
+          const seoData = await httpsFetchJson(seoUrl, {
+            'User-Agent': 'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36',
+            'Referer': 'https://www.qishui.com/',
+          });
+          result = {
+            id: plId,
+            name: seoData?.seo_playlist?.playlist?.name ?? seoData?.playlist?.name ?? seoData?.track?.name ?? '汽水歌单',
+            coverUrl: (seoData?.seo_playlist?.playlist?.cover_url ?? seoData?.playlist?.cover_url ?? seoData?.track?.cover_url ?? '').replace(/^http:/, 'https:'),
+            trackCount: seoData?.seo_playlist?.playlist?.track_count ?? seoData?.playlist?.track_count ?? seoData?.track_count ?? 0,
+          };
+          console.log('[QishuiAPI] Short link resolved:', result.name, '| id:', plId);
+          return { code: 0, data: result };
+        }
+      }
+      return { code: -1, error: 'Failed to resolve short link: final URL = ' + (resolvedUrl || 'null').substring(0, 80) };
+    }
+    else {
+      return { code: -1, error: 'Unknown endpoint: ' + endpoint };
+    }
+
+    console.log('[QishuiAPI] Calling:', endpoint, '| url:', url.substring(0, 80));
+    const data = await httpsFetchJson(url, headers);
+
+    // ── 后处理：playlist/detail ──
+    if (endpoint === 'playlist/detail') {
+      result = {
+        id: (params || {}).id,
+        name: data?.seo_playlist?.playlist?.name ?? data?.playlist?.name ?? '',
+        coverUrl: (data?.seo_playlist?.playlist?.cover_url ?? data?.playlist?.cover_url ?? '').replace(/^http:/, 'https:'),
+        trackCount: data?.seo_playlist?.playlist?.track_count ?? data?.playlist?.track_count ?? 0,
+      };
+    }
+    // ── 后处理：track/detail 需要提取 play URL + 转换歌词 ──
+    else if (endpoint === 'track/detail') {
+      let playUrl = null;
+      const tp = data.track_player || {};
+      if (tp.video_model) {
+        try {
+          const vm = typeof tp.video_model === 'string' ? JSON.parse(tp.video_model) : tp.video_model;
+          const vl = vm.video_list || [];
+          if (vl.length > 0) playUrl = vl[0].main_url || vl[0].backup_url || null;
+        } catch (e) { /* ignore */ }
+      }
+      const rawLyric = (data.lyric && data.lyric.content) ? data.lyric.content : '';
+      const lrc = krcToLrc(rawLyric);
+      const track = data.seo_track && data.seo_track.track ? data.seo_track.track : {};
+      result = {
+        id: track.id || (params || {}).id,
+        name: track.name || '',
+        artists: (track.artists || []).map(a => ({ name: a.name || '' })),
+        album: track.album ? { name: track.album.name || '' } : {},
+        duration: track.duration || 0,
+        playUrl,
+        lyric: lrc,
+        url_player_info: tp.url_player_info || null,
+      };
+    }
+    // ── 后处理：lyric ──
+    else if (endpoint === 'lyric') {
+      const raw = data && data.lyric && data.lyric.content ? data.lyric.content : '';
+      result = { lyric: krcToLrc(raw) };
+    }
+    // ── 后处理：song/url ──
+    else if (endpoint === 'song/url') {
+      let playUrl = null;
+      const tp = data.track_player || {};
+      if (tp.video_model) {
+        try {
+          const vm = typeof tp.video_model === 'string' ? JSON.parse(tp.video_model) : tp.video_model;
+          const vl = vm.video_list || [];
+          if (vl.length > 0) playUrl = vl[0].main_url || vl[0].backup_url || null;
+        } catch (e) { /* ignore */ }
+      }
+      result = { url: playUrl, url_player_info: tp.url_player_info || null };
+    }
+    else {
+      result = data;
+    }
+
+    console.log('[QishuiAPI] Success, result type:', typeof result);
+    return { code: 0, data: result };
+  } catch (e) {
+    console.error('[QishuiAPI] Error:', e.message);
+    return { code: -1, error: e.message };
+  }
 });
 
 ipcMain.handle('fluidmusic-save-settings', async (_event, settings) => {
