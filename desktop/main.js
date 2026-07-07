@@ -230,7 +230,14 @@ function isQishuiCookieDomain(domain) {
 function qishuiCookieHasLogin(cookieText) {
   if (!cookieText) return false;
   const obj = parseCookieHeader(cookieText);
-  return !!(obj.sessionid && obj.passport_csrf_token);
+  const keys = Object.keys(obj).join(', ');
+  console.log('[QishuiLogin] Checking cookies — keys:', keys.substring(0, 200));
+  // 抖音登录：需要 sessionid（核心），passport_csrf_token 或 sid_guard 作为辅助
+  const hasCore = !!obj.sessionid;
+  const hasSecondary = !!(obj.passport_csrf_token || obj.sid_guard || obj.sso_uid_tt);
+  const result = hasCore && hasSecondary;
+  console.log('[QishuiLogin] Result:', result, '| sessionid:', hasCore, '| secondary:', hasSecondary);
+  return result;
 }
 
 function buildQishuiCookieHeader(cookieSession) {
@@ -263,7 +270,7 @@ async function openQishuiLoginWindow(owner) {
   if (qishuiCookieHasLogin(initialCookie)) return { ok: true, cookie: initialCookie, reused: true };
 
   return createLoginWindow(owner, QISHUI_LOGIN_PARTITION, QISHUI_LOGIN_URL, '汽水音乐登录',
-    buildQishuiCookieHeader, qishuiCookieHasLogin, undefined, 'https://www.qishui.com/');
+    buildQishuiCookieHeader, qishuiCookieHasLogin);
 }
 
 // ── Kugou Internal API Sniffer ──
