@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=1920, height=1080"/>
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<style>/* ═══════════════════════════════════════
+   暗夜紫金 · Aurora Night
+   深蓝黑底 + 紫色强调 + 金色装饰
+   默认方案，适合技术产品/工具类教程
+   ═══════════════════════════════════════ */
+
+:root {
+  --bg:       #08081A;
+  --surface:  rgba(14, 14, 42, 0.65);
+  --text:     #F5F0FF;
+  --dim:      #BEB5E8;
+  --accent:   #A78BFA;
+  --gold:     #E0B84C;
+  --tag-bg:   rgba(167, 139, 250, 0.15);
+  --tag-text: #C4B5FD;
+  --border:   rgba(255, 255, 255, 0.06);
+  --vignette: rgba(8, 8, 26, 0.55);
+  --title-shadow1: rgba(240, 96, 112, 0.3);
+  --title-shadow2: rgba(96, 140, 240, 0.3);
+  --cap-gradient: linear-gradient(135deg, #F0B0C0, #E0B84C, #F06070, #C084FC);
+}
+
+.gold-line { background: linear-gradient(90deg, transparent, var(--gold), transparent); }
+.gold-line-v { background: linear-gradient(180deg, transparent, var(--gold), transparent); }
+</style>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:1920px;height:1080px;overflow:hidden;background:var(--bg,#08081A);font-family:-apple-system,sans-serif}
+
+/* ═══ HERO LAYOUT: image-first, compact text ═══ */
+.scene{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:50px 80px 70px;gap:20px}
+.img-wrap{position:relative;flex:1;display:flex;align-items:center;justify-content:center;width:100%;max-height:75vh}
+.img-wrap img{object-fit:contain;max-width:92%;max-height:72vh;border-radius:12px;box-shadow:0 8px 40px rgba(0,0,0,0.4)}
+.img-stack{position:relative;display:flex;align-items:center;justify-content:center;width:100%;height:100%}
+.img-stack img{position:absolute;object-fit:contain;max-width:92%;max-height:72vh;border-radius:12px;opacity:0;box-shadow:0 8px 40px rgba(0,0,0,0.4)}
+.txt-row{display:flex;align-items:center;justify-content:center;gap:24px;text-align:center;flex-shrink:0}
+.s-label{font-size:18px;color:var(--accent,#A78BFA);letter-spacing:6px;font-weight:600}
+.s-title{font-size:38px;font-weight:800;color:var(--text,#F5F0FF);line-height:1.2}
+.s-title .ac{color:var(--accent,#A78BFA)}
+.s-sub{font-size:20px;color:var(--dim,#BEB5E8);line-height:1.5;max-width:700px}
+.gold-line{width:80px;height:2px;background:linear-gradient(90deg,transparent,var(--gold,#E0B84C),transparent);margin:8px 0}
+.tags{display:flex;flex-wrap:wrap;gap:6px;justify-content:center}
+.tag{background:var(--tag-bg,rgba(167,139,250,0.15));color:var(--tag-text,#C4B5FD);border-radius:14px;padding:3px 12px;font-size:18px;font-weight:500}
+
+/* S1 hero title */
+#hero-glass{background:var(--surface,rgba(14,14,42,0.65));backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border:1px solid var(--border,rgba(255,255,255,0.06));border-radius:20px;padding:40px 80px;text-align:center}
+#hero-title{font-size:96px;font-weight:800;color:var(--text,#F5F0FF);line-height:1.05;text-shadow:2px 0 0 var(--title-shadow1,rgba(240,96,112,0.3)),-2px 0 0 var(--title-shadow2,rgba(96,140,240,0.3))}
+
+/* s12 */
+.s12-grid{display:flex;gap:40px}
+.s12-col{flex:1}
+.s12-col h3{font-size:24px;color:var(--accent,#A78BFA);margin-bottom:12px;border-bottom:1px solid rgba(167,139,250,0.3);padding-bottom:8px}
+.s12-col p{font-size:18px;color:var(--dim,#BEB5E8);line-height:1.6;margin-bottom:5px}
+
+#vignette{position:fixed;inset:0;z-index:90;pointer-events:none;background:radial-gradient(ellipse at center,transparent 50%,var(--vignette,rgba(8,8,26,0.55)) 100%)}
+#grain{position:fixed;inset:0;z-index:91;pointer-events:none;opacity:0.03;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.7' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");background-size:200px}
+#particles{position:fixed;inset:0;pointer-events:none;z-index:89}
+.dot{position:absolute;border-radius:50%;pointer-events:none}
+
+#cap{position:fixed;bottom:60px;left:50%;transform:translateX(-50%);z-index:95;opacity:0;text-align:center;max-width:1760px}
+#cap span{font-size:26px;font-weight:600;background:var(--cap-gradient,linear-gradient(135deg,#F0B0C0,#E0B84C,#F06070,#C084FC));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;line-height:1.35}
+</style>
+</head>
+<body>
+
+<div id="root" data-composition-id="main" data-start="0" data-duration="37" data-width="1920" data-height="1080">
+<audio id="narration" src="narration.wav" data-start="0" data-duration="37" preload="auto"></audio>
+<div id="vignette"></div><div id="grain"></div><div id="particles"></div>
+<div id="cap"><span></span></div>
+
+<!-- S1 title block -->
+<div id="s1" class="scene clip" data-start="0" data-duration="6" data-track-index="10" data-layout-allow-overflow>
+<div id="hero-glass">
+<div class="s-label">v1.x</div>
+<div id="hero-title">FluidMusic</div>
+<div class="gold-line" style="width:200px;margin:16px auto"></div>
+<div class="s-sub">流体动态音乐播放器</div>
+</div>
+</div>
+
+<div id="s2" class="scene clip" data-start="6" data-duration="4" data-track-index="10" data-layout-allow-overflow>
+<div class="img-wrap"><img src="show.png" alt="FluidMusic screenshot"></div>
+<div class="txt-row">
+<div class="s-label">FEATURE 01</div>
+<div class="gold-line"></div>
+<div class="s-title">视觉引擎</div>
+<div class="s-sub"></div>
+</div>
+</div>
+<div id="s3" class="scene clip" data-start="10" data-duration="4" data-track-index="10" data-layout-allow-overflow>
+<div class="img-wrap"><img src="show.png" alt="FluidMusic screenshot"></div>
+<div class="txt-row">
+<div class="s-label">FEATURE 02</div>
+<div class="gold-line"></div>
+<div class="s-title">双平台</div>
+<div class="s-sub"></div>
+</div>
+</div>
+<div id="s4" class="scene clip" data-start="14" data-duration="3.5" data-track-index="10" data-layout-allow-overflow>
+<div class="img-wrap"><img src="show.png" alt="FluidMusic screenshot"></div>
+<div class="txt-row">
+<div class="s-label">FEATURE 03</div>
+<div class="gold-line"></div>
+<div class="s-title">粒子封面</div>
+<div class="s-sub"></div>
+</div>
+</div>
+<div id="s5" class="scene clip" data-start="17.5" data-duration="3.5" data-track-index="10" data-layout-allow-overflow>
+<div class="img-wrap"><img src="show.png" alt="FluidMusic screenshot"></div>
+<div class="txt-row">
+<div class="s-label">FEATURE 04</div>
+<div class="gold-line"></div>
+<div class="s-title">桌面歌词</div>
+<div class="s-sub"></div>
+</div>
+</div>
+<div id="s6" class="scene clip" data-start="21" data-duration="3.5" data-track-index="10" data-layout-allow-overflow>
+<div class="img-wrap"><img src="show.png" alt="FluidMusic screenshot"></div>
+<div class="txt-row">
+<div class="s-label">FEATURE 05</div>
+<div class="gold-line"></div>
+<div class="s-title">DIY 设置</div>
+<div class="s-sub"></div>
+</div>
+</div>
+<div id="s7" class="scene clip" data-start="24.5" data-duration="3.5" data-track-index="10" data-layout-allow-overflow>
+<div class="img-wrap"><img src="show.png" alt="FluidMusic screenshot"></div>
+<div class="txt-row">
+<div class="s-label">FEATURE 06</div>
+<div class="gold-line"></div>
+<div class="s-title">技术栈</div>
+<div class="s-sub"></div>
+</div>
+</div>
+<div id="s8" class="scene clip" data-start="28" data-duration="3" data-track-index="10" data-layout-allow-overflow>
+<div class="img-wrap"><img src="show.png" alt="FluidMusic screenshot"></div>
+<div class="txt-row">
+<div class="s-label">FEATURE 07</div>
+<div class="gold-line"></div>
+<div class="s-title">快捷键</div>
+<div class="s-sub"></div>
+</div>
+</div>
+<div id="s9" class="scene clip" data-start="31" data-duration="3" data-track-index="10" data-layout-allow-overflow>
+<div class="img-wrap"><img src="show.png" alt="FluidMusic screenshot"></div>
+<div class="txt-row">
+<div class="s-label">FEATURE 08</div>
+<div class="gold-line"></div>
+<div class="s-title">开源</div>
+<div class="s-sub"></div>
+</div>
+</div>
+<div id="s10" class="scene clip" data-start="34" data-duration="3" data-track-index="10" data-layout-allow-overflow>
+<div id="hero-glass" style="text-align:center;padding:40px 80px">
+<div class="s-label">THANK YOU</div>
+<div class="s-title" style="font-size:60px">感谢观看</div>
+<div class="gold-line" style="width:160px;margin:14px auto"></div>
+<div class="s-sub">享受音乐 · GitHub 搜索 FluidMusic</div>
+</div>
+</div>
+</div><!-- /root -->
+
+<script>
+window.__timelines=window.__timelines||{};
+const tl=gsap.timeline({paused:true});
+const setCap=(t)=>document.querySelector('#cap span').textContent=t;
+const capEl=document.getElementById('cap');
+
+(()=>{
+const l=document.getElementById('particles');
+for(let i=0;i<20;i++){
+const d=document.createElement('div');
+d.className='dot';
+const c=['var(--accent)','var(--gold)','var(--dim)'][i%3];
+d.style.cssText=`left:${5+i*4.5}%;top:${8+(i*7)%85}%;width:${3+(i%3)*2}px;height:${3+(i%3)*2}px;background:${c};opacity:${0.08+(i%3)*0.05}`;
+l.appendChild(d);
+tl.to(d,{y:-15-(i%3)*6,opacity:0.03+(i%3)*0.03,duration:5+(i%3)*2,ease:'sine.inOut',yoyo:true,repeat:Math.floor(103/(5+(i%3)*2))-1},0.5+i*0.1);
+}
+})();
+
+// S1 — title particle burst
+tl.from("#hero-glass",{scale:0.8,opacity:0,duration:0.8,ease:"back.out(1.4)"},0);
+tl.from("#hero-title",{y:30,opacity:0,duration:0.6,ease:"power2.out"},0.3);
+tl.from(".gold-line",{scaleX:0,opacity:0,duration:0.5},0.5);
+tl.from(".s-sub",{y:20,opacity:0,duration:0.5},0.7);
+// S2 — Ken Burns + slide-in
+tl.from("#s2 img",{scale:1,opacity:0,duration:0.5},"6");
+tl.to("#s2 img",{scale:1.06,duration:4,ease:"linear"},"6");
+tl.from("#s2 .s-label",{y:20,opacity:0,duration:0.4},"6.2");
+tl.from("#s2 .gold-line",{scaleX:0,opacity:0,duration:0.4},"6.3");
+tl.from("#s2 .s-title",{y:25,opacity:0,duration:0.5},"6.4");
+// S3 — Ken Burns + slide-in
+tl.from("#s3 img",{scale:1,opacity:0,duration:0.5},"10");
+tl.to("#s3 img",{scale:1.06,duration:4,ease:"linear"},"10");
+tl.from("#s3 .s-label",{y:20,opacity:0,duration:0.4},"10.2");
+tl.from("#s3 .gold-line",{scaleX:0,opacity:0,duration:0.4},"10.3");
+tl.from("#s3 .s-title",{y:25,opacity:0,duration:0.5},"10.4");
+// S4 — Ken Burns + slide-in
+tl.from("#s4 img",{scale:1,opacity:0,duration:0.5},"14");
+tl.to("#s4 img",{scale:1.06,duration:3.5,ease:"linear"},"14");
+tl.from("#s4 .s-label",{y:20,opacity:0,duration:0.4},"14.2");
+tl.from("#s4 .gold-line",{scaleX:0,opacity:0,duration:0.4},"14.3");
+tl.from("#s4 .s-title",{y:25,opacity:0,duration:0.5},"14.4");
+// S5 — Ken Burns + slide-in
+tl.from("#s5 img",{scale:1,opacity:0,duration:0.5},"17.5");
+tl.to("#s5 img",{scale:1.06,duration:3.5,ease:"linear"},"17.5");
+tl.from("#s5 .s-label",{y:20,opacity:0,duration:0.4},"17.7");
+tl.from("#s5 .gold-line",{scaleX:0,opacity:0,duration:0.4},"17.8");
+tl.from("#s5 .s-title",{y:25,opacity:0,duration:0.5},"17.9");
+// S6 — Ken Burns + slide-in
+tl.from("#s6 img",{scale:1,opacity:0,duration:0.5},"21");
+tl.to("#s6 img",{scale:1.06,duration:3.5,ease:"linear"},"21");
+tl.from("#s6 .s-label",{y:20,opacity:0,duration:0.4},"21.2");
+tl.from("#s6 .gold-line",{scaleX:0,opacity:0,duration:0.4},"21.3");
+tl.from("#s6 .s-title",{y:25,opacity:0,duration:0.5},"21.4");
+// S7 — Ken Burns + slide-in
+tl.from("#s7 img",{scale:1,opacity:0,duration:0.5},"24.5");
+tl.to("#s7 img",{scale:1.06,duration:3.5,ease:"linear"},"24.5");
+tl.from("#s7 .s-label",{y:20,opacity:0,duration:0.4},"24.7");
+tl.from("#s7 .gold-line",{scaleX:0,opacity:0,duration:0.4},"24.8");
+tl.from("#s7 .s-title",{y:25,opacity:0,duration:0.5},"24.9");
+// S8 — Ken Burns + slide-in
+tl.from("#s8 img",{scale:1,opacity:0,duration:0.5},"28");
+tl.to("#s8 img",{scale:1.06,duration:3,ease:"linear"},"28");
+tl.from("#s8 .s-label",{y:20,opacity:0,duration:0.4},"28.2");
+tl.from("#s8 .gold-line",{scaleX:0,opacity:0,duration:0.4},"28.3");
+tl.from("#s8 .s-title",{y:25,opacity:0,duration:0.5},"28.4");
+// S9 — Ken Burns + slide-in
+tl.from("#s9 img",{scale:1,opacity:0,duration:0.5},"31");
+tl.to("#s9 img",{scale:1.06,duration:3,ease:"linear"},"31");
+tl.from("#s9 .s-label",{y:20,opacity:0,duration:0.4},"31.2");
+tl.from("#s9 .gold-line",{scaleX:0,opacity:0,duration:0.4},"31.3");
+tl.from("#s9 .s-title",{y:25,opacity:0,duration:0.5},"31.4");
+// S10 — outro fade
+tl.from("#s10 #hero-glass",{scale:0.9,opacity:0,duration:0.6},"34");
+tl.call(()=>{setCap("FluidMusic 流体动态音乐播放器");capEl.style.opacity="1"},null,"0");
+tl.call(()=>{setCap("macOS 桌面音乐应用，Three.js 三维粒子视觉，流体物理特效");capEl.style.opacity="1"},null,"6");
+tl.call(()=>{setCap("双平台音乐服务支持，在线搜索与高品质播放");capEl.style.opacity="1"},null,"10");
+tl.call(()=>{setCap("粒子封面随节奏溶解成型，全色相音频涟漪特效");capEl.style.opacity="1"},null,"14");
+tl.call(()=>{setCap("Canvas 音频响应粒子，桌面歌词独立窗口，迷你播放器");capEl.style.opacity="1"},null,"17.5");
+tl.call(()=>{setCap("七 Tab DIY 设置面板，调色盘、均衡器、背景自定义");capEl.style.opacity="1"},null,"21");
+tl.call(()=>{setCap("Electron 加 Three.js WebGL2，Vite 构建，TypeScript 驱动");capEl.style.opacity="1"},null,"24.5");
+tl.call(()=>{setCap("完整键盘快捷键，macOS 媒体键，沉浸式音乐体验");capEl.style.opacity="1"},null,"28");
+tl.call(()=>{setCap("开源免费，Apache 2.0 协议，GitHub 搜索 FluidMusic");capEl.style.opacity="1"},null,"31");
+tl.call(()=>{setCap("感谢观看，享受音乐");capEl.style.opacity="1"},null,"34");
+tl.call(()=>{capEl.style.opacity="0"},null,"36");
+tl.call(()=>{document.getElementById("root").style.opacity="0"},null,"36.5");
+tl.fromTo("#s2",{opacity:0},{opacity:1,duration:0.5},"6");
+tl.fromTo("#s3",{opacity:0},{opacity:1,duration:0.5},"10");
+tl.fromTo("#s4",{opacity:0},{opacity:1,duration:0.5},"14");
+tl.fromTo("#s5",{opacity:0},{opacity:1,duration:0.5},"17.5");
+tl.fromTo("#s6",{opacity:0},{opacity:1,duration:0.5},"21");
+tl.fromTo("#s7",{opacity:0},{opacity:1,duration:0.5},"24.5");
+tl.fromTo("#s8",{opacity:0},{opacity:1,duration:0.5},"28");
+tl.fromTo("#s9",{opacity:0},{opacity:1,duration:0.5},"31");
+tl.fromTo("#s10",{opacity:0},{opacity:1,duration:0.5},"34");
+
+window.__timelines["main"]=tl;
+</script>
+</body>
+</html>
