@@ -537,12 +537,11 @@ async function createWindow() {
     const qqCookie = secureLoadCookie('qq');
   cookieStore.qishui = secureLoadCookie('qishui');;
     if (localServer && localServer.setCookies) {
-      localServer.setCookies(neteaseCookie, qqCookie);
+      localServer.setCookies(neteaseCookie, qqCookie, cookieStore.qishui);
     }
     // Also populate in-memory store
     if (neteaseCookie) cookieStore.netease = neteaseCookie;
     if (qqCookie) cookieStore.qq = qqCookie;
-  cookieStore.qishui = qishuiCookie;
   } catch (e) {
     console.warn('[startup] Failed to load encrypted cookies:', e.message);
   }
@@ -916,7 +915,6 @@ ipcMain.handle('fluidmusic-get-login-status', async () => {
   // Update in-memory store
   cookieStore.netease = neteaseCookie;
   cookieStore.qq = qqCookie;
-  cookieStore.qishui = qishuiCookie;
 
   console.log('[getLoginStatus] netease:', neteaseLoggedIn, '| qq:', qqLoggedIn);
 
