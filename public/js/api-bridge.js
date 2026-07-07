@@ -139,7 +139,7 @@ const _apiwarn = (...a) => { if (_API_DEBUG) console.warn(...a); };
         if (loggedIn) {
           // Set default user immediately so UserPanel shows login state
           if (!ApiBridge[platform + 'User']) {
-            ApiBridge[platform + 'User'] = { avatarUrl: '', nickname: (platform === 'qq' ? 'QQ用户' : '网易云用户'), vipLevel: 0, followers: 0, followings: 0, playlistCount: 0 };
+            ApiBridge[platform + 'User'] = { avatarUrl: '', nickname: (platform === 'qq' ? 'QQ用户' : (platform === 'qishui' ? '汽水用户' : '网易云用户')), vipLevel: 0, followers: 0, followings: 0, playlistCount: 0 };
           }
           if (platform === 'netease') fetchNeteaseUserDetail();
           else if (platform === 'qq') fetchQQUserDetail();
