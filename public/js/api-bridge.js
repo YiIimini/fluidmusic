@@ -11,13 +11,15 @@ const _apiwarn = (...a) => { if (_API_DEBUG) console.warn(...a); };
     neteaseLoggedIn: false,
     qqLoggedIn: false,
     kugouLoggedIn: false,
+    qishuiLoggedIn: false,
     neteaseUser: null,
     qqUser: null,
     kugouUser: null,
+    qishuiUser: null,
   };
 
   // ── Cookie store — populated on init and kept in sync via IPC events ──
-  const cookieStore = { netease: '', qq: '' };
+  const cookieStore = { netease: '', qq: '', qishui: '' };
 
   // ── DataCache bridge: TS IndexedDB cache → legacy localStorage fallback ──
   // When the TS bridge is loaded, API responses are cached in IndexedDB via
@@ -111,10 +113,15 @@ const _apiwarn = (...a) => { if (_API_DEBUG) console.warn(...a); };
           }
         }
 
-        _apilog('Login status loaded — netease:', ApiBridge.neteaseLoggedIn, 'qq:', ApiBridge.qqLoggedIn, 'qqCookie:', !!cookieStore.qq);
+        _apilog('Login status loaded — netease:', ApiBridge.neteaseLoggedIn, 'qq:', ApiBridge.qqLoggedIn, 'qishui:', ApiBridge.qishuiLoggedIn);
 
         if (ApiBridge.neteaseLoggedIn) await fetchNeteaseUserDetail();
         if (ApiBridge.qqLoggedIn) fetchQQUserDetail();
+        if (status.qishui && status.qishui.loggedIn) {
+          ApiBridge.qishuiLoggedIn = true;
+          cookieStore.qishui = status.qishui.cookie || '';
+          fetchQishuiUserDetail();
+        }
               }
     } catch (e) {
       _apiwarn('Failed to get login status:', e);
@@ -136,6 +143,7 @@ const _apiwarn = (...a) => { if (_API_DEBUG) console.warn(...a); };
           }
           if (platform === 'netease') fetchNeteaseUserDetail();
           else if (platform === 'qq') fetchQQUserDetail();
+          else if (platform === 'qishui') fetchQishuiUserDetail();
                     // Trigger playlist re-sync
           window.dispatchEvent(new CustomEvent('fluidmusic:login', { detail: { platform } }));
         } else {
@@ -179,6 +187,7 @@ const _apiwarn = (...a) => { if (_API_DEBUG) console.warn(...a); };
         try {
           if (platform === 'netease') profile = await fetchNeteaseUserDetail();
           else if (platform === 'qq') profile = await fetchQQUserDetail();
+          else if (platform === 'qishui') profile = await fetchQishuiUserDetail();
                   } catch (e) {
           _apiwarn('[loginPlatform] Profile fetch failed for', platform, ':', e.message);
         }
@@ -194,7 +203,7 @@ const _apiwarn = (...a) => { if (_API_DEBUG) console.warn(...a); };
           try {
             let synced = JSON.parse(localStorage.getItem('fluidmusic_synced_playlists') || '{}');
             if (!synced[platform]) synced[platform] = {};
-            const allPl = [...(playlists.netease || []), ...(playlists.qq || [])];
+            const allPl = [...(playlists.netease || []), ...(playlists.qq || []), ...(playlists.qishui || [])];
             allPl.forEach(pl => {
               if (pl.platform === platform) synced[platform][pl.id] = true;
             });
@@ -203,7 +212,8 @@ const _apiwarn = (...a) => { if (_API_DEBUG) console.warn(...a); };
           } catch(e) { _apiwarn('Auto-check failed:', e); }
           _apilog('[loginPlatform] Fetched playlists after login:',
             'netease=' + (playlists.netease || []).length,
-            'qq=' + (playlists.qq || []).length);
+            'qq=' + (playlists.qq || []).length,
+            'qishui=' + (playlists.qishui || []).length);
 
           // Trigger playlist refresh in left chamber
           window.dispatchEvent(new CustomEvent('playlists-updated', { detail: { playlists, platform } }));
@@ -223,9 +233,9 @@ const _apiwarn = (...a) => { if (_API_DEBUG) console.warn(...a); };
       _apiwarn(platform + ' login failed:', e);
     } finally {
       if (btn && !ApiBridge[platform + 'LoggedIn']) {
-        const platformNames = { netease: '网易云音乐', qq: 'QQ音乐', };
-        const platformIcons = { netease: '🎧', qq: '🎵', };
-        const i18nKey = { netease: 'login.netease', qq: 'login.qq', }[platform];
+        const platformNames = { netease: '网易云音乐', qq: 'QQ音乐', qishui: '汽水音乐' };
+        const platformIcons = { netease: '🎧', qq: '🎵', qishui: '🎼' };
+        const i18nKey = { netease: 'login.netease', qq: 'login.qq', qishui: 'login.qishui' }[platform];
         btn.innerHTML = (platformIcons[platform] || '') + ' ' +
           (typeof I18N !== 'undefined' ? I18N.t(i18nKey) : platformNames[platform]);
       }
@@ -308,8 +318,27 @@ function _makeNeteaseUser(profile) {
   async function fetchKugouUserDetail() { return null; }
   async function fetchKugouPlaylists() { return []; }
   /* eslint-enable no-unused-vars */
+
+  // ── Qishui User Detail ──
+  async function fetchQishuiUserDetail() {
+    if (!ApiBridge.qishuiUser) {
+      ApiBridge.qishuiUser = { avatarUrl: '', nickname: '汽水用户', vipType: 0, followers: 0, followings: 0, playlistCount: 0 };
+    }
+    try {
+      const data = await fetchApi('/api/qishui/user/detail', {}, 'qishui');
+      if (data && data.code === 0 && data.data) {
+        const d = data.data;
+        if (d.nickname) ApiBridge.qishuiUser.nickname = d.nickname;
+        if (d.avatarUrl) ApiBridge.qishuiUser.avatarUrl = d.avatarUrl;
+      }
+      return ApiBridge.qishuiUser;
+    } catch (e) {
+      _apiwarn('Failed to fetch Qishui user detail:', e);
+      return ApiBridge.qishuiUser;
+    }
+  }
   async function fetchUserPlaylists() {
-    const playlists = { netease: [], qq: [] };
+    const playlists = { netease: [], qq: [], qishui: [] };
 
     if (ApiBridge.neteaseLoggedIn) {
       try {
@@ -349,6 +378,23 @@ function _makeNeteaseUser(profile) {
       }
     }
 
+    if (ApiBridge.qishuiLoggedIn) {
+      try {
+        const data = await fetchApi('/api/qishui/user/playlist', {}, 'qishui');
+        if (data && data.code === 0 && data.data && Array.isArray(data.data.disslist)) {
+          playlists.qishui = data.data.disslist.map((pl) => ({
+            id: pl.dissid || pl.tid || String(pl.id || ''),
+            name: pl.diss_name || pl.name || pl.title || pl.dirname || '',
+            coverUrl: (pl.diss_cover || pl.logo || pl.picurl || pl.cover || '').replace(/^http:/, 'https:'),
+            trackCount: pl.song_cnt || pl.songnum || pl.song_count || 0,
+            platform: 'qishui',
+          }));
+        }
+      } catch (e) {
+        _apiwarn('Failed to fetch Qishui playlists:', e);
+      }
+    }
+
     return playlists;
   }
 
@@ -383,6 +429,20 @@ function _makeNeteaseUser(profile) {
     return fetchApi('/api/qq/lyric', { songmid }, 'qq');
   }
 
+  // ── Qishui API ──
+  async function searchQishui(keywords, limit = 20) {
+    return fetchApi('/api/qishui/search', { keywords, limit }, 'qishui');
+  }
+  async function getQishuiTrackDetail(id) {
+    return fetchApi('/api/qishui/track/detail', { id }, 'qishui');
+  }
+  async function getQishuiSongUrl(id) {
+    return fetchApi('/api/qishui/song/url', { id }, 'qishui');
+  }
+  async function getQishuiLyric(id) {
+    return fetchApi('/api/qishui/lyric', { id }, 'qishui');
+  }
+
   // ── Exports ──
   ApiBridge.init = init;
   ApiBridge.loginPlatform = loginPlatform;
@@ -402,6 +462,11 @@ function _makeNeteaseUser(profile) {
   ApiBridge.getQQPlaylist = getQQPlaylist;
   ApiBridge.getQQSongUrl = getQQSongUrl;
   ApiBridge.getQQLyric = getQQLyric;
+  ApiBridge.fetchQishuiUserDetail = fetchQishuiUserDetail;
+  ApiBridge.searchQishui = searchQishui;
+  ApiBridge.getQishuiTrackDetail = getQishuiTrackDetail;
+  ApiBridge.getQishuiSongUrl = getQishuiSongUrl;
+  ApiBridge.getQishuiLyric = getQishuiLyric;
 
   if (typeof __FM !== 'undefined') __FM.register('apiBridge', [], function () { return ApiBridge; }, { priority: 5 });
   window.ApiBridge = ApiBridge;

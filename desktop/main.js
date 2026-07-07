@@ -54,7 +54,7 @@ const NETEASE_LOGIN_URL = 'https://music.163.com/#/login';
 const QQ_LOGIN_PARTITION = 'persist:fluidmusic-qqmusic-login';
 const QQ_LOGIN_URL = 'https://y.qq.com/n/ryqq/profile';  // music-specific domain triggers qqmusic_key cookie
 const QISHUI_LOGIN_PARTITION = 'persist:fluidmusic-qishui-login';
-const QISHUI_LOGIN_URL = 'https://www.qishui.com/';
+const QISHUI_LOGIN_URL = 'https://www.douyin.com/';
 const WINDOW_WIDTH = 1700;
 const WINDOW_HEIGHT = 980;
 
@@ -263,7 +263,7 @@ async function openQishuiLoginWindow(owner) {
   if (qishuiCookieHasLogin(initialCookie)) return { ok: true, cookie: initialCookie, reused: true };
 
   return createLoginWindow(owner, QISHUI_LOGIN_PARTITION, QISHUI_LOGIN_URL, '汽水音乐登录',
-    buildQishuiCookieHeader, qishuiCookieHasLogin);
+    buildQishuiCookieHeader, qishuiCookieHasLogin, undefined, 'https://www.qishui.com/');
 }
 
 // ── Kugou Internal API Sniffer ──
