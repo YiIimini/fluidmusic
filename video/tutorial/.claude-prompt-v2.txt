@@ -1,0 +1,13 @@
+Read the file CLAUDE_CLI_SPEC.md and execute all steps listed in the "执行步骤" section in order.
+
+Work directory: /Users/x/Documents/Codex/FluidMusic/video/tutorial/
+
+Key points:
+- Edge TTS rate: +35% (zh-CN-XiaoxiaoNeural)
+- Both 16:9 (1920x1080) and 9:16 (1080x1920) required
+- Output to /Users/x/Documents/Codex/FluidMusic/video/tutorial-output-169.mp4 and tutorial-output-916.mp4
+- object-fit: contain only, no cover
+- Git commit after each step
+- No external links, no third-party platform names
+
+Start now. Do every step without asking for confirmation.
